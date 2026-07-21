@@ -498,7 +498,7 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 		HasRawTx()
 
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
+		WithTxID(txID).WithStatus(wdk.TxStatusAborted)
 
 	// and: funds are released because the pre-broadcast abort unreserves UTXOs
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).

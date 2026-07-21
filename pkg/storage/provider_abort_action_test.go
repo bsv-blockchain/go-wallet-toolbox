@@ -41,8 +41,50 @@ func TestAbortActionSuccess(t *testing.T) {
 
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
-		WithStatus(wdk.TxStatusFailed)
+		WithStatus(wdk.TxStatusAborted)
 	thenDBState.AllOutputs(testusers.Alice).WithCount(1)
+}
+
+func TestAbortActionRefusedWhenAlreadyAborted(t *testing.T) {
+	// Regression test: an already-aborted transaction must not be abortable again.
+	// validateTxStatusForAbort(wdk.TxStatusAborted) refuses re-abort, so a second
+	// AbortAction call on the same reference must return wdk.ErrNotAbortableAction.
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+	createResult, _ := given.Action(activeStorage).Created()
+
+	// and: the tx is aborted once, successfully
+	result, err := activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{
+			Reference: primitives.Base64String(createResult.Reference),
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.Aborted)
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
+		WithStatus(wdk.TxStatusAborted)
+
+	// when: the same reference is aborted again
+	_, err = activeStorage.AbortAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		wdk.AbortActionArgs{
+			Reference: primitives.Base64String(createResult.Reference),
+		},
+	)
+
+	// then: the re-abort is refused
+	require.Error(t, err)
+	require.ErrorIs(t, err, wdk.ErrNotAbortableAction)
 }
 
 func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
@@ -70,7 +112,7 @@ func TestAbortActionSuccessfulSpendingAfterAbort(t *testing.T) {
 
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createResult.Reference).
-		WithStatus(wdk.TxStatusFailed)
+		WithStatus(wdk.TxStatusAborted)
 
 	// and:
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
@@ -156,7 +198,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 				"access is denied due to an authorization error",
 			},
 		},
-		"transaction with status failed - Reference": {
+		"transaction with status aborted - Reference": {
 			setupTransaction: func(given testabilities.StorageFixture) (string, wdk.AuthID) {
 				activeStorage := given.Provider().GORM()
 				createResult, _ := given.Action(activeStorage).Created()
@@ -176,7 +218,7 @@ func TestAbortActionErrorCases(t *testing.T) {
 			},
 			expectedErrors: []string{
 				wdk.ErrNotAbortableAction.Error(),
-				"action with status failed cannot be aborted",
+				"action with status aborted cannot be aborted",
 			},
 		},
 		"transaction with status unproven - Reference": {
@@ -262,7 +304,7 @@ func TestAbortActionAbortableStatuses(t *testing.T) {
 
 			thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.HasUserTransactionByReference(testusers.Alice, reference).
-				WithStatus(wdk.TxStatusFailed)
+				WithStatus(wdk.TxStatusAborted)
 		})
 	}
 }
@@ -305,10 +347,10 @@ func TestProcessAction_AutoAbortOnPreBroadcastFailure_ReleasesUTXOs(t *testing.T
 	require.Error(t, err)
 	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and: transaction should be automatically aborted (status=failed)
+	// and: transaction should be automatically aborted (status=aborted)
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-		WithTxID(txID).WithStatus(wdk.TxStatusFailed)
+		WithTxID(txID).WithStatus(wdk.TxStatusAborted)
 
 	// and: UTXOs should be automatically released and available for re-spending
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).

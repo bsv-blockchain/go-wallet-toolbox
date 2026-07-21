@@ -58,7 +58,7 @@ func TestAbortAbandoned_AbortByStatus(t *testing.T) {
 			// and db state:
 			thenDBState := testabilities.ThenDBState(t, activeStorage)
 			thenDBState.HasUserTransactionByReference(testusers.Alice, createActionResult.Reference).
-				WithStatus(wdk.TxStatusFailed)
+				WithStatus(wdk.TxStatusAborted)
 
 			// and:
 			testabilities.ThenFunds(t, testusers.Alice, activeStorage).
