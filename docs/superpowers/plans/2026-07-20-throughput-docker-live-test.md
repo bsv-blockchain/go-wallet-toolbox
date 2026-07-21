@@ -392,8 +392,8 @@ Use `golang.org/x/time/rate` if already in go.mod; otherwise a simple ticker + b
 When `cfg.FaucetTxID != ""`:
 1. Parse network, create `services.New(logger, defs.DefaultServicesConfig(network))`
 2. `GetBEEF(ctx, txid, nil)` → atomic bytes for that txid
-3. `InternalizeAction` with wallet-payment protocol on output 0  
-   Reuse derivation pattern from `examples/internal/example_setup/internalize_tx.go` (`utils.DerivationParts` is under examples — **do not import examples from cmd**).  
+3. `InternalizeAction` with wallet-payment protocol on output 0
+   Reuse derivation pattern from `examples/internal/example_setup/internalize_tx.go` (`utils.DerivationParts` is under examples — **do not import examples from cmd**).
    Inline a minimal wallet-payment remittance using the same approach as production code, or copy the small remittance construction without importing `examples/...`.
 
 If faucet bootstrap fails, return error from main (fail fast).

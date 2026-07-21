@@ -35,6 +35,31 @@ type Stats struct {
 	Failed    uint64
 }
 
+// loadCounters tracks in-flight loadgen outcomes.
+type loadCounters struct {
+	attempted atomic.Uint64
+	succeeded atomic.Uint64
+	failed    atomic.Uint64
+}
+
+func (c *loadCounters) snapshot() Stats {
+	return Stats{
+		Attempted: c.attempted.Load(),
+		Succeeded: c.succeeded.Load(),
+		Failed:    c.failed.Load(),
+	}
+}
+
+// workerPool is the shared state for concurrent createAction workers.
+type workerPool struct {
+	ctx           context.Context
+	cfg           Config
+	wallet        ActionCreator
+	lockingScript []byte
+	jobs          <-chan struct{}
+	counters      *loadCounters
+}
+
 // RunLoad issues rate-limited createAction calls until ctx is done or
 // cfg.DurationSeconds elapses. Each action has a single OP_RETURN output
 // with the provided locking script and Satoshis: 0.
@@ -46,66 +71,59 @@ func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []b
 	produceCtx, stopProduce := produceContext(ctx, cfg.DurationSeconds)
 	defer stopProduce()
 
-	var attempted, succeeded, failed atomic.Uint64
+	counters := &loadCounters{}
 	jobs := make(chan struct{}, cfg.Workers)
+	pool := workerPool{
+		ctx:           ctx,
+		cfg:           cfg,
+		wallet:        w,
+		lockingScript: lockingScript,
+		jobs:          jobs,
+		counters:      counters,
+	}
 
 	var wg sync.WaitGroup
-	startWorkers(ctx, &wg, cfg, w, lockingScript, jobs, &attempted, &succeeded, &failed)
+	pool.start(&wg)
 
-	logCancel, logDone := startProgressLogger(ctx, produceCtx, &attempted, &succeeded, &failed)
+	logCancel, logDone := startProgressLogger(ctx, produceCtx, counters)
 	produceJobs(produceCtx, rate.NewLimiter(rate.Limit(cfg.TPS), 1), jobs)
 	close(jobs)
 	wg.Wait()
 	logCancel()
 	<-logDone
 
-	return Stats{
-		Attempted: attempted.Load(),
-		Succeeded: succeeded.Load(),
-		Failed:    failed.Load(),
-	}
+	return counters.snapshot()
 }
 
 func produceContext(ctx context.Context, durationSeconds int) (context.Context, context.CancelFunc) {
 	if durationSeconds <= 0 {
-		return ctx, func() {}
+		// No duration limit: return parent ctx and a no-op cancel.
+		return ctx, func() {
+			// Unlimited run — nothing to cancel beyond the parent context.
+		}
 	}
 	return context.WithTimeout(ctx, time.Duration(durationSeconds)*time.Second)
 }
 
-func startWorkers(
-	ctx context.Context,
-	wg *sync.WaitGroup,
-	cfg Config,
-	w ActionCreator,
-	lockingScript []byte,
-	jobs <-chan struct{},
-	attempted, succeeded, failed *atomic.Uint64,
-) {
-	for i := 0; i < cfg.Workers; i++ {
+func (p *workerPool) start(wg *sync.WaitGroup) {
+	for i := 0; i < p.cfg.Workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range jobs {
-				runOneCreateAction(ctx, w, cfg.Originator, lockingScript, attempted, succeeded, failed)
+			for range p.jobs {
+				p.runOne()
 			}
 		}()
 	}
 }
 
-func runOneCreateAction(
-	ctx context.Context,
-	w ActionCreator,
-	originator string,
-	lockingScript []byte,
-	attempted, succeeded, failed *atomic.Uint64,
-) {
-	attempted.Add(1)
+func (p *workerPool) runOne() {
+	p.counters.attempted.Add(1)
 	args := sdk.CreateActionArgs{
 		Description: "throughput loadgen",
 		Outputs: []sdk.CreateActionOutput{
 			{
-				LockingScript:     lockingScript,
+				LockingScript:     p.lockingScript,
 				Satoshis:          0,
 				OutputDescription: "throughput loadgen opreturn",
 			},
@@ -115,19 +133,19 @@ func runOneCreateAction(
 		},
 	}
 	// Parent ctx so duration timeout only stops scheduling, not in-flight calls.
-	if _, err := w.CreateAction(ctx, args, originator); err != nil {
-		n := failed.Add(1)
+	if _, err := p.wallet.CreateAction(p.ctx, args, p.cfg.Originator); err != nil {
+		n := p.counters.failed.Add(1)
 		if shouldSampleCreateActionError(n) {
 			slog.Warn("createAction failed", "error", err, "failed_count", n)
 		}
 		return
 	}
-	succeeded.Add(1)
+	p.counters.succeeded.Add(1)
 }
 
 func startProgressLogger(
 	ctx, produceCtx context.Context,
-	attempted, succeeded, failed *atomic.Uint64,
+	counters *loadCounters,
 ) (context.CancelFunc, <-chan struct{}) {
 	logCtx, logCancel := context.WithCancel(ctx)
 	logDone := make(chan struct{})
@@ -143,11 +161,11 @@ func startProgressLogger(
 			case <-produceCtx.Done():
 				return
 			case <-ticker.C:
-				cur := attempted.Load()
+				cur := counters.attempted.Load()
 				slog.Info("loadgen progress",
 					"attempted", cur,
-					"succeeded", succeeded.Load(),
-					"failed", failed.Load(),
+					"succeeded", counters.succeeded.Load(),
+					"failed", counters.failed.Load(),
 					"rate_per_s", cur-prevAttempted,
 				)
 				prevAttempted = cur

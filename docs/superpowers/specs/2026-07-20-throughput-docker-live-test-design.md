@@ -1,8 +1,8 @@
 # Throughput Docker Live-Test Stack — Design
 
-**Date:** 2026-07-20  
-**Branch:** to be created as `feat/throughput-docker-live-test` (worktree)  
-**Status:** Approved for implementation  
+**Date:** 2026-07-20
+**Branch:** to be created as `feat/throughput-docker-live-test` (worktree)
+**Status:** Approved for implementation
 **Depends on:** throughput UTXO strategy (`pkg/defs/utxo_management.go`, FuelKeeper, PR #936 fuel funding)
 
 ## Goal
