@@ -13,3 +13,11 @@ paths = [
     '''conformance/vectors/wallet/storage/adapter-conformance\.json''',
     '''conformance/vectors/sync/brc40-user-state\.json''',
 ]
+
+# Local Docker throughput live-test config uses intentional development-only keys
+# (same pattern as infra-config-docker.yaml; not production secrets).
+[[allowlists]]
+description = "Docker throughput live-test example config (dev-only keys)"
+paths = [
+    '''infra-config-docker-throughput\.yaml''',
+]

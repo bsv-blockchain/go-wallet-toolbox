@@ -69,3 +69,4 @@ testdata
 # Build output
 bin/
 
+.worktrees/

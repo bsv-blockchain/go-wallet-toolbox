@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# Builder stage — throughput infra + loadgen
+# =============================================================================
+FROM golang:1.26-alpine AS builder
+
+RUN apk add --no-cache ca-certificates git tzdata
+
+WORKDIR /src
+
+# Cache go modules
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source
+COPY . .
+
+# Build throughput infra server and loadgen (static, small)
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w" \
+    -o /out/infra \
+    ./cmd/infra_throughput
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w" \
+    -o /out/loadgen \
+    ./cmd/throughput_loadgen
+
+# =============================================================================
+# Runtime stage
+# =============================================================================
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates curl postgresql-client tzdata \
+    && adduser -D -H -u 1000 app
+
+WORKDIR /app
+
+COPY --from=builder /out/infra /app/infra
+COPY --from=builder /out/loadgen /app/loadgen
+
+# Default throughput config; override via volume mount in compose
+COPY infra-config-docker-throughput.yaml /app/infra-config-throughput.yaml
+
+RUN mkdir -p /app/data \
+    && chown -R app:app /app
+
+USER app
+
+EXPOSE 8100
+
+# Default entry is infra; loadgen service overrides entrypoint
+ENTRYPOINT ["/app/infra"]
