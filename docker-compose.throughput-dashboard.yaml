@@ -1,0 +1,65 @@
+# Mainnet throughput demo: Postgres + infra (throughput) + dashboard UI
+#
+#   export PRIVATE_KEY=<operator-wallet-hex>
+#   docker compose -f docker-compose.throughput-dashboard.yaml up --build
+#
+# UI: http://127.0.0.1:8200
+# Storage (host): http://127.0.0.1:8101
+
+services:
+  db:
+    image: postgres:17-alpine
+    volumes:
+      - db-data-throughput-dashboard:/var/lib/postgresql/data:Z
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=storage
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d storage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  infra:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8101:8100"
+    volumes:
+      - ./infra-config-docker-throughput-mainnet.yaml:/app/infra-config-throughput.yaml:ro
+    environment:
+      # Optional overrides for mainnet services
+      - INFRA_WALLET_SERVICES_ARC_TOKEN=${INFRA_WALLET_SERVICES_ARC_TOKEN:-}
+      - INFRA_WALLET_SERVICES_WHATS_ON_CHAIN_API_KEY=${INFRA_WALLET_SERVICES_WHATS_ON_CHAIN_API_KEY:-}
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    depends_on:
+      - infra
+    entrypoint: ["/app/dashboard"]
+    ports:
+      - "127.0.0.1:8200:8200"
+    environment:
+      - SERVER_URL=http://infra:8100
+      - BSV_NETWORK=main
+      - PRIVATE_KEY=${PRIVATE_KEY:?set PRIVATE_KEY for dashboard}
+      - HTTP_ADDR=0.0.0.0:8200
+      - TPS=${TPS:-10}
+      - WORKERS=${WORKERS:-8}
+      - ORIGINATOR=${ORIGINATOR:-throughput-dashboard.local}
+    restart: unless-stopped
+
+volumes:
+  db-data-throughput-dashboard:
+    driver: local

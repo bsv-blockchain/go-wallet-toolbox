@@ -1,0 +1,188 @@
+:root {
+  --bg: #0b1020;
+  --card: #121a2f;
+  --text: #e8eefc;
+  --muted: #93a0bf;
+  --accent: #3dd6c6;
+  --danger: #ff5c7a;
+  --warn: #ffb020;
+  --border: #243050;
+  --good: #4ade80;
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 10% -10%, #1a2748 0%, var(--bg) 55%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem 2rem 0.5rem;
+}
+
+h1 { margin: 0 0 0.25rem; font-size: 1.6rem; letter-spacing: -0.02em; }
+.sub { margin: 0; color: var(--muted); }
+
+.badge {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+}
+.badge-warn { background: rgba(255, 176, 32, 0.15); color: var(--warn); border: 1px solid rgba(255, 176, 32, 0.4); }
+.badge-ok { background: rgba(74, 222, 128, 0.12); color: var(--good); border: 1px solid rgba(74, 222, 128, 0.35); }
+
+.banner {
+  margin: 0.75rem 2rem 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: rgba(255, 92, 122, 0.1);
+  border: 1px solid rgba(255, 92, 122, 0.35);
+  color: #ffd0d8;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0 2rem 2rem;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%), var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.15rem 1.15rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+.card h2 {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #c9d6f5;
+}
+
+.row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.stats-row { justify-content: space-between; margin-bottom: 0.85rem; }
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 5.5rem;
+}
+.stat .label, .label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.stat .value {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+input[type="number"] {
+  width: 5.5rem;
+  background: #0a1224;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+}
+
+button {
+  border: 0;
+  border-radius: 9px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #04201d; }
+button.danger { background: var(--danger); color: #2a0410; }
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.hint { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+.hint code, code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.82em;
+  color: #b8e7ff;
+}
+
+.meta {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  gap: 1rem;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow: auto;
+}
+.log li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(36, 48, 80, 0.8);
+  font-size: 0.85rem;
+  color: #d5def5;
+}
+.log li time { color: var(--muted); margin-right: 0.5rem; font-variant-numeric: tabular-nums; }
+
+.funding-box code {
+  display: block;
+  margin-top: 0.25rem;
+  word-break: break-all;
+  background: #0a1224;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+}
+
+.status { min-height: 1.2rem; font-size: 0.9rem; }
+.status.ok { color: var(--good); }
+.status.err { color: var(--danger); }
+
+footer {
+  padding: 0 2rem 2rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 960px) {
+  .grid { grid-template-columns: 1fr; padding: 0 1rem 1.5rem; }
+  .top, .banner { margin-left: 1rem; margin-right: 1rem; padding-left: 0; padding-right: 0; }
+  .top { padding-top: 1rem; }
+}
