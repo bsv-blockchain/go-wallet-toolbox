@@ -20,14 +20,14 @@ type ActionCreator interface {
 
 // Stats holds aggregate createAction outcomes.
 type Stats struct {
-	Attempted  uint64 `json:"attempted"`
-	Succeeded  uint64 `json:"succeeded"`
-	Failed     uint64 `json:"failed"`
-	Iteration  uint64 `json:"iteration"`
-	Running    bool   `json:"running"`
-	TPS        int    `json:"tps"`
-	Workers    int    `json:"workers"`
-	StartedAt  string `json:"started_at,omitempty"`
+	Attempted uint64 `json:"attempted"`
+	Succeeded uint64 `json:"succeeded"`
+	Failed    uint64 `json:"failed"`
+	Iteration uint64 `json:"iteration"`
+	Running   bool   `json:"running"`
+	TPS       int    `json:"tps"`
+	Workers   int    `json:"workers"`
+	StartedAt string `json:"started_at,omitempty"`
 }
 
 // Options configure a stream run.
@@ -42,14 +42,14 @@ type Controller struct {
 	wallet ActionCreator
 	logger *slog.Logger
 
-	mu        sync.Mutex
-	running   bool
-	cancel    context.CancelFunc
-	done      chan struct{}
-	tps       int
-	workers   int
+	mu         sync.Mutex
+	running    bool
+	cancel     context.CancelFunc
+	done       chan struct{}
+	tps        int
+	workers    int
 	originator string
-	startedAt time.Time
+	startedAt  time.Time
 
 	attempted atomic.Uint64
 	succeeded atomic.Uint64
@@ -80,7 +80,7 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 	}
 }
 
-// Start begins the event stream. Idempotent if already running with same process.
+// Start begins the event stream. Returns an error if a stream is already running.
 func (c *Controller) Start(parent context.Context, opts Options) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -106,12 +106,21 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	c.running = true
 	c.startedAt = time.Now().UTC()
 
-	go c.run(ctx, c.done)
-	c.logger.Info("event stream started", "tps", c.tps, "workers", c.workers)
+	// Snapshot knobs for this run so concurrent Stats/Start readers cannot observe
+	// mid-run mutation (Start rejects when running, but we still avoid racing reads).
+	tps := c.tps
+	workers := c.workers
+	originator := c.originator
+	done := c.done
+
+	go c.run(ctx, done, tps, workers, originator)
+	c.logger.Info("event stream started", "tps", tps, "workers", workers)
 	return nil
 }
 
 // Stop requests stream shutdown and waits for workers to drain.
+// Concurrent Stop calls are safe; a Stop that loses a race with a subsequent Start
+// will not tear down the newer run.
 func (c *Controller) Stop() {
 	c.mu.Lock()
 	if !c.running {
@@ -130,9 +139,13 @@ func (c *Controller) Stop() {
 	}
 
 	c.mu.Lock()
-	c.running = false
-	c.cancel = nil
-	c.done = nil
+	// Only clear state if this Stop still owns the generation it cancelled.
+	// run() may already have cleared running; a newer Start may have replaced done.
+	if c.done == done {
+		c.running = false
+		c.cancel = nil
+		c.done = nil
+	}
 	c.mu.Unlock()
 	c.logger.Info("event stream stopped", "stats", c.Stats())
 }
@@ -174,29 +187,28 @@ func (c *Controller) SnapshotAndDelta(prevAttempted, prevSucceeded, prevFailed u
 	return s, s.Attempted - prevAttempted, s.Succeeded - prevSucceeded, s.Failed - prevFailed
 }
 
-func (c *Controller) run(ctx context.Context, done chan struct{}) {
+func (c *Controller) run(ctx context.Context, done chan struct{}, tps, workers int, originator string) {
 	defer close(done)
 
-	jobs := make(chan struct{}, c.workers)
+	jobs := make(chan struct{}, workers)
 	var wg sync.WaitGroup
-	for i := 0; i < c.workers; i++ {
+	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for range jobs {
-				c.runOne(ctx)
+				c.runOne(ctx, originator)
 			}
 		}()
 	}
 
-	limiter := rate.NewLimiter(rate.Limit(c.tps), 1)
+	limiter := rate.NewLimiter(rate.Limit(tps), 1)
 	for {
 		if err := limiter.Wait(ctx); err != nil {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			// drain producer
 			goto drain
 		case jobs <- struct{}{}:
 		}
@@ -206,12 +218,15 @@ drain:
 	wg.Wait()
 
 	c.mu.Lock()
-	c.running = false
-	c.cancel = nil
+	// Mark stopped if this generation is still current. Stop() may also clear.
+	if c.done == done {
+		c.running = false
+		c.cancel = nil
+	}
 	c.mu.Unlock()
 }
 
-func (c *Controller) runOne(ctx context.Context) {
+func (c *Controller) runOne(ctx context.Context, originator string) {
 	iter := c.iteration.Add(1)
 	c.attempted.Add(1)
 
@@ -236,7 +251,7 @@ func (c *Controller) runOne(ctx context.Context) {
 		},
 	}
 
-	if _, err := c.wallet.CreateAction(ctx, args, c.originator); err != nil {
+	if _, err := c.wallet.CreateAction(ctx, args, originator); err != nil {
 		n := c.failed.Add(1)
 		if n <= 5 || n%100 == 0 {
 			c.logger.Warn("createAction failed", "error", err, "failed_count", n, "iteration", iter)

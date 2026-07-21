@@ -11,6 +11,7 @@ import (
 )
 
 // HashPayload returns sha256(iteration string concatenated with RFC3339Nano timestamp).
+// The timestamp is always formatted in UTC. Result is always 32 bytes.
 func HashPayload(iteration uint64, ts time.Time) []byte {
 	// Concatenate as decimal iteration + timestamp string (no separator required by the demo).
 	msg := strconv.FormatUint(iteration, 10) + ts.UTC().Format(time.RFC3339Nano)
@@ -22,6 +23,9 @@ func HashPayload(iteration uint64, ts time.Time) []byte {
 func OpReturnLockingScriptForHash(hash []byte) ([]byte, error) {
 	if len(hash) == 0 {
 		return nil, fmt.Errorf("opreturn hash must be non-empty")
+	}
+	if len(hash) != sha256.Size {
+		return nil, fmt.Errorf("opreturn hash must be %d bytes, got %d", sha256.Size, len(hash))
 	}
 	out, err := transaction.CreateOpReturnOutput([][]byte{hash})
 	if err != nil {
