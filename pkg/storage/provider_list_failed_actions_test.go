@@ -126,8 +126,29 @@ func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// and: an aborted tx (never broadcast)
-	abortedCreate, _ := given.Action(activeStorage).Created()
+	// and: an aborted tx that DOES carry a real TxID and a KnownTx row (in the
+	// abortable 'nosend' status), so markActionsForUnfail reaches the new
+	// Status != TxStatusFailed guard rather than being filtered out earlier by
+	// the pre-existing empty-TxID skip. Without this, the aborted fixture would
+	// have TxID=="" and no KnownTx row, and the test would pass identically even
+	// if the new guard were deleted - it would not actually pin the guard.
+	abortedCreate, abortedSignedTx := given.Action(activeStorage).Created()
+	abortedTxID := abortedSignedTx.TxID().String()
+	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		IsNoSend:  true,
+		Reference: to.Ptr(abortedCreate.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(abortedTxID)),
+		RawTx:     abortedSignedTx.Bytes(),
+		SendWith:  []primitives.TXIDHexString{},
+	})
+	require.NoError(t, err)
+
+	// and: confirm the pre-abort KnownTx status really is 'nosend', so the
+	// post-list assertion below pins the exact value rather than an assumption
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(abortedTxID).WithStatus(wdk.ProvenTxStatusNoSend)
+
 	_, err = activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
 		Reference: primitives.Base64String(abortedCreate.Reference),
 	})
@@ -156,4 +177,13 @@ func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByReference(testusers.Alice, abortedCreate.Reference).
 		WithStatus(wdk.TxStatusAborted)
+
+	// and: crucially, the aborted tx's shared KnownTx row was NOT flipped to
+	// 'unfail' - this is what the Status != TxStatusFailed guard in
+	// markActionsForUnfail actually prevents (AbortAction itself never touches
+	// KnownTx, so it stays at its pre-abort 'nosend' status; if the guard were
+	// removed, this would be flipped to 'unfail' and the later UnFail cron would
+	// cascade it back to 'failed', re-erasing the aborted status)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(abortedTxID).WithStatus(wdk.ProvenTxStatusNoSend)
 }

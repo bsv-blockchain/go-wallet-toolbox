@@ -100,8 +100,13 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 }
 
 // markActionsForUnfail flips each listed action's KnownTx to 'unfail' so the UnFail
-// cron re-verifies it. Skipped updates are legitimate: a failed Transaction can have
-// a tx_id with no matching KnownTx row (e.g. the abort sweep's own filter tolerates
+// cron re-verifies it. Only genuinely 'failed' actions are eligible: aborted (and any
+// other non-'failed') actions are skipped outright because they were never broadcast,
+// so there is nothing on-chain to re-verify - flipping their (possibly shared) KnownTx
+// to 'unfail' would be wrong and, worse, would let the UnFail cron later cascade it
+// back to 'failed', silently re-erasing the aborted status. Skipped updates for the
+// remaining, eligible actions are also legitimate: a failed Transaction can have a
+// tx_id with no matching KnownTx row (e.g. the abort sweep's own filter tolerates
 // such rows via COALESCE(known_txs.status,'unprocessed')) — there is nothing to
 // unfail for that tx, so it is logged and the remaining actions are processed.
 func (l *listActions) markActionsForUnfail(ctx context.Context, actions []wdk.WalletAction) error {
