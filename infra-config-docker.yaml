@@ -180,7 +180,9 @@ wallet_services:
     storage_path: ""
     p2p_storage_path: ""
 
-  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+  # Leave empty in the public docker config; override via env/volume when needed.
+  # (yaml:S6418 — do not hard-code API keys in committed config files.)
+  exchangerates_api_key: ""
 
   fiat_exchange_rates:
     base: USD
