@@ -123,12 +123,12 @@ func (a *abortAction) abortTx(ctx context.Context, id uint) error {
 			return fmt.Errorf("failed to mark created outputs as not spendable for transaction: %w", err)
 		}
 
-		logger.DebugContext(txCtx, "Updating transaction status to 'failed'")
+		logger.DebugContext(txCtx, "Updating transaction status to 'aborted'")
 		// Positive CAS: only abort a transaction still in an abortable status. If it raced
 		// to a non-abortable status between validation and here, the update matches zero rows
 		// and returns ErrStatusUpdateSkipped, which propagates and rolls back the whole abort
 		// UoW (the concurrent transition wins).
-		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed,
+		if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusAborted,
 			wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail); err != nil {
 			return fmt.Errorf("failed to update transaction status: %w", err)
 		}
@@ -185,7 +185,7 @@ func (a *abortAction) validateTx(ctx context.Context, txEntity *pkgentity.Transa
 
 func validateTxStatusForAbort(txStatus wdk.TxStatus) error {
 	switch txStatus {
-	case wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusSending, wdk.TxStatusUnproven:
+	case wdk.TxStatusCompleted, wdk.TxStatusFailed, wdk.TxStatusAborted, wdk.TxStatusSending, wdk.TxStatusUnproven:
 		return fmt.Errorf("%w: action with status %s cannot be aborted", wdk.ErrNotAbortableAction, txStatus)
 	case wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		return nil

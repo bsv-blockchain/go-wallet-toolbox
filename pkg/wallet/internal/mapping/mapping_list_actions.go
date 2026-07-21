@@ -125,6 +125,10 @@ func mapListActionsAction(action wdk.WalletAction) (sdk.Action, error) {
 // TODO: Temporary constant - "failed" ActionStatus is missing in sdk.ActionStatus, adjust this once go-sdk is updated.
 const ActionStatusFailed sdk.ActionStatus = "failed"
 
+// TODO: Temporary constant - "aborted" ActionStatus is missing in sdk.ActionStatus, adjust this once go-sdk is updated.
+// Non-standard over BRC-100; safe on the JSON transport this repo uses. Tracks the #959 ts-stack follow-up.
+const ActionStatusAborted sdk.ActionStatus = "aborted"
+
 // mapActionStatus maps string status to sdk.ActionStatus
 func mapActionStatus(status string) (sdk.ActionStatus, error) {
 	switch status {
@@ -132,6 +136,8 @@ func mapActionStatus(status string) (sdk.ActionStatus, error) {
 		return sdk.ActionStatusCompleted, nil
 	case "failed":
 		return ActionStatusFailed, nil
+	case "aborted":
+		return ActionStatusAborted, nil
 	case "unprocessed":
 		return sdk.ActionStatusUnprocessed, nil
 	case "sending":

@@ -932,8 +932,8 @@ func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
 			if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
 				return fmt.Errorf("failed to mark created outputs as not spendable: %w", err)
 			}
-			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusFailed); err != nil {
-				return fmt.Errorf("failed to update transaction status to failed: %w", err)
+			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusAborted); err != nil {
+				return fmt.Errorf("failed to update transaction status to aborted: %w", err)
 			}
 			return nil
 		}); uowErr != nil {

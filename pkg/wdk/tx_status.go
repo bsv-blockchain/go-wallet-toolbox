@@ -18,6 +18,11 @@ const (
 	TxStatusNoSend      TxStatus = "nosend"
 	TxStatusNonFinal    TxStatus = "nonfinal"
 	TxStatusUnfail      TxStatus = "unfail"
+	// TxStatusAborted marks a transaction that was built but never broadcast (ctx
+	// cancellation, token-swap timeout, user AbortAction, or the fail_abandoned sweep).
+	// Its inputs are released and it is safe to rebuild and retry — distinct from
+	// TxStatusFailed, which marks a broadcast that the network rejected (permanent).
+	TxStatusAborted TxStatus = "aborted"
 )
 
 // String returns the string representation of the TxStatus.
@@ -34,6 +39,8 @@ func (s TxStatus) ToUTXOStatus() UTXOStatus {
 		return UTXOStatusSending
 	case TxStatusUnproven:
 		return UTXOStatusUnproven
+	case TxStatusAborted:
+		return UTXOStatusUnknown
 	default:
 		return UTXOStatusUnknown
 	}
@@ -50,6 +57,8 @@ func (s TxStatus) ToStandardizedStatus() StandardizedTxStatus {
 		return TxUpdateStatusWaiting
 	case TxStatusFailed:
 		return TxUpdateStatusInvalidTx
+	case TxStatusAborted:
+		return TxUpdateStatusFailed
 	default:
 		return TxUpdateStatusUnknown
 	}

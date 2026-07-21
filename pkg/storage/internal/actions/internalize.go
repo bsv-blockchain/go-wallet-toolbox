@@ -660,7 +660,7 @@ func (in *internalize) isAllowedMergeStatus(status wdk.TxStatus) bool {
 	switch status {
 	case wdk.TxStatusCompleted, wdk.TxStatusUnproven, wdk.TxStatusNoSend, wdk.TxStatusSending:
 		return true
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusFailed, wdk.TxStatusAborted, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return false
@@ -675,7 +675,7 @@ func (in *internalize) utxoStatusByTxStatusForMerge(txStatus wdk.TxStatus) (wdk.
 		return wdk.UTXOStatusUnproven, nil
 	case wdk.TxStatusSending:
 		return wdk.UTXOStatusSending, nil
-	case wdk.TxStatusFailed, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
+	case wdk.TxStatusFailed, wdk.TxStatusAborted, wdk.TxStatusUnprocessed, wdk.TxStatusUnsigned, wdk.TxStatusNoSend, wdk.TxStatusNonFinal, wdk.TxStatusUnfail:
 		fallthrough
 	default:
 		return "", fmt.Errorf("unsupported transaction status for UTXO: %s", txStatus)

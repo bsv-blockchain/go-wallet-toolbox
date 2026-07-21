@@ -3,10 +3,12 @@ package storage_test
 import (
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -135,4 +137,66 @@ func TestListTransactions_FilterByLabels(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.GreaterOrEqual(t, int(result.TotalTransactions), 2) //nolint:gosec // test assertion, TotalTransactions fits in int
+}
+
+// TestListTransactions_AbortedTxReportedAsTerminal proves ListTransactions reports
+// an aborted tx as terminal (Failed) even though its underlying KnownTx row is left
+// in a non-terminal ProvenTxReq status ('nosend'). AbortAction only flips the
+// Transaction to 'aborted'; it never touches the (possibly shared) KnownTx row, so a
+// tx created via ProcessAction(IsNoSend:true) and then aborted keeps KnownTx at
+// 'nosend'. Before the fix, the standardized-status override in ListTransactions only
+// fired for txStatusMap[txID] == TxStatusFailed, so this case fell through to the base
+// KnownTx-derived status (nosend -> Waiting) - reporting a dead, input-released tx as
+// still in-flight. The toolbox-owned standardized-status surface must always read
+// 'aborted' as terminal; the retryable nuance lives only on the raw TxStatus.
+func TestListTransactions_AbortedTxReportedAsTerminal(t *testing.T) {
+	// Given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and: a tx created with IsNoSend:true (real TxID + KnownTx status 'nosend')
+	createResult, signedTx := given.Action(activeStorage).Created()
+	txID := signedTx.TxID().String()
+	_, err := activeStorage.ProcessAction(ctx, testusers.Alice.AuthID(), wdk.ProcessActionArgs{
+		IsNewTx:   true,
+		IsNoSend:  true,
+		Reference: to.Ptr(createResult.Reference),
+		TxID:      to.Ptr(primitives.TXIDHexString(txID)),
+		RawTx:     signedTx.Bytes(),
+		SendWith:  []primitives.TXIDHexString{},
+	})
+	require.NoError(t, err)
+
+	// and: confirm the pre-abort KnownTx status really is 'nosend', so the post-list
+	// assertion below pins the exact value rather than an assumption
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusNoSend)
+
+	// and: abort it - 'nosend' is abortable, and abort does not touch KnownTx
+	_, err = activeStorage.AbortAction(ctx, testusers.Alice.AuthID(), wdk.AbortActionArgs{
+		Reference: primitives.Base64String(createResult.Reference),
+	})
+	require.NoError(t, err)
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByReference(testusers.Alice, createResult.Reference).
+		WithStatus(wdk.TxStatusAborted)
+
+	// When:
+	args := wdk.ListTransactionsArgs{
+		Limit:  10,
+		Offset: 0,
+		TxIDs:  []string{txID},
+	}
+	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
+
+	// Then: reported as terminal (Failed), NOT Waiting, despite the KnownTx row
+	// still sitting at the non-terminal 'nosend' status
+	require.NoError(t, err)
+	require.Len(t, result.Transactions, 1)
+	assert.Equal(t, txID, result.Transactions[0].TxID)
+	assert.Equal(t, wdk.TxUpdateStatusFailed, result.Transactions[0].Status)
 }
