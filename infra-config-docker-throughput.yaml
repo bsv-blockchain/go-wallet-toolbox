@@ -1,0 +1,211 @@
+# =============================================================================
+# Docker Compose configuration for throughput live-test infra server
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.throughput.yaml up -d --build
+#
+# Pairs with Dockerfile.throughput and cmd/throughput_loadgen.
+# =============================================================================
+
+bsv_network: test
+
+name: go-storage-server-throughput
+
+# --- Server Identity (required) ---
+# This key identifies your storage server on the BSV network.
+# The one below is a development key generated for local Docker use only.
+# For production, generate your own with:
+#   go run cmd/infra_config_gen/main.go -k -o infra-config.yaml
+server_private_key: dc745c57de627a6d3a3ca549e0f9fb6b8f779108a1fe6fe290cc4df3461125d6
+
+# --- Database (PostgreSQL via docker-compose 'db' service) ---
+db:
+  engine: postgres
+  max_connection_idle_time: 6m0s
+  max_connection_time: 1m0s
+  max_idle_connections: 10
+  max_open_connections: 50
+
+  postgresql:
+    host: db # Docker Compose service name
+    port: "5432"
+    user: postgres
+    password: postgres
+    db_name: storage
+    schema: public
+    ssl_mode: disable # Required for local Docker Postgres
+    time_zone: UTC
+
+# --- HTTP / Storage Server ---
+http:
+  port: 8100
+  request_price: 0
+  # Increased for wallet backup / large sync operations (was 1 MiB default)
+  max_request_body_bytes: 104857600 # 100 MiB
+
+  cors:
+    enabled: true
+    allow_all_origins: true
+    allow_private_network: true
+    allowed_methods:
+      - POST
+    allowed_headers:
+      - content-type
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - x-bsv-auth-requested-certificates
+      - X-BSV-Payment
+    exposed_headers:
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - X-BSV-Payment-Version
+      - X-BSV-Payment-Satoshis-Required
+      - X-BSV-Payment-Satoshis-Paid
+      - X-BSV-Payment-Derivation-Prefix
+
+# --- Logging ---
+logging:
+  enabled: true
+  handler: json
+  level: info
+
+# --- Monitor / Background Tasks ---
+monitor:
+  enabled: true
+  tasks:
+    check_for_proofs:
+      enabled: true
+      interval_seconds: 60
+      start_immediately: false
+    fail_abandoned:
+      enabled: true
+      interval_seconds: 300
+      start_immediately: false
+    send_waiting:
+      enabled: true
+      interval_seconds: 300
+      start_immediately: true
+    un_fail:
+      enabled: true
+      interval_seconds: 600
+      start_immediately: false
+
+# --- Change Basket Defaults ---
+change_basket:
+  max_change_outputs_per_tx: 8
+  minimum_desired_utxo_value: 1000
+  number_of_desired_utxos: 32
+
+# --- Fee Model ---
+fee_model:
+  type: sat/kb
+  value: 100
+
+# --- UTXO management (throughput) ---
+utxo_management:
+  strategy: throughput
+  throughput:
+    expected_tx_size_bytes: 200
+    expected_output_satoshis: 0
+    denomination_satoshis: 0
+    target_tps: 1000
+    expected_confirmation_seconds: 300
+    pool_headroom_factor: 1.5
+    target_pool_size: 0
+    low_water_percent: 60
+    high_water_percent: 100
+    spend_policy: prefer_mined
+    pool_basket: fuel
+    reserve_basket: reserve
+    fanout_outputs_per_tx: 100
+    fanout_max_txs_per_round: 12000
+    fanout_tree_depth: 2
+    consolidation_inputs_per_tx: 1000
+    top_up:
+      enabled: true
+      interval_seconds: 10
+      start_immediately: true
+
+# --- Transaction Status Sync ---
+synchronize_tx_statuses:
+  blocks_delay: 1
+  check_no_send_period_hours: 24
+  max_attempts: 100
+  max_rebroadcast_attempts: 0
+
+fail_abandoned:
+  min_transaction_age_seconds: 300
+
+# --- Commission (disabled by default) ---
+commission:
+  pub_key_hex: ""
+  satoshis: 0
+
+# --- Tracing (optional - enable with profile 'tracing') ---
+tracing:
+  enabled: false
+  dialAddr: http://jaeger:4317
+  sample: 100
+
+# --- Wallet Services (external BSV infrastructure) ---
+# These are reasonable defaults for testnet development.
+# For mainnet, change bsv_network above and update tokens/URLs accordingly.
+wallet_services:
+  arc:
+    enabled: true
+    url: https://arc.taal.com
+    token: testnet_abc
+    deployment_id: ""
+    callback_url: ""
+    callback_token: ""
+    wait_for: ""
+
+  whats_on_chain:
+    enabled: true
+    api_key: ""
+    bsv_update_interval: 15m0s
+    bsv_exchange_rate:
+      base: USD
+      rates: 47.52
+      timestamp: {}
+    root_for_height_retries: 3
+    root_for_height_retry_interval: 1s
+
+  bitails:
+    enabled: false
+    api_key: ""
+    script_hash_history_page_limit: 100
+
+  chaintracks:
+    enabled: false
+    mode: remote
+    remote_url: http://localhost:3011
+    bootstrap_url: ""
+    bootstrap_mode: ""
+    p2p_network: ""
+    storage_path: ""
+    p2p_storage_path: ""
+
+  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+
+  fiat_exchange_rates:
+    base: USD
+    rates:
+      EUR: 0.93
+      GBP: 0.8
+      USD: 1
+    timestamp: {}
+  fiat_update_interval: 24h0m0s
+  get_beef_max_depth: 100
