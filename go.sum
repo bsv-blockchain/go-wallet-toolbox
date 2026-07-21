@@ -64,8 +64,8 @@ github.com/bsv-blockchain/go-batcher/v2 v2.0.6 h1:YqiS+ZjCPpiytVEQ1A/famVrBW+pGG
 github.com/bsv-blockchain/go-batcher/v2 v2.0.6/go.mod h1:h0taeDYa4L6iQ57WvpVPuKLlsrRF72+7Lk85ouSKoC0=
 github.com/bsv-blockchain/go-bc v1.1.7 h1:+2RhCA3U4SP55qgmHKvAHukcLV6A5+MOo3iEmV4TORA=
 github.com/bsv-blockchain/go-bc v1.1.7/go.mod h1:gt9KLIwV/PZrX2iaAoIL6MkdKVWE2P71bfem2PfXv4w=
-github.com/bsv-blockchain/go-bsv-middleware v0.13.4 h1:mmPHD3+YZgxgG7RrN+cNtpZwSHGFyEFPTOjIsqLa8OE=
-github.com/bsv-blockchain/go-bsv-middleware v0.13.4/go.mod h1:dILGovedMYTZXlEJ719oq7p20QIBtbXQpm3iaptVr2M=
+github.com/bsv-blockchain/go-bsv-middleware v0.13.5 h1:oIoEzjG2e+828hQJgC5fSCthNOdfQuzve/Fxk0VxQ5I=
+github.com/bsv-blockchain/go-bsv-middleware v0.13.5/go.mod h1:pYJpffbbKzO21FNgj8eCYXjKJkGH490qiO7UZBaNbes=
 github.com/bsv-blockchain/go-bt/v2 v2.6.8 h1:lk6asRPfLA/+jmmk9ggSglPYn7C0Wzu31R6Ldkemwz4=
 github.com/bsv-blockchain/go-bt/v2 v2.6.8/go.mod h1:QNUJG28qG3UEe0RNySaqZJQJpyVtjxb3cjDZKq7OsFA=
 github.com/bsv-blockchain/go-chaincfg v1.6.1 h1:x+os+sXLLhiCZ32qaC+LsW02m4yYIHux253Saer49Bo=
@@ -78,8 +78,8 @@ github.com/bsv-blockchain/go-p2p-message-bus v0.1.21 h1:n2+gL2Y8gZSrNcjz5GgccEPy
 github.com/bsv-blockchain/go-p2p-message-bus v0.1.21/go.mod h1:C74dBf+HvuxJOQ5aIiED/holUvh2c5nBXxQwBU0KjGs=
 github.com/bsv-blockchain/go-safe-conversion v1.2.0 h1:HwLWaxqm2OyU5/2BRQ8kwdn25QyX2HXr0JkfSyTG3DU=
 github.com/bsv-blockchain/go-safe-conversion v1.2.0/go.mod h1:62Eq2980j4BygfqJhd/ObGRHET8ubEy2rBdGi4k6nsw=
-github.com/bsv-blockchain/go-sdk v1.3.0 h1:KTGCyDzfLJFjRu4+fSZIsSRXAtxdZHubgw6fTesjFmk=
-github.com/bsv-blockchain/go-sdk v1.3.0/go.mod h1:/NCHN2G1qoBSRB0PzswKrWuiiDpDXbThXJxAznt8vYw=
+github.com/bsv-blockchain/go-sdk v1.3.1 h1:NGfvZDkkpT7PMcfuvnYlyr1pwO4FjfzLWobjINSrZ/o=
+github.com/bsv-blockchain/go-sdk v1.3.1/go.mod h1:OgwTIUwBL74L5DUT+595i+7WPediUqxhxnzC9rIK0og=
 github.com/bsv-blockchain/go-subtree v1.4.5 h1:PDyujago1K6il1oG1GBH2NzNygELfTI0cwFZy98R6wU=
 github.com/bsv-blockchain/go-subtree v1.4.5/go.mod h1:omuv2wkd3ZJpuqNlyP4M4f9cY6fLDbuTbHAM8F/ptOk=
 github.com/bsv-blockchain/go-teranode-p2p-client v0.2.8 h1:vK1RYp96uvKOwydVStMRTqhLcOGBNJEq8PNOmJWeKFA=
@@ -322,8 +322,8 @@ github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHm
 github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7C0MuV77Wo=
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kisielk/sqlstruct v0.0.0-20201105191214-5f3e10d3ab46/go.mod h1:yyMNCyc/Ib3bDTKd379tNMpB/7/H5TjM2Y9QJ5THLbE=
-github.com/klauspost/compress v1.19.0 h1:sXLILfc9jV2QYWkzFOPWStmcUVH2RHEB1JCdY2oVvCQ=
-github.com/klauspost/compress v1.19.0/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
+github.com/klauspost/compress v1.19.1/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/klauspost/cpuid/v2 v2.4.0 h1:S6Hrbc7+ywsr0r+RLapfGBHfyefhCTwEh3A0tV913Dw=
 github.com/klauspost/cpuid/v2 v2.4.0/go.mod h1:19jmZ9mjzoF//ddRSUsv0zfBTJWh3QJh9FNxZTMrGxU=
 github.com/koron/go-ssdp v0.9.1 h1:zvxbAAuJftJIZ8Jh8mda+LI7V92hYZf/sKprmOxpxwA=
@@ -556,8 +556,8 @@ github.com/seiflotfy/cuckoofilter v0.0.0-20240715131351-a2f2c23f1771 h1:emzAzMZ1
 github.com/seiflotfy/cuckoofilter v0.0.0-20240715131351-a2f2c23f1771/go.mod h1:bR6DqgcAl1zTcOX8/pE2Qkj9XO00eCNqmKb7lXP8EAg=
 github.com/sercand/kuberesolver/v6 v6.0.1 h1:XZUTA0gy/lgDYp/UhEwv7Js24F1j8NJ833QrWv0Xux4=
 github.com/sercand/kuberesolver/v6 v6.0.1/go.mod h1:C0tsTuRMONSY+Xf7pv7RMW1/JlewY1+wS8SZE+1lf1s=
-github.com/shirou/gopsutil/v4 v4.26.5 h1:RPcBXkpz7kOj9PqGFQOlBPZHsyaPvPVQc098y9RmCNM=
-github.com/shirou/gopsutil/v4 v4.26.5/go.mod h1:LZ6ewCSkBqUpvSOf+LsTGnRinC6iaNUNMGBtDkJBaLQ=
+github.com/shirou/gopsutil/v4 v4.26.6 h1:Mzr/npDtQC/xpeEuQKHZt8Zo9CmPvhTj8nkR8w5TLDs=
+github.com/shirou/gopsutil/v4 v4.26.6/go.mod h1:LZ6ewCSkBqUpvSOf+LsTGnRinC6iaNUNMGBtDkJBaLQ=
 github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w=
 github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
 github.com/smarty/assertions v1.15.0 h1:cR//PqUBUiQRakZWqBiFFQ9wb8emQGDb0HeGdqGByCY=
@@ -751,8 +751,8 @@ google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55/go.mod h1:DMBHOl98
 google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013/go.mod h1:NbSheEEYHJ7i3ixzK3sjbqSGDJWnxyFXZblF3eUsNvo=
 google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800 h1:admdQBe8jR3VWhBsUrAOaF2Qw6K/+p5pSm1GN8+6Fw4=
 google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800/go.mod h1:FPk7EXUKMtImne7AmknoYjT4QXqKIzzRbeQIXzLk6fQ=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 h1:qEHAMpSaUhtD0p3NbEEI83HwNGFxEwaSJ1G9PLnCBZE=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800/go.mod h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260715232425-e75dac1f907d h1:Jkpk39hlTZOIp3RbfvNX9R8Hv+Sw0X89nlU/xFOErsc=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260715232425-e75dac1f907d/go.mod h1:4Hqkh8ycfw05ld/3BWL7rJOSfebL2Q+DVDeRgYgxUU8=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
 google.golang.org/grpc v1.23.0/go.mod h1:Y5yQAOtifL1yxbo5wqy6BxZv8vAUGQwXBOALyacEbxg=
 google.golang.org/grpc v1.25.1/go.mod h1:c3i+UQWmh7LiEpx4sFZnkU36qjEYZ0imhYfXVyQciAY=
