@@ -268,6 +268,6 @@ func (s *WalletTestSuite) TestWalletAbortActionErrorCases() {
 		// then:
 		require.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "action with status failed cannot be aborted")
+		assert.Contains(t, err.Error(), "action with status aborted cannot be aborted")
 	})
 }
