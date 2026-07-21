@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:17-alpine
+    volumes:
+      - db-data-throughput:/var/lib/postgresql/data:Z
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=storage
+    ports:
+      - "127.0.0.1:5433:5432"   # 5433 host to avoid clash with standard stack
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d storage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  infra:
+    build:
+      context: .
+      dockerfile: Dockerfile.throughput
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8101:8100"             # 8101 host to avoid clash with standard stack
+    volumes:
+      - ./infra-config-docker-throughput.yaml:/app/infra-config-throughput.yaml:ro
+    restart: unless-stopped
+
+  loadgen:
+    build:
+      context: .
+      dockerfile: Dockerfile.throughput
+    depends_on:
+      - infra
+    entrypoint: ["/app/loadgen"]
+    environment:
+      - SERVER_URL=http://infra:8100
+      - BSV_NETWORK=test
+      - PRIVATE_KEY=${PRIVATE_KEY:?set PRIVATE_KEY for loadgen}
+      - TPS=${TPS:-1000}
+      - WORKERS=${WORKERS:-64}
+      - FAUCET_TXID=${FAUCET_TXID:-}
+      - WARMUP_SECONDS=${WARMUP_SECONDS:-5}
+      - DURATION_SECONDS=${DURATION_SECONDS:-0}
+    restart: "no"
+
+volumes:
+  db-data-throughput:
+    driver: local
