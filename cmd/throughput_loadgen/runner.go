@@ -51,8 +51,8 @@ func (c *loadCounters) snapshot() Stats {
 }
 
 // workerPool is the shared state for concurrent createAction workers.
+// Context is passed to methods (not stored) per godre:S8242.
 type workerPool struct {
-	ctx           context.Context
 	cfg           Config
 	wallet        ActionCreator
 	lockingScript []byte
@@ -74,7 +74,6 @@ func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []b
 	counters := &loadCounters{}
 	jobs := make(chan struct{}, cfg.Workers)
 	pool := workerPool{
-		ctx:           ctx,
 		cfg:           cfg,
 		wallet:        w,
 		lockingScript: lockingScript,
@@ -83,7 +82,7 @@ func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []b
 	}
 
 	var wg sync.WaitGroup
-	pool.start(&wg)
+	pool.start(ctx, &wg)
 
 	logCancel, logDone := startProgressLogger(ctx, produceCtx, counters)
 	produceJobs(produceCtx, rate.NewLimiter(rate.Limit(cfg.TPS), 1), jobs)
@@ -105,19 +104,19 @@ func produceContext(ctx context.Context, durationSeconds int) (context.Context, 
 	return context.WithTimeout(ctx, time.Duration(durationSeconds)*time.Second)
 }
 
-func (p *workerPool) start(wg *sync.WaitGroup) {
+func (p *workerPool) start(ctx context.Context, wg *sync.WaitGroup) {
 	for i := 0; i < p.cfg.Workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for range p.jobs {
-				p.runOne()
+				p.runOne(ctx)
 			}
 		}()
 	}
 }
 
-func (p *workerPool) runOne() {
+func (p *workerPool) runOne(ctx context.Context) {
 	p.counters.attempted.Add(1)
 	args := sdk.CreateActionArgs{
 		Description: "throughput loadgen",
@@ -133,7 +132,7 @@ func (p *workerPool) runOne() {
 		},
 	}
 	// Parent ctx so duration timeout only stops scheduling, not in-flight calls.
-	if _, err := p.wallet.CreateAction(p.ctx, args, p.cfg.Originator); err != nil {
+	if _, err := p.wallet.CreateAction(ctx, args, p.cfg.Originator); err != nil {
 		n := p.counters.failed.Add(1)
 		if shouldSampleCreateActionError(n) {
 			slog.Warn("createAction failed", "error", err, "failed_count", n)
