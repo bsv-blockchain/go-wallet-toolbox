@@ -3,87 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
   <title>Throughput Demo Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
   <header class="top">
-    <div>
+    <div class="brand">
       <h1>Wallet Throughput Demo</h1>
       <p class="sub">Local infra · createAction OP_RETURN stream · FuelKeeper</p>
     </div>
-    <div id="network-badge" class="badge badge-warn">MAINNET</div>
+    <div class="top-meta" role="status" aria-live="polite">
+      <span id="conn-status" class="conn conn-pending" title="Event stream connection">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span id="conn-label">Connecting…</span>
+      </span>
+      <div id="network-badge" class="badge badge-warn" aria-label="Network">MAINNET</div>
+    </div>
   </header>
 
-  <section class="banner" id="mainnet-banner">
+  <section class="banner" id="mainnet-banner" role="alert">
     <strong>Mainnet live demo.</strong>
-    Real BSV and fees. Bind is localhost-only. Fund deliberately; start the stream only after fuel inventory is healthy.
+    Real BSV and fees. UI is localhost-only. Fund deliberately; start the stream only after fuel inventory is healthy.
   </section>
 
-  <main class="grid">
-    <section class="card">
-      <h2>Event stream</h2>
+  <main id="main" class="grid">
+    <section class="card" aria-labelledby="stream-heading">
+      <h2 id="stream-heading">Event stream</h2>
       <div class="row stats-row">
-        <div class="stat"><span class="label">State</span><span id="stream-state" class="value">stopped</span></div>
-        <div class="stat"><span class="label">Succeeded</span><span id="stat-succeeded" class="value">0</span></div>
-        <div class="stat"><span class="label">Failed</span><span id="stat-failed" class="value">0</span></div>
-        <div class="stat"><span class="label">Iteration</span><span id="stat-iteration" class="value">0</span></div>
+        <div class="stat">
+          <span class="label" id="lbl-state">State</span>
+          <span id="stream-state" class="value state-pill state-stopped" aria-labelledby="lbl-state">stopped</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-succeeded">Succeeded</span>
+          <span id="stat-succeeded" class="value value-good" aria-labelledby="lbl-succeeded">0</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-failed">Failed</span>
+          <span id="stat-failed" class="value value-bad" aria-labelledby="lbl-failed">0</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-iteration">Iteration</span>
+          <span id="stat-iteration" class="value" aria-labelledby="lbl-iteration">0</span>
+        </div>
       </div>
-      <div class="controls">
-        <label>TPS <input type="number" id="tps" min="1" value="10" /></label>
-        <label>Workers <input type="number" id="workers" min="1" value="8" /></label>
-        <button id="btn-start" class="primary">Start stream</button>
-        <button id="btn-stop" class="danger" disabled>Stop stream</button>
+      <div class="controls" role="group" aria-label="Stream controls">
+        <label for="tps">TPS
+          <input type="number" id="tps" min="1" max="10000" step="1" value="10" inputmode="numeric" aria-describedby="stream-hint" />
+        </label>
+        <label for="workers">Workers
+          <input type="number" id="workers" min="1" max="256" step="1" value="8" inputmode="numeric" />
+        </label>
+        <button type="button" id="btn-start" class="primary">Start stream</button>
+        <button type="button" id="btn-stop" class="danger" disabled>Stop stream</button>
       </div>
-      <p class="hint">Each action embeds OP_RETURN <code>sha256(iteration ‖ RFC3339Nano timestamp)</code>.</p>
+      <p id="stream-status" class="status" role="status" aria-live="polite"></p>
+      <p id="stream-hint" class="hint">Each action embeds OP_RETURN <code>sha256(iteration ‖ RFC3339Nano timestamp)</code>.</p>
     </section>
 
-    <section class="card">
-      <h2>Fuel &amp; balances</h2>
+    <section class="card" aria-labelledby="balances-heading">
+      <h2 id="balances-heading">Fuel &amp; balances</h2>
       <div class="row stats-row">
-        <div class="stat"><span class="label">Default (sats)</span><span id="bal-default" class="value">—</span></div>
-        <div class="stat"><span class="label">Fuel UTXOs</span><span id="bal-fuel" class="value">—</span></div>
-        <div class="stat"><span class="label">Reserve UTXOs</span><span id="bal-reserve" class="value">—</span></div>
-        <div class="stat"><span class="label">Fuel runway (s)</span><span id="bal-runway" class="value">—</span></div>
+        <div class="stat">
+          <span class="label" id="lbl-default">Default (sats)</span>
+          <span id="bal-default" class="value" aria-labelledby="lbl-default">—</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-fuel">Fuel UTXOs</span>
+          <span id="bal-fuel" class="value value-warn" aria-labelledby="lbl-fuel">—</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-reserve">Reserve UTXOs</span>
+          <span id="bal-reserve" class="value" aria-labelledby="lbl-reserve">—</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-runway">Fuel runway (s)</span>
+          <span id="bal-runway" class="value" aria-labelledby="lbl-runway">—</span>
+        </div>
       </div>
-      <div class="row meta">
+      <div class="row meta" aria-label="Pool configuration">
         <span>Denomination: <strong id="meta-denom">—</strong> sats</span>
         <span>Low / high water: <strong id="meta-water">—</strong></span>
         <span>Storage: <strong id="meta-server">—</strong></span>
       </div>
     </section>
 
-    <section class="card chart-card">
-      <h2>Transactions per second</h2>
-      <canvas id="tps-chart" height="120"></canvas>
+    <section class="card chart-card" aria-labelledby="tps-chart-heading">
+      <h2 id="tps-chart-heading">Transactions per second</h2>
+      <div class="chart-wrap">
+        <canvas id="tps-chart" height="140" role="img" aria-label="Line chart of succeeded and failed transactions per second"></canvas>
+        <p id="tps-chart-fallback" class="chart-fallback" hidden>Chart.js unavailable — numeric gauges above still update.</p>
+      </div>
     </section>
 
-    <section class="card chart-card">
-      <h2>Fuel inventory</h2>
-      <canvas id="fuel-chart" height="120"></canvas>
+    <section class="card chart-card" aria-labelledby="fuel-chart-heading">
+      <h2 id="fuel-chart-heading">Fuel inventory</h2>
+      <div class="chart-wrap">
+        <canvas id="fuel-chart" height="140" role="img" aria-label="Line chart of fuel and reserve UTXO counts"></canvas>
+        <p id="fuel-chart-fallback" class="chart-fallback" hidden>Chart.js unavailable — balance cards still update.</p>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>Fuel top-ups</h2>
-      <p class="hint">Detected when FuelKeeper increases fuel or reserve inventory (client-side fan-out).</p>
-      <ul id="topup-log" class="log"></ul>
+    <section class="card" aria-labelledby="topup-heading">
+      <h2 id="topup-heading">Fuel top-ups</h2>
+      <p class="hint">Logged when FuelKeeper increases fuel or reserve inventory (client-side fan-out).</p>
+      <ul id="topup-log" class="log" aria-live="polite" aria-relevant="additions"></ul>
+      <p id="topup-empty" class="empty-state">No top-ups yet. Fund the operator and wait for FuelKeeper rounds.</p>
     </section>
 
-    <section class="card">
-      <h2>Fund operator (WalletClient)</h2>
+    <section class="card" aria-labelledby="fund-heading">
+      <h2 id="fund-heading">Fund operator (WalletClient)</h2>
       <p class="hint">
         Uses browser <code>@bsv/sdk</code> <code>WalletClient</code> (MetaNet-compatible) to pay the operator BRC-29 deposit address.
         After payment, the dashboard internalizes into the default basket; FuelKeeper fans funds into reserve → fuel.
       </p>
       <div class="funding-box">
-        <div><span class="label">Deposit address</span><code id="fund-address">loading…</code></div>
-        <div class="controls">
-          <label>Satoshis <input type="number" id="fund-amount" min="1" value="100000" /></label>
-          <button id="btn-fund" class="primary">Pay with WalletClient</button>
-          <button id="btn-refresh-funding" class="ghost">Refresh address</button>
+        <div class="fund-address-row">
+          <span class="label" id="lbl-address">Deposit address</span>
+          <div class="address-actions">
+            <code id="fund-address" aria-labelledby="lbl-address">loading…</code>
+            <button type="button" id="btn-copy-address" class="ghost compact" disabled title="Copy deposit address" aria-label="Copy deposit address">Copy</button>
+          </div>
         </div>
-        <p id="fund-status" class="status"></p>
+        <div class="controls" role="group" aria-label="Funding controls">
+          <label for="fund-amount">Satoshis
+            <input type="number" id="fund-amount" min="1" step="1" value="100000" inputmode="numeric" />
+          </label>
+          <button type="button" id="btn-fund" class="primary">Pay with WalletClient</button>
+          <button type="button" id="btn-refresh-funding" class="ghost">Refresh address</button>
+        </div>
+        <details class="advanced">
+          <summary>Manual internalize (txid / hex)</summary>
+          <p class="hint">If WalletClient is unavailable, paste a txid (or atomic BEEF / raw tx hex) that pays the deposit address.</p>
+          <div class="controls">
+            <label class="grow" for="manual-txid">Txid
+              <input type="text" id="manual-txid" spellcheck="false" autocomplete="off" placeholder="64-char hex txid" />
+            </label>
+          </div>
+          <div class="controls">
+            <label class="grow" for="manual-hex">Atomic tx hex
+              <input type="text" id="manual-hex" spellcheck="false" autocomplete="off" placeholder="optional atomic BEEF or raw tx hex" />
+            </label>
+            <label for="manual-vout">vout
+              <input type="number" id="manual-vout" min="0" step="1" value="0" inputmode="numeric" />
+            </label>
+            <button type="button" id="btn-manual-internalize" class="ghost">Internalize</button>
+          </div>
+        </details>
+        <p id="fund-status" class="status" role="status" aria-live="polite"></p>
       </div>
     </section>
   </main>
