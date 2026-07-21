@@ -3,9 +3,9 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.26.3
 
 require (
-	github.com/bsv-blockchain/go-bsv-middleware v0.13.4
+	github.com/bsv-blockchain/go-bsv-middleware v0.13.5
 	github.com/bsv-blockchain/go-chaintracks v1.2.10
-	github.com/bsv-blockchain/go-sdk v1.3.0
+	github.com/bsv-blockchain/go-sdk v1.3.1
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.8
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.1
@@ -139,7 +139,7 @@ require (
 	github.com/joho/godotenv v1.6.0-pre.4 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/koron/go-ssdp v0.9.1 // indirect
 	github.com/labstack/echo/v4 v4.15.4 // indirect
@@ -261,7 +261,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/grpc v1.83.0-dev // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
