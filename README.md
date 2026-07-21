@@ -155,6 +155,7 @@ For a guided walkthrough (including faucet and local setup), see the examples ov
 - Storage Server: `./docs/storage_server.md`
 - Storage: `./docs/storage.md`
 - Wallet: `./docs/wallet.md`
+- Throughput Docker live-test (privacy vs 1000 TPS stack): `./docs/throughput-docker.md`
 
 <br/>
 

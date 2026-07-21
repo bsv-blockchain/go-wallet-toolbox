@@ -1,18 +1,15 @@
 # =============================================================================
-# Docker Compose configuration for go-wallet-toolbox infra server
+# Docker Compose configuration for throughput live-test infra server
 # =============================================================================
-# This config is optimized for use with the 'db' PostgreSQL service
-# started by docker-compose.yaml in this repository.
-#
 # Usage:
-#   docker compose up -d --build
+#   docker compose -f docker-compose.throughput.yaml up -d --build
 #
-# The server will be available at http://localhost:8100
+# Pairs with Dockerfile.throughput and cmd/throughput_loadgen.
 # =============================================================================
 
 bsv_network: test
 
-name: go-storage-server
+name: go-storage-server-throughput
 
 # --- Server Identity (required) ---
 # This key identifies your storage server on the BSV network.
@@ -33,7 +30,8 @@ db:
     host: db # Docker Compose service name
     port: "5432"
     user: postgres
-    password: postgres
+    # Local docker-compose Postgres only — not a production secret.
+    password: postgres # NOSONAR
     db_name: storage
     schema: public
     ssl_mode: disable # Required for local Docker Postgres
@@ -116,9 +114,30 @@ fee_model:
   type: sat/kb
   value: 100
 
-# --- UTXO management (standard / privacy) ---
+# --- UTXO management (throughput) ---
 utxo_management:
-  strategy: privacy
+  strategy: throughput
+  throughput:
+    expected_tx_size_bytes: 200
+    expected_output_satoshis: 0
+    denomination_satoshis: 0
+    target_tps: 1000
+    expected_confirmation_seconds: 300
+    pool_headroom_factor: 1.5
+    target_pool_size: 0
+    low_water_percent: 60
+    high_water_percent: 100
+    spend_policy: prefer_mined
+    pool_basket: fuel
+    reserve_basket: reserve
+    fanout_outputs_per_tx: 100
+    fanout_max_txs_per_round: 12000
+    fanout_tree_depth: 2
+    consolidation_inputs_per_tx: 1000
+    top_up:
+      enabled: true
+      interval_seconds: 10
+      start_immediately: true
 
 # --- Transaction Status Sync ---
 synchronize_tx_statuses:
@@ -180,7 +199,8 @@ wallet_services:
     storage_path: ""
     p2p_storage_path: ""
 
-  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+  # Optional; empty for live-test stack (not required for OP_RETURN loadgen).
+  exchangerates_api_key: ""
 
   fiat_exchange_rates:
     base: USD
