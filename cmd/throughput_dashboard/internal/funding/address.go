@@ -20,6 +20,9 @@ import (
 const (
 	DerivationPrefixB64 = "SfKxPIJNgdI="
 	DerivationSuffixB64 = "NaGLC6fMH50="
+
+	// defaultSuggestedSatoshis is 0.001 BSV — enough for demo fan-out rounds.
+	defaultSuggestedSatoshis uint64 = 100_000
 )
 
 // Info is returned to the dashboard UI for WalletClient payments.
@@ -35,7 +38,15 @@ type Info struct {
 }
 
 // DeriveInfo builds the mainnet/testnet BRC-29 deposit address for the operator.
+// Sender is always AnyoneKey; KeyID prefix/suffix are the fixed faucet constants.
 func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) (Info, error) {
+	if priv == nil {
+		return Info{}, fmt.Errorf("operator private key is required")
+	}
+	if err := network.Validate(); err != nil {
+		return Info{}, err
+	}
+
 	_, anyonePub := sdk.AnyoneKey()
 	keyID := brc29.KeyID{
 		DerivationPrefix: DerivationPrefixB64,
@@ -46,9 +57,11 @@ func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) 
 		addr *script.Address
 		err  error
 	)
-	if network == defs.NetworkTestnet {
+	switch network {
+	case defs.NetworkTestnet:
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithTestNet())
-	} else {
+	default:
+		// NetworkMainnet (and any future validated mainnet aliases).
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithMainNet())
 	}
 	if err != nil {
@@ -61,7 +74,7 @@ func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) 
 	}
 
 	if suggested == 0 {
-		suggested = 100_000 // 0.001 BSV — enough for demo fan-out rounds
+		suggested = defaultSuggestedSatoshis
 	}
 
 	return Info{
@@ -77,6 +90,7 @@ func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) 
 }
 
 // AnyonePaymentRemittance returns the wallet-payment remittance for faucet-style deposits.
+// Derivation bytes match DerivationPrefixB64 / DerivationSuffixB64; sender is AnyoneKey.
 func AnyonePaymentRemittance() (*sdk.Payment, error) {
 	prefix, err := base64.StdEncoding.DecodeString(DerivationPrefixB64)
 	if err != nil {
