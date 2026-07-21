@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy → Throughput — UTXO Management Transition</title>
+  <meta name="description" content="How PR #936 flips go-wallet-toolbox from privacy-default funding to a denominated fuel pool for high-throughput operators." />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --bg-elev: #121820;
+      --bg-card: #151c26;
+      --bg-soft: #1a2330;
+      --line: #243041;
+      --line-strong: #314255;
+      --text: #e8eef6;
+      --muted: #93a4b8;
+      --faint: #6b7c90;
+      --privacy: #7aa2ff;
+      --privacy-soft: rgba(122, 162, 255, 0.12);
+      --throughput: #3dd6c6;
+      --throughput-soft: rgba(61, 214, 198, 0.12);
+      --warn: #f0b429;
+      --warn-soft: rgba(240, 180, 41, 0.12);
+      --danger: #ff6b7a;
+      --ok: #5ee29a;
+      --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+      --radius: 16px;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      --max: 1120px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(122, 162, 255, 0.14), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(61, 214, 198, 0.12), transparent 50%),
+        radial-gradient(700px 400px at 50% 100%, rgba(240, 180, 41, 0.06), transparent 45%),
+        var(--bg);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--throughput); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap { width: min(var(--max), calc(100% - 2.5rem)); margin: 0 auto; }
+
+    /* Header */
+    header.hero {
+      padding: 4.5rem 0 2.5rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .55rem;
+      font-family: var(--mono);
+      font-size: .78rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: .4rem .75rem;
+      margin-bottom: 1.25rem;
+    }
+    .eyebrow .dot {
+      width: .5rem; height: .5rem; border-radius: 50%;
+      background: var(--throughput);
+      box-shadow: 0 0 0 4px rgba(61, 214, 198, 0.18);
+    }
+    h1 {
+      font-size: clamp(2.1rem, 4.5vw, 3.4rem);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      margin: 0 0 1rem;
+      max-width: 16ch;
+      font-weight: 650;
+    }
+    h1 .from { color: var(--privacy); }
+    h1 .arrow { color: var(--faint); font-weight: 400; }
+    h1 .to { color: var(--throughput); }
+    .lede {
+      font-size: 1.12rem;
+      color: var(--muted);
+      max-width: 58ch;
+      margin: 0 0 1.75rem;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .6rem;
+    }
+    .chip {
+      font-family: var(--mono);
+      font-size: .78rem;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+      border-radius: 999px;
+      padding: .4rem .7rem;
+    }
+    .chip strong { color: var(--text); font-weight: 550; }
+
+    /* Nav */
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(14px);
+      background: rgba(11, 15, 20, 0.78);
+      border-bottom: 1px solid var(--line);
+    }
+    nav.toc .wrap {
+      display: flex;
+      gap: .25rem;
+      overflow-x: auto;
+      padding: .65rem 0;
+      scrollbar-width: none;
+    }
+    nav.toc a {
+      color: var(--muted);
+      font-size: .86rem;
+      white-space: nowrap;
+      padding: .45rem .7rem;
+      border-radius: 999px;
+      text-decoration: none;
+    }
+    nav.toc a:hover, nav.toc a.active {
+      color: var(--text);
+      background: var(--bg-soft);
+      text-decoration: none;
+    }
+
+    section {
+      padding: 3.5rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    h2 {
+      font-size: clamp(1.45rem, 2.4vw, 1.9rem);
+      letter-spacing: -0.02em;
+      margin: 0 0 .75rem;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 0 0 .6rem;
+      letter-spacing: -0.01em;
+    }
+    .section-intro {
+      color: var(--muted);
+      max-width: 65ch;
+      margin: 0 0 1.75rem;
+    }
+
+    /* Grid helpers */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 860px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%), var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.3rem;
+      box-shadow: var(--shadow);
+    }
+    .card.privacy { border-color: rgba(122, 162, 255, 0.35); background: linear-gradient(180deg, var(--privacy-soft), var(--bg-card) 55%); }
+    .card.throughput { border-color: rgba(61, 214, 198, 0.35); background: linear-gradient(180deg, var(--throughput-soft), var(--bg-card) 55%); }
+    .card.warn { border-color: rgba(240, 180, 41, 0.35); background: linear-gradient(180deg, var(--warn-soft), var(--bg-card) 55%); }
+
+    .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: .55rem;
+    }
+    .label.privacy { color: var(--privacy); }
+    .label.throughput { color: var(--throughput); }
+    .label.warn { color: var(--warn); }
+
+    ul.clean {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    ul.clean li {
+      position: relative;
+      padding-left: 1.1rem;
+      margin: .45rem 0;
+      color: var(--muted);
+      font-size: .95rem;
+    }
+    ul.clean li::before {
+      content: "";
+      position: absolute;
+      left: 0; top: .55rem;
+      width: .4rem; height: .4rem;
+      border-radius: 50%;
+      background: var(--faint);
+    }
+    .card.privacy ul.clean li::before { background: var(--privacy); }
+    .card.throughput ul.clean li::before { background: var(--throughput); }
+
+    /* Comparison table */
+    .compare {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .92rem;
+      overflow: hidden;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: var(--bg-card);
+    }
+    .compare th, .compare td {
+      padding: .85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .compare th {
+      font-family: var(--mono);
+      font-size: .75rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--faint);
+      background: var(--bg-soft);
+    }
+    .compare th.p { color: var(--privacy); }
+    .compare th.t { color: var(--throughput); }
+    .compare tr:last-child td { border-bottom: 0; }
+    .compare td:first-child {
+      color: var(--text);
+      font-weight: 550;
+      width: 22%;
+      background: rgba(255,255,255,0.015);
+    }
+    .compare td { color: var(--muted); }
+    .table-scroll { overflow-x: auto; border-radius: var(--radius); }
+
+    /* Config flip */
+    .flip {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 1rem;
+      align-items: stretch;
+    }
+    @media (max-width: 900px) {
+      .flip { grid-template-columns: 1fr; }
+      .flip .arrow-col { transform: rotate(90deg); margin: .25rem auto; }
+    }
+    .arrow-col {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--throughput);
+      font-size: 1.6rem;
+    }
+    pre.config {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: .8rem;
+      line-height: 1.55;
+      color: #c9d7e8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    pre.config .k { color: #9fb4cc; }
+    pre.config .s { color: var(--privacy); }
+    pre.config .t { color: var(--throughput); font-weight: 600; }
+    pre.config .c { color: var(--faint); }
+    pre.config .n { color: #f0b429; }
+    pre.config .hl {
+      display: block;
+      margin: 0 -1.3rem;
+      padding: 0 1.3rem;
+      background: rgba(61, 214, 198, 0.08);
+      box-shadow: inset 3px 0 0 var(--throughput);
+    }
+
+    /* Flow diagram */
+    .flow {
+      display: grid;
+      gap: .75rem;
+    }
+    .flow-row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: .85rem;
+      align-items: center;
+    }
+    @media (max-width: 700px) {
+      .flow-row { grid-template-columns: 1fr; }
+    }
+    .flow-tag {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: right;
+    }
+    @media (max-width: 700px) { .flow-tag { text-align: left; } }
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .45rem;
+      align-items: center;
+    }
+    .node {
+      font-family: var(--mono);
+      font-size: .78rem;
+      padding: .55rem .7rem;
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: var(--bg-soft);
+      color: var(--text);
+    }
+    .node.dim { color: var(--faint); border-style: dashed; }
+    .node.good { border-color: rgba(61, 214, 198, 0.45); color: var(--throughput); background: var(--throughput-soft); }
+    .node.blue { border-color: rgba(122, 162, 255, 0.45); color: var(--privacy); background: var(--privacy-soft); }
+    .node.hot { border-color: rgba(240, 180, 41, 0.45); color: var(--warn); background: var(--warn-soft); }
+    .pipe {
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: .85rem;
+    }
+
+    /* Baskets visual */
+    .baskets {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 860px) { .baskets { grid-template-columns: 1fr; } }
+    .basket {
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: var(--bg-card);
+      padding: 1.15rem;
+      min-height: 180px;
+      position: relative;
+      overflow: hidden;
+    }
+    .basket::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% 20%;
+      height: 120px;
+      border-radius: 50%;
+      filter: blur(30px);
+      opacity: .35;
+      pointer-events: none;
+    }
+    .basket.default::after { background: var(--privacy); }
+    .basket.reserve::after { background: var(--warn); }
+    .basket.fuel::after { background: var(--throughput); }
+    .coins {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+      margin-top: .9rem;
+    }
+    .coin {
+      width: 1.55rem; height: 1.55rem;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.15);
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), transparent 45%), #3a4a5f;
+      box-shadow: inset 0 -2px 4px rgba(0,0,0,.35);
+    }
+    .coin.v1 { transform: scale(.85); opacity: .7; }
+    .coin.v2 { transform: scale(1.05); }
+    .coin.v3 { transform: scale(1.25); }
+    .coin.uniform {
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.4), transparent 45%), #1f8f84;
+      width: 1.2rem; height: 1.2rem;
+    }
+    .coin.chunk {
+      width: 2.1rem; height: 2.1rem;
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), transparent 45%), #a67c1a;
+    }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.15rem;
+    }
+    .stat .num {
+      font-size: 1.55rem;
+      font-weight: 650;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat .num span { color: var(--throughput); }
+    .stat .desc {
+      color: var(--muted);
+      font-size: .86rem;
+      margin-top: .25rem;
+    }
+
+    /* Outcome pills */
+    .outcomes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem;
+      margin-top: .75rem;
+    }
+    .pill {
+      font-family: var(--mono);
+      font-size: .75rem;
+      border-radius: 999px;
+      padding: .4rem .7rem;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .pill.exact { color: var(--ok); border-color: rgba(94, 226, 154, .35); background: rgba(94, 226, 154, .08); }
+    .pill.multi { color: var(--throughput); border-color: rgba(61, 214, 198, .35); background: var(--throughput-soft); }
+    .pill.fallback { color: var(--warn); border-color: rgba(240, 180, 41, .35); background: var(--warn-soft); }
+
+    /* Steps */
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: .85rem;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1rem;
+      align-items: start;
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+    }
+    .step .n {
+      counter-increment: step;
+      width: 2rem; height: 2rem;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-family: var(--mono);
+      font-size: .85rem;
+      color: var(--bg);
+      background: var(--throughput);
+      font-weight: 700;
+    }
+    .step p { margin: .2rem 0 0; color: var(--muted); font-size: .94rem; }
+
+    /* Safety */
+    .callout {
+      border-left: 3px solid var(--throughput);
+      background: var(--throughput-soft);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 1rem 1.15rem;
+      color: var(--muted);
+      margin-top: 1.25rem;
+    }
+    .callout strong { color: var(--text); }
+    .callout.warn-border {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+    }
+
+    footer {
+      padding: 2.5rem 0 3.5rem;
+      color: var(--faint);
+      font-size: .88rem;
+    }
+    footer code {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    /* Interactive strategy toggle demo */
+    .demo-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+    .demo-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding: .9rem 1.1rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-soft);
+    }
+    .toggle {
+      display: inline-flex;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .toggle button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: .8rem;
+      padding: .55rem .9rem;
+      cursor: pointer;
+    }
+    .toggle button[aria-pressed="true"].privacy {
+      background: var(--privacy-soft);
+      color: var(--privacy);
+    }
+    .toggle button[aria-pressed="true"].throughput {
+      background: var(--throughput-soft);
+      color: var(--throughput);
+    }
+    .demo-body { padding: 1.15rem; }
+    .demo-body .hidden { display: none; }
+    .path-title {
+      font-family: var(--mono);
+      font-size: .78rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin-bottom: .75rem;
+    }
+
+    /* SVG diagram */
+    .diagram {
+      width: 100%;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), transparent),
+        var(--bg-elev);
+      overflow: hidden;
+    }
+    .diagram svg { display: block; width: 100%; height: auto; }
+    .caption {
+      font-size: .86rem;
+      color: var(--faint);
+      margin-top: .65rem;
+    }
+
+    .kbd {
+      font-family: var(--mono);
+      font-size: .78em;
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: .1rem .35rem;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="eyebrow"><span class="dot"></span> PR #936 · go-wallet-toolbox</div>
+      <h1>
+        <span class="from">privacy</span>
+        <span class="arrow">→</span>
+        <span class="to">throughput</span>
+      </h1>
+      <p class="lede">
+        A single config flip turns the wallet from a privacy-first consumer funder
+        into a denominated fuel pool built for sustained operator loads — exact-match
+        claims, proactive fan-out top-up, and OpenTelemetry runway metrics.
+        Default stays privacy. Zero behavior change until you opt in.
+      </p>
+      <div class="meta-row">
+        <span class="chip"><strong>default</strong> strategy: privacy</span>
+        <span class="chip"><strong>opt-in</strong> strategy: throughput</span>
+        <span class="chip"><strong>profile</strong> ~10 act/s avg · ~160k out/s peaks</span>
+        <span class="chip"><strong>denom</strong> ~240 sat (derived)</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Sections">
+    <div class="wrap">
+      <a href="#why">Why</a>
+      <a href="#compare">Side-by-side</a>
+      <a href="#flip">The flip</a>
+      <a href="#path">Funding path</a>
+      <a href="#baskets">Baskets & fan-out</a>
+      <a href="#ops">Operator loop</a>
+      <a href="#observe">Observability</a>
+      <a href="#safety">Safety</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- WHY -->
+    <section id="why">
+      <div class="wrap">
+        <h2>Why this transition exists</h2>
+        <p class="section-intro">
+          Track P (#935) made funding cost flat in pool size. What remained for
+          high-volume single-operator workloads was the <em>shape</em> of the pool,
+          the work done per request for privacy, and the lack of proactive replenishment.
+        </p>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="num">~10<span>/s</span></div>
+            <div class="desc">Average createAction rate (repo-market profile)</div>
+          </div>
+          <div class="stat">
+            <div class="num">160k<span>/s</span></div>
+            <div class="desc">Peak output rate via packed many-output actions</div>
+          </div>
+          <div class="stat">
+            <div class="num">1 query</div>
+            <div class="desc">Exact-match fuel claim on the happy path</div>
+          </div>
+          <div class="stat">
+            <div class="num">0 change</div>
+            <div class="desc">In privacy mode — default, additive, opt-in only</div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 1.25rem;">
+          <div class="card privacy">
+            <div class="label privacy">Privacy is for</div>
+            <h3>Consumer / multi-user wallets</h3>
+            <ul class="clean">
+              <li>Randomized change values break value-link analysis</li>
+              <li>Best-fit funding over variable-value UTXOs</li>
+              <li>Per-request change-count heuristics</li>
+              <li>Replenishment only as a side effect of spends</li>
+            </ul>
+          </div>
+          <div class="card throughput">
+            <div class="label throughput">Throughput is for</div>
+            <h3>Single-operator infrastructure funds</h3>
+            <ul class="clean">
+              <li>Uniform denomination → exact-match every time</li>
+              <li>Skip CountUTXOs; deterministic single change</li>
+              <li>Client-side FuelKeeper fans reserve → fuel</li>
+              <li>Pool/reserve runway gauges for external paging</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout warn-border">
+          <strong>Privacy trade-off is intentional.</strong>
+          Throughput mode makes the operator’s transaction graph fully linkable by design.
+          Use it for infrastructure funds you fully control — never for custodial end-user funds.
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARE -->
+    <section id="compare">
+      <div class="wrap">
+        <h2>What actually changes</h2>
+        <p class="section-intro">
+          Same storage API. Same create → sign → broadcast pipeline. The strategy
+          rewires funding source, change policy, and top-up automation.
+        </p>
+        <div class="table-scroll">
+          <table class="compare">
+            <thead>
+              <tr>
+                <th>Dimension</th>
+                <th class="p">privacy (default)</th>
+                <th class="t">throughput</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Funding source</td>
+                <td>default change basket, best-fit</td>
+                <td>fuel basket first; exact denomination</td>
+              </tr>
+              <tr>
+                <td>Hot-path query</td>
+                <td>CountUTXOs + bounded tier walk</td>
+                <td>No CountUTXOs; single exact-match micro-query</td>
+              </tr>
+              <tr>
+                <td>Change outputs</td>
+                <td>Randomized values, multi-output possible</td>
+                <td>One deterministic remainder → default</td>
+              </tr>
+              <tr>
+                <td>Pool shape</td>
+                <td>Variable values from prior change</td>
+                <td>Uniform fuel UTXOs (e.g. 240 sat)</td>
+              </tr>
+              <tr>
+                <td>Replenishment</td>
+                <td>Reactive via spend-side change minting</td>
+                <td>Proactive FuelKeeper fan-out (client keys)</td>
+              </tr>
+              <tr>
+                <td>Baskets</td>
+                <td>default only</td>
+                <td>default + fuel + reserve (seeded)</td>
+              </tr>
+              <tr>
+                <td>Spend policy</td>
+                <td>Implicit (mined → unproven, sending if delayed)</td>
+                <td>mined_only | prefer_mined | any</td>
+              </tr>
+              <tr>
+                <td>When pool is empty</td>
+                <td>ErrNotEnoughFunds</td>
+                <td>Transparent fallback to default + metrics</td>
+              </tr>
+              <tr>
+                <td>Observability</td>
+                <td>Spans optional; no pool gauges</td>
+                <td>OTLP metrics: claims, runway, reserve depth</td>
+              </tr>
+              <tr>
+                <td>Rollback</td>
+                <td>—</td>
+                <td>Set strategy: privacy — no on-chain sweep</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- FLIP -->
+    <section id="flip">
+      <div class="wrap">
+        <h2>The config flip</h2>
+        <p class="section-intro">
+          One field enables the strategy. Throughput knobs are already present under
+          defaults so operators can size the pool before going live.
+        </p>
+
+        <div class="flip">
+          <div class="card privacy">
+            <div class="label privacy">Before — default</div>
+            <pre class="config"><span class="k">utxo_management:</span>
+  <span class="k">strategy:</span> <span class="s">privacy</span>
+  <span class="c"># throughput block ignored</span></pre>
+          </div>
+          <div class="arrow-col" aria-hidden="true">→</div>
+          <div class="card throughput">
+            <div class="label throughput">After — opt-in</div>
+            <pre class="config"><span class="k">utxo_management:</span>
+<span class="hl">  <span class="k">strategy:</span> <span class="t">throughput</span></span>
+  <span class="k">throughput:</span>
+    <span class="k">expected_tx_size_bytes:</span> <span class="n">668</span>
+    <span class="k">expected_output_satoshis:</span> <span class="n">170</span>
+    <span class="k">target_tps:</span> <span class="n">10000</span>
+    <span class="k">expected_confirmation_seconds:</span> <span class="n">300</span>
+    <span class="k">pool_headroom_factor:</span> <span class="n">1.5</span>
+    <span class="k">spend_policy:</span> <span class="t">prefer_mined</span>
+    <span class="k">pool_basket:</span> <span class="t">fuel</span>
+    <span class="k">reserve_basket:</span> <span class="t">reserve</span>
+    <span class="k">fanout_tree_depth:</span> <span class="n">2</span>
+    <span class="k">top_up:</span>
+      <span class="k">enabled:</span> <span class="t">true</span>
+      <span class="k">interval_seconds:</span> <span class="n">10</span>
+<span class="k">observability:</span>
+  <span class="k">metrics:</span>
+    <span class="k">enabled:</span> <span class="t">true</span>
+    <span class="k">export_interval_seconds:</span> <span class="n">15</span></pre>
+          </div>
+        </div>
+
+        <div class="grid-3" style="margin-top: 1.25rem;">
+          <div class="card">
+            <h3>Denomination</h3>
+            <p style="margin:0;color:var(--muted);font-size:.94rem;">
+              Derived as <span class="kbd">ceil(size/1000 × fee)</span> + output sats
+              (+ commission). Override with <span class="kbd">denomination_satoshis</span>.
+              Must exceed the marginal fuel-input fee (~15 sat at 100 sat/kb).
+            </p>
+          </div>
+          <div class="card">
+            <h3>Pool target</h3>
+            <p style="margin:0;color:var(--muted);font-size:.94rem;">
+              <span class="kbd">target_tps × confirmation_s × headroom</span>
+              → ~4.5M default-derived; operators often raise for dual diurnal peaks
+              (~18M for the repo-market profile).
+            </p>
+          </div>
+          <div class="card">
+            <h3>Sustained identity</h3>
+            <p style="margin:0;color:var(--muted);font-size:.94rem;">
+              Fan-out mint capacity per round must cover
+              <span class="kbd">target_tps × interval × 1.2</span>
+              so the pool can climb back from low water under load.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PATH -->
+    <section id="path">
+      <div class="wrap">
+        <h2>Funding path: same API, different walk</h2>
+        <p class="section-intro">
+          Toggle the interactive demo to see how a createAction is funded under each strategy.
+          Outcomes are classified for metrics: exact_match, multi_claim, fallback.
+        </p>
+
+        <div class="demo-panel">
+          <div class="demo-toolbar">
+            <div class="path-title" style="margin:0;">Live path sketch</div>
+            <div class="toggle" role="group" aria-label="Strategy">
+              <button type="button" class="privacy" id="btn-privacy" aria-pressed="true">privacy</button>
+              <button type="button" class="throughput" id="btn-throughput" aria-pressed="false">throughput</button>
+            </div>
+          </div>
+          <div class="demo-body">
+            <div id="path-privacy">
+              <div class="path-title">privacy createAction</div>
+              <div class="flow">
+                <div class="flow-row">
+                  <div class="flow-tag">Inventory</div>
+                  <div class="pipeline">
+                    <span class="node blue">CountUTXOs(default)</span>
+                    <span class="pipe">→</span>
+                    <span class="node">change budget heuristic</span>
+                  </div>
+                </div>
+                <div class="flow-row">
+                  <div class="flow-tag">Allocate</div>
+                  <div class="pipeline">
+                    <span class="node blue">bounded best-fit</span>
+                    <span class="pipe">→</span>
+                    <span class="node">mined → unproven</span>
+                    <span class="pipe">→</span>
+                    <span class="node dim">maybe multi-round</span>
+                  </div>
+                </div>
+                <div class="flow-row">
+                  <div class="flow-tag">Change</div>
+                  <div class="pipeline">
+                    <span class="node blue">randomized distribution</span>
+                    <span class="pipe">→</span>
+                    <span class="node">default basket</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="path-throughput" class="hidden">
+              <div class="path-title">throughput createAction</div>
+              <div class="flow">
+                <div class="flow-row">
+                  <div class="flow-tag">Inventory</div>
+                  <div class="pipeline">
+                    <span class="node good">skip CountUTXOs</span>
+                    <span class="pipe">→</span>
+                    <span class="node good">change cap = 1</span>
+                  </div>
+                </div>
+                <div class="flow-row">
+                  <div class="flow-tag">Allocate</div>
+                  <div class="pipeline">
+                    <span class="node good">FundWithConstraints(fuel)</span>
+                    <span class="pipe">→</span>
+                    <span class="node good">exact denomination</span>
+                    <span class="pipe">→</span>
+                    <span class="node">spend_policy tiers</span>
+                  </div>
+                </div>
+                <div class="flow-row">
+                  <div class="flow-tag">Miss?</div>
+                  <div class="pipeline">
+                    <span class="node hot">fallback → default + legacy tiers</span>
+                    <span class="pipe">→</span>
+                    <span class="node dim">correctness ≠ pool health</span>
+                  </div>
+                </div>
+                <div class="flow-row">
+                  <div class="flow-tag">Change</div>
+                  <div class="pipeline">
+                    <span class="node good">one deterministic remainder</span>
+                    <span class="pipe">→</span>
+                    <span class="node">default basket only</span>
+                  </div>
+                </div>
+              </div>
+              <div class="outcomes">
+                <span class="pill exact">exact_match</span>
+                <span class="pill multi">multi_claim</span>
+                <span class="pill fallback">fallback</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top:1.25rem;">
+          <strong>Fallback is a feature, not a failure mode.</strong>
+          A drained fuel pool degrades to the legacy default-basket path with the same
+          correctness guarantees privacy mode has today. Runway gauges exist so you page
+          <em>before</em> that becomes steady-state.
+        </div>
+      </div>
+    </section>
+
+    <!-- BASKETS -->
+    <section id="baskets">
+      <div class="wrap">
+        <h2>Three baskets, one money flow</h2>
+        <p class="section-intro">
+          Fuel outputs are ordinary storage-managed change rows with a different basket
+          name — no schema change, no special signing path. Fan-out never spends the pool
+          it is replenishing.
+        </p>
+
+        <div class="baskets">
+          <div class="basket default">
+            <div class="label privacy">default</div>
+            <h3>Operating funds &amp; remainder</h3>
+            <p style="margin:0;color:var(--muted);font-size:.9rem;">
+              Wallet-payment deposits land here. Throughput remainder change returns here.
+              Fallback funding reads from here.
+            </p>
+            <div class="coins" aria-hidden="true">
+              <span class="coin v3"></span><span class="coin v1"></span><span class="coin v2"></span>
+              <span class="coin v1"></span><span class="coin v2"></span><span class="coin v3"></span>
+            </div>
+          </div>
+          <div class="basket reserve">
+            <div class="label warn">reserve</div>
+            <h3>Fan-out feedstock</h3>
+            <p style="margin:0;color:var(--muted);font-size:.9rem;">
+              Chunk UTXOs sized to fund a full leaf fan-out. Only fan-out actions spend
+              reserve; regular funding cannot drain it.
+            </p>
+            <div class="coins" aria-hidden="true">
+              <span class="coin chunk"></span><span class="coin chunk"></span>
+              <span class="coin chunk"></span>
+            </div>
+          </div>
+          <div class="basket fuel">
+            <div class="label throughput">fuel</div>
+            <h3>Exact-denomination pool</h3>
+            <p style="margin:0;color:var(--muted);font-size:.9rem;">
+              Uniform sat value (e.g. 240). Hot path claims one (or N for packed actions).
+              Caller-supplied outputs targeting fuel/reserve are rejected.
+            </p>
+            <div class="coins" aria-hidden="true">
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+              <span class="coin uniform"></span><span class="coin uniform"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram" style="margin-top:1.25rem;">
+          <svg viewBox="0 0 1000 280" role="img" aria-label="Fan-out tree: default to reserve chunks to fuel leaves">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7c90"/>
+              </marker>
+              <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#7aa2ff" stop-opacity=".25"/>
+                <stop offset="100%" stop-color="#7aa2ff" stop-opacity=".05"/>
+              </linearGradient>
+              <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#f0b429" stop-opacity=".28"/>
+                <stop offset="100%" stop-color="#f0b429" stop-opacity=".06"/>
+              </linearGradient>
+              <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#3dd6c6" stop-opacity=".3"/>
+                <stop offset="100%" stop-color="#3dd6c6" stop-opacity=".06"/>
+              </linearGradient>
+            </defs>
+            <rect x="40" y="90" width="170" height="100" rx="16" fill="url(#g1)" stroke="#7aa2ff" stroke-opacity=".5"/>
+            <text x="125" y="130" text-anchor="middle" fill="#e8eef6" font-family="IBM Plex Sans, sans-serif" font-size="16" font-weight="600">default</text>
+            <text x="125" y="154" text-anchor="middle" fill="#93a4b8" font-family="IBM Plex Mono, monospace" font-size="11">deposits</text>
+
+            <line x1="210" y1="140" x2="300" y2="140" stroke="#6b7c90" stroke-width="2" marker-end="url(#arrow)"/>
+            <text x="255" y="128" text-anchor="middle" fill="#6b7c90" font-family="IBM Plex Mono, monospace" font-size="11">chunk fan-out</text>
+
+            <rect x="310" y="90" width="170" height="100" rx="16" fill="url(#g2)" stroke="#f0b429" stroke-opacity=".5"/>
+            <text x="395" y="130" text-anchor="middle" fill="#e8eef6" font-family="IBM Plex Sans, sans-serif" font-size="16" font-weight="600">reserve</text>
+            <text x="395" y="154" text-anchor="middle" fill="#93a4b8" font-family="IBM Plex Mono, monospace" font-size="11">chunks</text>
+
+            <line x1="480" y1="140" x2="570" y2="140" stroke="#6b7c90" stroke-width="2" marker-end="url(#arrow)"/>
+            <text x="525" y="128" text-anchor="middle" fill="#6b7c90" font-family="IBM Plex Mono, monospace" font-size="11">leaf fan-out</text>
+
+            <rect x="580" y="70" width="380" height="140" rx="16" fill="url(#g3)" stroke="#3dd6c6" stroke-opacity=".5"/>
+            <text x="770" y="110" text-anchor="middle" fill="#e8eef6" font-family="IBM Plex Sans, sans-serif" font-size="16" font-weight="600">fuel pool</text>
+            <text x="770" y="134" text-anchor="middle" fill="#93a4b8" font-family="IBM Plex Mono, monospace" font-size="11">N × denomination  ·  claimable</text>
+            <!-- uniform coins -->
+            <g fill="#1f8f84" stroke="rgba(255,255,255,.2)">
+              <circle cx="640" cy="165" r="9"/><circle cx="665" cy="165" r="9"/>
+              <circle cx="690" cy="165" r="9"/><circle cx="715" cy="165" r="9"/>
+              <circle cx="740" cy="165" r="9"/><circle cx="765" cy="165" r="9"/>
+              <circle cx="790" cy="165" r="9"/><circle cx="815" cy="165" r="9"/>
+              <circle cx="840" cy="165" r="9"/><circle cx="865" cy="165" r="9"/>
+              <circle cx="890" cy="165" r="9"/><circle cx="915" cy="165" r="9"/>
+            </g>
+
+            <text x="500" y="250" text-anchor="middle" fill="#6b7c90" font-family="IBM Plex Mono, monospace" font-size="12">
+              depth 2 · FuelKeeper signs client-side · server never holds keys
+            </text>
+          </svg>
+        </div>
+        <p class="caption">
+          Shaped change (<span class="kbd">FuelShape</span>) mints exact-value storage change into
+          reserve or fuel. Leaf shapes fund from reserve; chunk shapes fund from default.
+        </p>
+      </div>
+    </section>
+
+    <!-- OPS -->
+    <section id="ops">
+      <div class="wrap">
+        <h2>Operator loop after the flip</h2>
+        <p class="section-intro">
+          Enabling throughput is configuration; staying solvent is operations.
+          The FuelKeeper runs in the process that holds the keys.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="n"></div>
+            <div>
+              <h3>Set strategy: throughput and size the pool</h3>
+              <p>Derive denomination from expected action shape. Set target_tps and confirmation window so TargetPool covers peak drain with headroom.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n"></div>
+            <div>
+              <h3>Deposit operating funds into default</h3>
+              <p>Ordinary wallet-payment internalizeAction. No special deposit basket API — the keeper moves value default → reserve → fuel.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n"></div>
+            <div>
+              <h3>Run the FuelKeeper</h3>
+              <p>On each top_up interval: if pool &lt; low water, mint toward high water. Immature fuel counts as inventory so rounds don’t over-mint. Hysteresis prevents thrash.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n"></div>
+            <div>
+              <h3>Issue packed actions as usual</h3>
+              <p>No batch endpoint. Batch at the app layer with many outputs per action. Typical 15-output action → one 240-sat claim; large packed actions multi-claim automatically.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="n"></div>
+            <div>
+              <h3>Page on runway, not on ErrNotEnoughFunds</h3>
+              <p>Export OTLP metrics. Alert when pool runway &lt; 15m or reserve runway &lt; 1 day. Notification transport stays outside the wallet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OBSERVE -->
+    <section id="observe">
+      <div class="wrap">
+        <h2>Observability replaces in-process alerting</h2>
+        <p class="section-intro">
+          Metrics ride the same OTLP endpoint as traces. Instruments no-op without a
+          MeterProvider — privacy deployments pay nothing.
+        </p>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="label throughput">Pool &amp; reserve</div>
+            <ul class="clean">
+              <li><span class="kbd">wallet.utxo.pool.spendable</span> by basket/status</li>
+              <li><span class="kbd">wallet.utxo.pool.runway_seconds</span></li>
+              <li><span class="kbd">wallet.utxo.reserve.balance_satoshis</span></li>
+              <li><span class="kbd">wallet.utxo.reserve.runway_seconds</span></li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="label throughput">Funder &amp; top-up</div>
+            <ul class="clean">
+              <li><span class="kbd">wallet.funder.claims{result}</span></li>
+              <li><span class="kbd">wallet.funder.not_enough_funds</span></li>
+              <li><span class="kbd">wallet.topup.outputs_minted</span></li>
+              <li><span class="kbd">wallet.topup.consecutive_failures</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:1rem;">
+          <div class="label">Example alerts (external)</div>
+          <pre class="config" style="margin-top:.5rem;">- alert: PoolRunwayLow
+  expr: wallet_utxo_pool_runway_seconds &lt; 900
+  for: 1m
+- alert: ReserveRunwayLow
+  expr: wallet_utxo_reserve_runway_seconds &lt; 86400
+  for: 5m
+- alert: TopUpFailing
+  expr: wallet_topup_consecutive_failures &gt;= 3</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- SAFETY -->
+    <section id="safety">
+      <div class="wrap">
+        <h2>Safety properties that make the flip reversible</h2>
+        <div class="grid-2">
+          <div class="card throughput">
+            <div class="label throughput">Guarantees</div>
+            <ul class="clean">
+              <li>privacy strategy: zero behavior change; dispatch before new paths</li>
+              <li>FundWithConstraints zero-value ≡ legacy Fund</li>
+              <li>Drained pool → fallback, never wrong economics</li>
+              <li>Sweeps/remix never drain the fuel pool</li>
+              <li>Fan-out nets −fee only; shaped outputs stay user funds</li>
+              <li>Rollback = set strategy privacy (basket relabel, no sweep)</li>
+            </ul>
+          </div>
+          <div class="card warn">
+            <div class="label warn">Operator duties</div>
+            <ul class="clean">
+              <li>Keep keeper denomination in sync with server config</li>
+              <li>Use Postgres for rated loads (SQLite single-writer warning)</li>
+              <li>Size reserve against ~2.1 BSV/day fuel burn + ~15% fan-out overhead (repo profile)</li>
+              <li>Own paging transport; wallet only emits well-named telemetry</li>
+              <li>Do not enable for multi-tenant custodial balances</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout">
+          <strong>Try it:</strong>
+          <span class="kbd">go run ./examples/throughput_mode</span>
+          · runbook
+          <span class="kbd">examples/throughput_mode/throughput-mode.md</span>
+          · design
+          <span class="kbd">docs/superpowers/specs/2026-07-18-throughput-fuel-funding-design.md</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      Artifact for
+      <a href="https://github.com/bsv-blockchain/go-wallet-toolbox/pull/936">PR #936</a>
+      — throughput fuel funding: denominated pool, fan-out minting, OTel observability.
+      Default remains <code>utxo_management.strategy: privacy</code>.
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const privacyBtn = document.getElementById('btn-privacy');
+      const throughputBtn = document.getElementById('btn-throughput');
+      const privacyPath = document.getElementById('path-privacy');
+      const throughputPath = document.getElementById('path-throughput');
+
+      function setStrategy(mode) {
+        const isThroughput = mode === 'throughput';
+        privacyBtn.setAttribute('aria-pressed', String(!isThroughput));
+        throughputBtn.setAttribute('aria-pressed', String(isThroughput));
+        privacyPath.classList.toggle('hidden', isThroughput);
+        throughputPath.classList.toggle('hidden', !isThroughput);
+      }
+
+      privacyBtn.addEventListener('click', () => setStrategy('privacy'));
+      throughputBtn.addEventListener('click', () => setStrategy('throughput'));
+
+      // Active toc highlight
+      const links = [...document.querySelectorAll('nav.toc a')];
+      const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const id = '#' + entry.target.id;
+          links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === id));
+        });
+      }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+      sections.forEach(s => io.observe(s));
+    })();
+  </script>
+</body>
+</html>
