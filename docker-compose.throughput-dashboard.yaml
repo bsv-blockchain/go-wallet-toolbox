@@ -1,10 +1,16 @@
 # Mainnet throughput demo: Postgres + infra (throughput) + dashboard UI
 #
 #   export PRIVATE_KEY=<operator-wallet-hex>
+#   # optional mainnet ARC token:
+#   # export INFRA_WALLET_SERVICES_ARC_TOKEN=...
 #   docker compose -f docker-compose.throughput-dashboard.yaml up --build
 #
-# UI: http://127.0.0.1:8200
-# Storage (host): http://127.0.0.1:8101
+# UI:            http://127.0.0.1:8200
+# Storage host:  http://127.0.0.1:8101
+# Postgres host: 127.0.0.1:5433
+#
+# PRIVATE_KEY is required (compose fails interpolation if unset).
+# WARNING: Real mainnet funds and fees.
 
 services:
   db:
@@ -32,11 +38,11 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8101:8100"
+      - "127.0.0.1:8101:8100"
     volumes:
       - ./infra-config-docker-throughput-mainnet.yaml:/app/infra-config-throughput.yaml:ro
     environment:
-      # Optional overrides for mainnet services
+      # Optional overrides for mainnet services (yaml ships placeholder ARC token)
       - INFRA_WALLET_SERVICES_ARC_TOKEN=${INFRA_WALLET_SERVICES_ARC_TOKEN:-}
       - INFRA_WALLET_SERVICES_WHATS_ON_CHAIN_API_KEY=${INFRA_WALLET_SERVICES_WHATS_ON_CHAIN_API_KEY:-}
     restart: unless-stopped
@@ -57,6 +63,7 @@ services:
       - HTTP_ADDR=0.0.0.0:8200
       - TPS=${TPS:-10}
       - WORKERS=${WORKERS:-8}
+      - SAMPLE_SECONDS=${SAMPLE_SECONDS:-1}
       - ORIGINATOR=${ORIGINATOR:-throughput-dashboard.local}
     restart: unless-stopped
 

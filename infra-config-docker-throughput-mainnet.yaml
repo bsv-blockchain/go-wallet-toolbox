@@ -1,14 +1,24 @@
 # =============================================================================
-# Docker Compose configuration for MAINNET throughput demo dashboard stack
+# MAINNET throughput demo — storage server config (dashboard stack)
 # =============================================================================
+# Loaded by cmd/infra_throughput as infra-config-throughput.yaml (cwd / volume).
+#
+# Locked demo profile (must match dashboard config.DemoThroughput()):
+#   bsv_network: main
+#   utxo_management.strategy: throughput
+#   fee_model: sat/kb value 100
+#   expected_tx_size_bytes: 200
+#   expected_output_satoshis: 0  → derived denomination 20 sats
+#   target_tps: 1000            (pool sizing; stream default TPS is lower)
+#
 # Usage:
 #   export PRIVATE_KEY=<operator-hex>
 #   # optional mainnet ARC token override:
 #   # export INFRA_WALLET_SERVICES_ARC_TOKEN=...
 #   docker compose -f docker-compose.throughput-dashboard.yaml up -d --build
 #
+# Operator runbook: docs/throughput-dashboard.md
 # WARNING: Real mainnet funds and fees. Use only for intentional demos.
-# Pairs with Dockerfile.dashboard and cmd/throughput_dashboard.
 # =============================================================================
 
 bsv_network: main

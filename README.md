@@ -156,7 +156,7 @@ For a guided walkthrough (including faucet and local setup), see the examples ov
 - Storage: `./docs/storage.md`
 - Wallet: `./docs/wallet.md`
 - Throughput Docker live-test (privacy vs 1000 TPS stack): `./docs/throughput-docker.md`
-- Throughput demo dashboard (mainnet UI, start/stop stream, WalletClient funding): `./docs/throughput-dashboard.md`
+- Throughput demo dashboard (mainnet compose, fund → FuelKeeper → stream runbook): `./docs/throughput-dashboard.md`
 
 <br/>
 

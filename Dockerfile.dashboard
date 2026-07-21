@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Builder stage — throughput infra + dashboard
+# Builder stage — throughput infra + dashboard (mainnet demo stack)
 # =============================================================================
 FROM golang:1.26-alpine AS builder
 
@@ -14,6 +14,7 @@ RUN go mod download
 
 COPY . .
 
+# Static Linux binaries; dashboard embeds web/* via go:embed
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /out/infra \
@@ -36,7 +37,8 @@ WORKDIR /app
 COPY --from=builder /out/infra /app/infra
 COPY --from=builder /out/dashboard /app/dashboard
 
-# Default mainnet throughput config; override via volume mount in compose
+# Default mainnet throughput config; compose volume-mounts the same file as
+# /app/infra-config-throughput.yaml (path expected by cmd/infra_throughput).
 COPY infra-config-docker-throughput-mainnet.yaml /app/infra-config-throughput.yaml
 
 RUN mkdir -p /app/data \
@@ -46,4 +48,5 @@ USER app
 
 EXPOSE 8100 8200
 
+# Default entry is infra; dashboard service overrides entrypoint to /app/dashboard
 ENTRYPOINT ["/app/infra"]
