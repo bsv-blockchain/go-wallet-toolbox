@@ -69,7 +69,7 @@ func TestRunLoadCountsFailures(t *testing.T) {
 
 	stats := RunLoad(context.Background(), fake, cfg, lockingScript)
 
-	require.Greater(t, stats.Attempted, uint64(0))
+	require.Positive(t, stats.Attempted)
 	require.Equal(t, stats.Attempted, stats.Failed, "all attempts should fail")
 	require.Equal(t, uint64(0), stats.Succeeded)
 	require.Equal(t, stats.Attempted, fake.calls.Load())

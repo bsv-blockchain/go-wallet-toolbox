@@ -59,8 +59,8 @@ func run(logger *slog.Logger) error {
 	defer operatorWallet.Close()
 
 	if cfg.FaucetTxID != "" {
-		if err := BootstrapFaucet(ctx, operatorWallet, network, cfg.FaucetTxID, cfg.Originator, logger); err != nil {
-			return fmt.Errorf("faucet bootstrap: %w", err)
+		if faucetErr := BootstrapFaucet(ctx, operatorWallet, network, cfg.FaucetTxID, cfg.Originator, logger); faucetErr != nil {
+			return fmt.Errorf("faucet bootstrap: %w", faucetErr)
 		}
 	}
 

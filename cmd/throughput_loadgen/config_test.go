@@ -24,7 +24,7 @@ func TestConfigFromEnvDefaults(t *testing.T) {
 	require.Equal(t, 1000, cfg.TPS)
 	require.Equal(t, 64, cfg.Workers)
 	require.Equal(t, "throughput-loadgen.local", cfg.Originator)
-	require.Equal(t, "", cfg.FaucetTxID)
+	require.Empty(t, cfg.FaucetTxID)
 	require.Equal(t, 5, cfg.WarmupSeconds)
 	require.Equal(t, 0, cfg.DurationSeconds)
 }

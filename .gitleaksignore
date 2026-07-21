@@ -4,6 +4,7 @@ infra-config.example.yaml:generic-api-key:107
 # infra-config-docker.yaml (development-only values for local docker compose)
 infra-config-docker.yaml:generic-api-key:22
 infra-config-docker.yaml:generic-api-key:179
+infra-config-docker.yaml:generic-api-key:183
 
 # examples/complex_wallet_examples/certifier_server_example/config.example.yaml
 examples/complex_wallet_examples/certifier_server_example/config.example.yaml:generic-api-key:6
@@ -143,3 +144,11 @@ pkg/storage/provider_throughput_baskets_test.go:generic-api-key:29
 pkg/storage/provider_throughput_baskets_test.go:generic-api-key:74
 b02e902a48a7b3b93c2da4586972f56aeee48774:pkg/storage/provider_throughput_baskets_test.go:generic-api-key:29
 b02e902a48a7b3b93c2da4586972f56aeee48774:pkg/storage/provider_throughput_baskets_test.go:generic-api-key:74
+
+# infra-config-docker-throughput.yaml — local Docker live-test examples only
+# (same dev server key / placeholder API key pattern as infra-config-docker.yaml)
+infra-config-docker-throughput.yaml:generic-api-key:19
+infra-config-docker-throughput.yaml:generic-api-key:201
+# Exact fingerprints from Gitleaks PR #960 review comments (false positives)
+781411a5124676f3d121a0d8a2266613c9bf1d53:infra-config-docker-throughput.yaml:generic-api-key:19
+781411a5124676f3d121a0d8a2266613c9bf1d53:infra-config-docker-throughput.yaml:generic-api-key:201

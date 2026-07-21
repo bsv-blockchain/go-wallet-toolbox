@@ -46,6 +46,7 @@ func TestRetryWithBackoffExhaustsWindow(t *testing.T) {
 
 func TestRetryWithBackoffRespectsCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
 		time.Sleep(30 * time.Millisecond)
 		cancel()

@@ -43,57 +43,93 @@ type Stats struct {
 // use the parent ctx so they can finish cleanly. Parent ctx cancellation
 // (e.g. SIGINT) aborts both production and in-flight CreateAction calls.
 func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []byte) Stats {
-	produceCtx := ctx
-	if cfg.DurationSeconds > 0 {
-		var cancel context.CancelFunc
-		produceCtx, cancel = context.WithTimeout(ctx, time.Duration(cfg.DurationSeconds)*time.Second)
-		defer cancel()
-	}
+	produceCtx, stopProduce := produceContext(ctx, cfg.DurationSeconds)
+	defer stopProduce()
 
 	var attempted, succeeded, failed atomic.Uint64
-
-	limiter := rate.NewLimiter(rate.Limit(cfg.TPS), 1)
 	jobs := make(chan struct{}, cfg.Workers)
 
 	var wg sync.WaitGroup
+	startWorkers(ctx, &wg, cfg, w, lockingScript, jobs, &attempted, &succeeded, &failed)
+
+	logCancel, logDone := startProgressLogger(ctx, produceCtx, &attempted, &succeeded, &failed)
+	produceJobs(produceCtx, rate.NewLimiter(rate.Limit(cfg.TPS), 1), jobs)
+	close(jobs)
+	wg.Wait()
+	logCancel()
+	<-logDone
+
+	return Stats{
+		Attempted: attempted.Load(),
+		Succeeded: succeeded.Load(),
+		Failed:    failed.Load(),
+	}
+}
+
+func produceContext(ctx context.Context, durationSeconds int) (context.Context, context.CancelFunc) {
+	if durationSeconds <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, time.Duration(durationSeconds)*time.Second)
+}
+
+func startWorkers(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	cfg Config,
+	w ActionCreator,
+	lockingScript []byte,
+	jobs <-chan struct{},
+	attempted, succeeded, failed *atomic.Uint64,
+) {
 	for i := 0; i < cfg.Workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for range jobs {
-				attempted.Add(1)
-				args := sdk.CreateActionArgs{
-					Description: "throughput loadgen",
-					Outputs: []sdk.CreateActionOutput{
-						{
-							LockingScript:     lockingScript,
-							Satoshis:          0,
-							OutputDescription: "throughput loadgen opreturn",
-						},
-					},
-					Options: &sdk.CreateActionOptions{
-						AcceptDelayedBroadcast: to.Ptr(true),
-					},
-				}
-				// Use parent ctx so duration timeout only stops scheduling.
-				_, err := w.CreateAction(ctx, args, cfg.Originator)
-				if err != nil {
-					n := failed.Add(1)
-					// Sample: first few failures + every Nth (keep high-TPS path light).
-					if shouldSampleCreateActionError(n) {
-						slog.Warn("createAction failed",
-							"error", err,
-							"failed_count", n,
-						)
-					}
-					continue
-				}
-				succeeded.Add(1)
+				runOneCreateAction(ctx, w, cfg.Originator, lockingScript, attempted, succeeded, failed)
 			}
 		}()
 	}
+}
 
-	logCtx, logCancel := context.WithCancel(context.Background())
+func runOneCreateAction(
+	ctx context.Context,
+	w ActionCreator,
+	originator string,
+	lockingScript []byte,
+	attempted, succeeded, failed *atomic.Uint64,
+) {
+	attempted.Add(1)
+	args := sdk.CreateActionArgs{
+		Description: "throughput loadgen",
+		Outputs: []sdk.CreateActionOutput{
+			{
+				LockingScript:     lockingScript,
+				Satoshis:          0,
+				OutputDescription: "throughput loadgen opreturn",
+			},
+		},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(true),
+		},
+	}
+	// Parent ctx so duration timeout only stops scheduling, not in-flight calls.
+	if _, err := w.CreateAction(ctx, args, originator); err != nil {
+		n := failed.Add(1)
+		if shouldSampleCreateActionError(n) {
+			slog.Warn("createAction failed", "error", err, "failed_count", n)
+		}
+		return
+	}
+	succeeded.Add(1)
+}
+
+func startProgressLogger(
+	ctx, produceCtx context.Context,
+	attempted, succeeded, failed *atomic.Uint64,
+) (context.CancelFunc, <-chan struct{}) {
+	logCtx, logCancel := context.WithCancel(ctx)
 	logDone := make(chan struct{})
 	go func() {
 		defer close(logDone)
@@ -118,26 +154,18 @@ func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []b
 			}
 		}
 	}()
+	return logCancel, logDone
+}
 
-produce:
+func produceJobs(produceCtx context.Context, limiter *rate.Limiter, jobs chan<- struct{}) {
 	for {
 		if err := limiter.Wait(produceCtx); err != nil {
-			break
+			return
 		}
 		select {
 		case <-produceCtx.Done():
-			break produce
+			return
 		case jobs <- struct{}{}:
 		}
-	}
-	close(jobs)
-	wg.Wait()
-	logCancel()
-	<-logDone
-
-	return Stats{
-		Attempted: attempted.Load(),
-		Succeeded: succeeded.Load(),
-		Failed:    failed.Load(),
 	}
 }

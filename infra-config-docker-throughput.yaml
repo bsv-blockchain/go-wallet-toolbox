@@ -30,7 +30,8 @@ db:
     host: db # Docker Compose service name
     port: "5432"
     user: postgres
-    password: postgres
+    # Local docker-compose Postgres only — not a production secret.
+    password: postgres # NOSONAR
     db_name: storage
     schema: public
     ssl_mode: disable # Required for local Docker Postgres
@@ -198,7 +199,8 @@ wallet_services:
     storage_path: ""
     p2p_storage_path: ""
 
-  exchangerates_api_key: bd539d2ff492bcb5619d5f27726a766f
+  # Optional; empty for live-test stack (not required for OP_RETURN loadgen).
+  exchangerates_api_key: ""
 
   fiat_exchange_rates:
     base: USD
