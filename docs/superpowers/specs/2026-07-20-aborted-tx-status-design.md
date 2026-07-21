@@ -215,6 +215,8 @@ predicate is left **unchanged**; a regression test locks the common-case behavio
 - Broadcast-rejection regression: doubleSpend/invalidTx assert status **stays** `failed`.
 - Failure-review sweep: assert a never-broadcast `aborted` row is **not** selected by
   `FindKnownTxIDsByStatusesNeedingFailureReview` (`known_tx.go:461`) and stays `aborted`.
+- `ListTransactions` terminal reporting: a `nosend`-then-aborted tx reports
+  `TxUpdateStatusFailed` (terminal) on the standardized surface, not `TxUpdateStatusWaiting`.
 - Exhaustive-switch compile coverage for each new case.
 
 ## Change surface (file-by-file)
@@ -229,5 +231,6 @@ predicate is left **unchanged**; a regression test locks the common-case behavio
 | `pkg/storage/internal/actions/list_actions_mapping.go` | widen `unfail`-path filter; guard `markActionsForUnfail` to `failed`-only |
 | `pkg/internal/storage/repo/syncrepo/sync_output.go` | 1 switch case |
 | `pkg/wallet/internal/mapping/mapping_list_actions.go` | `ActionStatusAborted` const + case |
+| `pkg/storage/provider.go` | `ListTransactions` standardized-status override treats `aborted` as terminal (`TxUpdateStatusFailed`), matching `ToStandardizedStatus`. The override bases status on the KnownTx status and previously special-cased only `failed`, so an `aborted` tx with a lingering non-terminal KnownTx (e.g. `nosend`, since `AbortAction` never touches KnownTx) would otherwise report `waiting` on this surface. Found in whole-branch review. |
 | tests | as above |
 | `ts-stack` follow-up (separate) | TS `TransactionStatus` + conformance vector |
