@@ -45,7 +45,7 @@ func (l *listActions) toFilterParams(userID int, args *wdk.ListActionsArgs) (ent
 	}
 
 	if isFailedQuery {
-		statuses = []wdk.TxStatus{wdk.TxStatusFailed}
+		statuses = []wdk.TxStatus{wdk.TxStatusFailed, wdk.TxStatusAborted}
 	}
 
 	filter := entity.ListActionsFilter{

@@ -102,3 +102,58 @@ func TestListFailedActionsWithUnfail_ToleratesTransactionWithoutKnownTxRow(t *te
 	testabilities.ThenDBState(t, activeStorage).
 		HasKnownTX(normalTxID).WithStatus(wdk.ProvenTxStatusUnfail)
 }
+
+// TestListFailedActions_IncludesAbortedWithDistinctStatus proves an aborted tx
+// (never broadcast) surfaces in the failed-actions bucket alongside genuinely failed
+// txs, with its raw status preserved so the caller can distinguish retryable-abort
+// from permanent-rejection. It also proves Unfail does not re-fail the aborted tx.
+func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	provider := given.Provider()
+	activeStorage := provider.WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and: a rejected (failed) tx
+	failedCreate, failedSigned := given.Action(activeStorage).Created()
+	failedTxID := failedSigned.TxID().String()
+	competingTxID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID().String()
+	provider.ARC().WhenQueryingTx(failedTxID).WillReturnDoubleSpending(competingTxID)
+	_, err := activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), wdk.ProcessActionArgs{
+		IsNewTx: true, Reference: to.Ptr(failedCreate.Reference),
+		TxID: to.Ptr(primitives.TXIDHexString(failedTxID)), RawTx: failedSigned.Bytes(),
+		SendWith: []primitives.TXIDHexString{},
+	})
+	require.NoError(t, err)
+
+	// and: an aborted tx (never broadcast)
+	abortedCreate, _ := given.Action(activeStorage).Created()
+	_, err = activeStorage.AbortAction(t.Context(), testusers.Alice.AuthID(), wdk.AbortActionArgs{
+		Reference: primitives.Base64String(abortedCreate.Reference),
+	})
+	require.NoError(t, err)
+
+	// when: list the failed-actions bucket (spec-op route), with unfail requested
+	result, err := activeStorage.ListActions(t.Context(), testusers.Alice.AuthID(), wdk.ListActionsArgs{
+		Labels: []primitives.StringUnder300{
+			primitives.StringUnder300(wdk.TxStatusUnfail),
+			primitives.StringUnder300(specops.ListActionsSpecOpFailedActionsLabel),
+		},
+		Limit: 10,
+	})
+
+	// then: both are returned, with distinct raw statuses
+	require.NoError(t, err)
+	require.EqualValues(t, 2, result.TotalActions)
+	statuses := map[string]int{}
+	for _, a := range result.Actions {
+		statuses[a.Status]++
+	}
+	require.Equal(t, 1, statuses[string(wdk.TxStatusFailed)], "one failed action expected")
+	require.Equal(t, 1, statuses[string(wdk.TxStatusAborted)], "one aborted action expected")
+
+	// and: the aborted tx was NOT re-failed by the unfail side-effect
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByReference(testusers.Alice, abortedCreate.Reference).
+		WithStatus(wdk.TxStatusAborted)
+}

@@ -16,7 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
-// ListFailedActions lists only actions with status 'failed'.
+// ListFailedActions lists actions with a terminal-unsuccessful status ('failed' or 'aborted').
 func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, args *wdk.ListFailedActionsArgs) (*wdk.ListActionsResult, error) {
 	userID := *auth.UserID
 	var err error
@@ -42,7 +42,7 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 		return nil, fmt.Errorf("failed to convert filter params: %w", err)
 	}
 
-	filter.Status = []wdk.TxStatus{wdk.TxStatusFailed}
+	filter.Status = []wdk.TxStatus{wdk.TxStatusFailed, wdk.TxStatusAborted}
 
 	txs, total, err := l.transactionsRepo.ListAndCountActions(ctx, userID, filter)
 	if err != nil {
@@ -106,6 +106,9 @@ func (l *listActions) ListFailedActions(ctx context.Context, auth wdk.AuthID, ar
 // unfail for that tx, so it is logged and the remaining actions are processed.
 func (l *listActions) markActionsForUnfail(ctx context.Context, actions []wdk.WalletAction) error {
 	for _, a := range actions {
+		if a.Status != string(wdk.TxStatusFailed) {
+			continue
+		}
 		if a.TxID == "" {
 			continue
 		}
