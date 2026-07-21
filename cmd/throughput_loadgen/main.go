@@ -10,13 +10,9 @@ import (
 	"time"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/fuelkeeper"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // loadgenThroughput matches infra-config-docker-throughput.yaml profile fields
@@ -56,9 +52,7 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	operatorWallet, err := wallet.NewWithStorageFactory(network, priv, func(userWallet sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
-		return storage.NewClient(cfg.ServerURL, userWallet)
-	})
+	operatorWallet, err := connectWallet(ctx, network, priv, cfg.ServerURL, logger)
 	if err != nil {
 		return fmt.Errorf("create wallet: %w", err)
 	}

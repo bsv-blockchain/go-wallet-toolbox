@@ -12,6 +12,17 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// Sample createAction failures: log the first N and every Nth thereafter.
+// Keeps the high-TPS path light (no log on every failure).
+const (
+	createActionSampleFirst = 5
+	createActionSampleEvery = 100
+)
+
+func shouldSampleCreateActionError(failedCount uint64) bool {
+	return failedCount <= createActionSampleFirst || failedCount%createActionSampleEvery == 0
+}
+
 // ActionCreator is the wallet surface used by the load runner.
 type ActionCreator interface {
 	CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error)
@@ -67,7 +78,14 @@ func RunLoad(ctx context.Context, w ActionCreator, cfg Config, lockingScript []b
 				// Use parent ctx so duration timeout only stops scheduling.
 				_, err := w.CreateAction(ctx, args, cfg.Originator)
 				if err != nil {
-					failed.Add(1)
+					n := failed.Add(1)
+					// Sample: first few failures + every Nth (keep high-TPS path light).
+					if shouldSampleCreateActionError(n) {
+						slog.Warn("createAction failed",
+							"error", err,
+							"failed_count", n,
+						)
+					}
 					continue
 				}
 				succeeded.Add(1)
