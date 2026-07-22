@@ -35,12 +35,12 @@ go test ./cmd/throughput_dashboard/internal/config/... ./cmd/throughput_dashboar
 **PASS** (config: 9 tests; connect: 4 tests). Also `-race` **PASS**.
 
 ## Requirements checklist
-1. Mainnet defaults (SERVER_URL, BSV_NETWORK, HTTP_ADDR, TPS, WORKERS) — yes  
-2. PRIVATE_KEY required — yes  
-3. DemoThroughput shape + denom 20 — yes (asserted)  
-4. Connect NewWithStorageFactory + NewClient + Balance retry ~30s — yes  
-5. Config tests: defaults + overrides + DemoThroughput — yes (+ validation edges)  
-6. Optional connect unit tests for pure helpers — yes (`retryWithBackoff`)  
+1. Mainnet defaults (SERVER_URL, BSV_NETWORK, HTTP_ADDR, TPS, WORKERS) — yes
+2. PRIVATE_KEY required — yes
+3. DemoThroughput shape + denom 20 — yes (asserted)
+4. Connect NewWithStorageFactory + NewClient + Balance retry ~30s — yes
+5. Config tests: defaults + overrides + DemoThroughput — yes (+ validation edges)
+6. Optional connect unit tests for pure helpers — yes (`retryWithBackoff`)
 
 ## Concerns
 - None for this package scope. Full wallet connect still needs live infra; only backoff helper is unit-tested (by design).

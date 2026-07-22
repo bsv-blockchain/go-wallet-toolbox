@@ -1,8 +1,8 @@
 # Task 8 — Final whole-branch review
 
-**Branch:** `feat/throughput-demo-dashboard`  
-**HEAD:** `dac48529`  
-**Merge-base main:** `a853dceb`  
+**Branch:** `feat/throughput-demo-dashboard`
+**HEAD:** `dac48529`
+**Merge-base main:** `a853dceb`
 **Verdict:** **Approved**
 
 ## Spec compliance
@@ -41,8 +41,8 @@ PRIVATE_KEY=00 docker compose -f docker-compose.throughput-dashboard.yaml config
 
 ## SDD summary
 
-Wave 1 (parallel worktrees): Tasks 1–5  
-Wave 2 (parallel worktrees): Tasks 6–7  
-Wave 3: Final review Task 8  
+Wave 1 (parallel worktrees): Tasks 1–5
+Wave 2 (parallel worktrees): Tasks 6–7
+Wave 3: Final review Task 8
 
 All product success criteria met; ready for PR when desired.

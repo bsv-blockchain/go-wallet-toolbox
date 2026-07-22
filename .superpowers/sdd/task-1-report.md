@@ -32,12 +32,12 @@
 `go test ./cmd/throughput_dashboard/internal/stream/... -count=1` — **PASS** (also `-race` PASS).
 
 ## Requirements checklist
-1. HashPayload formula — yes  
-2. OpReturn locking scripts push hash — yes  
-3. Controller Start/Stop/Running/Stats + rate limit + worker pool + unique iteration/hash — yes  
-4. CreateAction: ADB true, 0 sats, single OP_RETURN — yes (asserted in tests)  
-5. Tests cover hash, OP_RETURN, start/stop, failures; no Succeeded==Attempted after Stop — yes  
-6. Package tests pass — yes  
+1. HashPayload formula — yes
+2. OpReturn locking scripts push hash — yes
+3. Controller Start/Stop/Running/Stats + rate limit + worker pool + unique iteration/hash — yes
+4. CreateAction: ADB true, 0 sats, single OP_RETURN — yes (asserted in tests)
+5. Tests cover hash, OP_RETURN, start/stop, failures; no Succeeded==Attempted after Stop — yes
+6. Package tests pass — yes
 
 ## Concerns
 None.

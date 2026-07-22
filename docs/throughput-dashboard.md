@@ -4,7 +4,7 @@ Demo control plane for observing **throughput-mode** wallet infrastructure:
 
 - Local Postgres + `infra_throughput` with `utxo_management.strategy: throughput`
 - Operator wallet client (holds keys) + **FuelKeeper**
-- Controllable createAction **event stream** with per-action OP_RETURN  
+- Controllable createAction **event stream** with per-action OP_RETURN
   `sha256(iteration ‖ RFC3339Nano timestamp)`
 - Web UI: start/stop stream, TPS chart, fuel/reserve/default balances, top-up feed
 - Browser **`@bsv/sdk` WalletClient** funding into the operator deposit address

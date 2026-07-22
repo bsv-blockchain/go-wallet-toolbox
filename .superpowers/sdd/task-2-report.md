@@ -1,9 +1,9 @@
 # Task 2 Report — Funding package harden
 
-**Status:** complete  
-**Commit:** `49b4199c` — `feat(dashboard): harden funding address and internalize`  
-**Baseline:** `4758c367` — chore(dashboard): baseline throughput demo scaffold  
-**Branch:** `feat/throughput-demo-dashboard`  
+**Status:** complete
+**Commit:** `49b4199c` — `feat(dashboard): harden funding address and internalize`
+**Baseline:** `4758c367` — chore(dashboard): baseline throughput demo scaffold
+**Branch:** `feat/throughput-demo-dashboard`
 **Exclusive scope:** `cmd/throughput_dashboard/internal/funding/**`
 
 ## Summary
