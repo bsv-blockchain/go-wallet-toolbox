@@ -152,3 +152,10 @@ infra-config-docker-throughput.yaml:generic-api-key:201
 # Exact fingerprints from Gitleaks PR #960 review comments (false positives)
 781411a5124676f3d121a0d8a2266613c9bf1d53:infra-config-docker-throughput.yaml:generic-api-key:19
 781411a5124676f3d121a0d8a2266613c9bf1d53:infra-config-docker-throughput.yaml:generic-api-key:201
+
+# infra-config-docker-throughput-mainnet.yaml — same local Docker dev key as
+# infra-config-docker.yaml (not a production secret; false positive).
+infra-config-docker-throughput-mainnet.yaml:generic-api-key:31
+# Exact fingerprint from Gitleaks PR #966 review comment
+4758c36718411130aedbf63edfd9901855d321da:infra-config-docker-throughput-mainnet.yaml:generic-api-key:21
+

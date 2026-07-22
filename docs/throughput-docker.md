@@ -89,3 +89,6 @@ compose from restarting a finished or failed loadgen.
   for fan-out into the `fuel` basket before measuring steady-state rate.
 - Throughput mode design: `examples/throughput_mode/throughput-mode.md` and
   `docs/superpowers/specs/2026-07-20-throughput-docker-live-test-design.md`.
+- **Mainnet demo dashboard** (start/stop stream UI, WalletClient funding, fund → FuelKeeper → stream runbook):
+  [`docs/throughput-dashboard.md`](throughput-dashboard.md) ·
+  `docker compose -f docker-compose.throughput-dashboard.yaml up --build`.
