@@ -18,18 +18,21 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 )
 
+const headerContentType = "Content-Type"
+
 // Deps wires the HTTP server.
 type Deps struct {
 	Ctrl       *stream.Controller
 	Sampler    *metrics.Sampler
-	Wallet     funding.ActionInternalizer
+	Wallet     funding.InternalizeActioner
 	Priv       *ec.PrivateKey
 	Network    defs.BSVNetwork
 	Originator string
 	ServerURL  string
 	Logger     *slog.Logger
 	WebFS      fs.FS
-	ParentCtx  context.Context
+	// Done is closed when the process is shutting down (not a context.Context field).
+	Done <-chan struct{}
 }
 
 // Server is the dashboard HTTP API.
@@ -43,8 +46,8 @@ func New(deps Deps) *Server {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
-	if deps.ParentCtx == nil {
-		deps.ParentCtx = context.Background()
+	if deps.Done == nil {
+		deps.Done = make(chan struct{}) // never closed — no process-wide cancel
 	}
 	s := &Server{deps: deps, mux: http.NewServeMux()}
 	s.routes()
@@ -92,7 +95,7 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 	}
-	err := s.deps.Ctrl.Start(s.deps.ParentCtx, stream.Options{
+	err := s.deps.Ctrl.Start(s.processContext(), stream.Options{
 		TPS:        body.TPS,
 		Workers:    body.Workers,
 		Originator: s.deps.Originator,
@@ -115,7 +118,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set(headerContentType, "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
@@ -138,7 +141,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case <-s.deps.ParentCtx.Done():
+		case <-s.deps.Done:
 			return
 		case <-keepalive.C:
 			fmt.Fprintf(w, ": keepalive\n\n")
@@ -172,19 +175,31 @@ func (s *Server) handleInternalize(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if err := funding.Internalize(
-		r.Context(),
-		s.deps.Wallet,
-		s.deps.Network,
-		info.Address,
-		req,
-		s.deps.Originator,
-		s.deps.Logger,
-	); err != nil {
+	if err := funding.Internalize(r.Context(), funding.InternalizeParams{
+		Wallet:          s.deps.Wallet,
+		Network:         s.deps.Network,
+		ExpectedAddress: info.Address,
+		Request:         req,
+		Originator:      s.deps.Originator,
+		Logger:          s.deps.Logger,
+	}); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// processContext returns a context canceled when the process Done channel closes.
+func (s *Server) processContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-s.deps.Done:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, ev metrics.Event) {
@@ -197,7 +212,7 @@ func writeSSE(w http.ResponseWriter, flusher http.Flusher, ev metrics.Event) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(headerContentType, "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
@@ -206,7 +221,7 @@ func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", headerContentType)
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

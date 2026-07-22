@@ -9,7 +9,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+    integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC"
+    crossorigin="anonymous"
+  ></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -19,11 +23,11 @@
       <h1>Wallet Throughput Demo</h1>
       <p class="sub">Local infra · createAction OP_RETURN stream · FuelKeeper</p>
     </div>
-    <div class="top-meta" role="status" aria-live="polite">
-      <span id="conn-status" class="conn conn-pending" title="Event stream connection">
+    <div class="top-meta">
+      <output id="conn-status" class="conn conn-pending" title="Event stream connection" aria-live="polite">
         <span class="conn-dot" aria-hidden="true"></span>
         <span id="conn-label">Connecting…</span>
-      </span>
+      </output>
       <div id="network-badge" class="badge badge-warn" aria-label="Network">MAINNET</div>
     </div>
   </header>
@@ -54,7 +58,8 @@
           <span id="stat-iteration" class="value" aria-labelledby="lbl-iteration">0</span>
         </div>
       </div>
-      <div class="controls" role="group" aria-label="Stream controls">
+      <fieldset class="controls" aria-label="Stream controls">
+        <legend class="sr-only">Stream controls</legend>
         <label for="tps">TPS
           <input type="number" id="tps" min="1" max="10000" step="1" value="10" inputmode="numeric" aria-describedby="stream-hint" />
         </label>
@@ -63,8 +68,8 @@
         </label>
         <button type="button" id="btn-start" class="primary">Start stream</button>
         <button type="button" id="btn-stop" class="danger" disabled>Stop stream</button>
-      </div>
-      <p id="stream-status" class="status" role="status" aria-live="polite"></p>
+      </fieldset>
+      <output id="stream-status" class="status" aria-live="polite"></output>
       <p id="stream-hint" class="hint">Each action embeds OP_RETURN <code>sha256(iteration ‖ RFC3339Nano timestamp)</code>.</p>
     </section>
 
@@ -98,7 +103,7 @@
     <section class="card chart-card" aria-labelledby="tps-chart-heading">
       <h2 id="tps-chart-heading">Transactions per second</h2>
       <div class="chart-wrap">
-        <canvas id="tps-chart" height="140" role="img" aria-label="Line chart of succeeded and failed transactions per second"></canvas>
+        <canvas id="tps-chart" height="140" aria-label="Line chart of succeeded and failed transactions per second"></canvas>
         <p id="tps-chart-fallback" class="chart-fallback" hidden>Chart.js unavailable — numeric gauges above still update.</p>
       </div>
     </section>
@@ -106,7 +111,7 @@
     <section class="card chart-card" aria-labelledby="fuel-chart-heading">
       <h2 id="fuel-chart-heading">Fuel inventory</h2>
       <div class="chart-wrap">
-        <canvas id="fuel-chart" height="140" role="img" aria-label="Line chart of fuel and reserve UTXO counts"></canvas>
+        <canvas id="fuel-chart" height="140" aria-label="Line chart of fuel and reserve UTXO counts"></canvas>
         <p id="fuel-chart-fallback" class="chart-fallback" hidden>Chart.js unavailable — balance cards still update.</p>
       </div>
     </section>
@@ -132,13 +137,14 @@
             <button type="button" id="btn-copy-address" class="ghost compact" disabled title="Copy deposit address" aria-label="Copy deposit address">Copy</button>
           </div>
         </div>
-        <div class="controls" role="group" aria-label="Funding controls">
+        <fieldset class="controls" aria-label="Funding controls">
+          <legend class="sr-only">Funding controls</legend>
           <label for="fund-amount">Satoshis
             <input type="number" id="fund-amount" min="1" step="1" value="100000" inputmode="numeric" />
           </label>
           <button type="button" id="btn-fund" class="primary">Pay with WalletClient</button>
           <button type="button" id="btn-refresh-funding" class="ghost">Refresh address</button>
-        </div>
+        </fieldset>
         <details class="advanced">
           <summary>Manual internalize (txid / hex)</summary>
           <p class="hint">If WalletClient is unavailable, paste a txid (or atomic BEEF / raw tx hex) that pays the deposit address.</p>
@@ -157,7 +163,7 @@
             <button type="button" id="btn-manual-internalize" class="ghost">Internalize</button>
           </div>
         </details>
-        <p id="fund-status" class="status" role="status" aria-live="polite"></p>
+        <output id="fund-status" class="status" aria-live="polite"></output>
       </div>
     </section>
   </main>

@@ -65,7 +65,7 @@ func (f *fakeWalletAPI) ListOutputs(_ context.Context, args sdk.ListOutputsArgs,
 	return &sdk.ListOutputsResult{TotalOutputs: total}, nil
 }
 
-// fakeInternalizer satisfies funding.ActionInternalizer.
+// fakeInternalizer satisfies funding.InternalizeActioner.
 type fakeInternalizer struct {
 	mu   sync.Mutex
 	err  error
@@ -90,6 +90,15 @@ func (f *fakeInternalizer) callCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.args)
+}
+
+func doneFromCtx(ctx context.Context) <-chan struct{} {
+	ch := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
+	return ch
 }
 
 func discardLogger() *slog.Logger {
@@ -126,18 +135,12 @@ func newTestEnv(t *testing.T, opts ...func(*api.Deps)) *testEnv {
 	t.Cleanup(ctrl.Stop)
 
 	walletAPI := &fakeWalletAPI{balance: 100_000, fuelTotal: 50, reserveTotal: 10}
-	sampler := metrics.NewSampler(
-		walletAPI,
-		ctrl,
-		"test-origin",
-		time.Hour, // long interval; tests that need ticks call Run explicitly
-		1000,      // target TPS
-		20,        // denomination
-		1000,      // target pool
-		60,        // low water %
-		100,       // high water %
-		discardLogger(),
-	)
+	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
+		Originator: "test-origin", Interval: time.Hour,
+		TargetTPS: 1000, Denomination: 20, TargetPool: 1000,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
 
 	internalizer := &fakeInternalizer{}
 	deps := api.Deps{
@@ -149,7 +152,7 @@ func newTestEnv(t *testing.T, opts ...func(*api.Deps)) *testEnv {
 		Originator: "test-origin",
 		ServerURL:  "http://127.0.0.1:8101",
 		Logger:     discardLogger(),
-		ParentCtx:  parent,
+		Done: doneFromCtx(parent),
 		WebFS: fstest.MapFS{
 			"index.html": &fstest.MapFile{Data: []byte("<html>dashboard</html>")},
 		},
@@ -222,7 +225,12 @@ func TestStatus_IncludesTickAfterSample(t *testing.T) {
 	t.Cleanup(ctrl.Stop)
 
 	walletAPI := &fakeWalletAPI{balance: 42, fuelTotal: 7, reserveTotal: 3}
-	sampler := metrics.NewSampler(walletAPI, ctrl, "o", 50*time.Millisecond, 10, 20, 100, 60, 100, discardLogger())
+	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
+		Originator: "o", Interval: 50*time.Millisecond,
+		TargetTPS: 10, Denomination: 20, TargetPool: 100,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
 	go sampler.Run(parent)
 
 	// Wait until LastTick is populated.
@@ -239,7 +247,7 @@ func TestStatus_IncludesTickAfterSample(t *testing.T) {
 		Originator: "o",
 		ServerURL:  "http://example",
 		Logger:     discardLogger(),
-		ParentCtx:  parent,
+		Done: doneFromCtx(parent),
 	})
 
 	rec := doJSON(t, srv.Handler(), http.MethodGet, "/api/status", nil)
@@ -385,7 +393,12 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 	t.Cleanup(ctrl.Stop)
 
 	walletAPI := &fakeWalletAPI{fuelTotal: 1}
-	sampler := metrics.NewSampler(walletAPI, ctrl, "o", 50*time.Millisecond, 10, 20, 100, 60, 100, discardLogger())
+	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
+		Originator: "o", Interval: 50*time.Millisecond,
+		TargetTPS: 10, Denomination: 20, TargetPool: 100,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
 	go sampler.Run(parent)
 	require.Eventually(t, func() bool {
 		return sampler.LastTick().Timestamp != ""
@@ -400,7 +413,7 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 		Originator: "o",
 		ServerURL:  "http://example",
 		Logger:     discardLogger(),
-		ParentCtx:  parent,
+		Done: doneFromCtx(parent),
 	})
 
 	ctx, cancelReq := context.WithCancel(context.Background())

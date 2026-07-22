@@ -308,7 +308,7 @@ function prependTopup(ev) {
 
   els.topupLog.prepend(li);
   while (els.topupLog.children.length > MAX_TOPUPS) {
-    els.topupLog.removeChild(els.topupLog.lastChild);
+    els.topupLog.lastChild?.remove();
   }
   els.topupEmpty.classList.add("hidden");
 }
@@ -402,20 +402,19 @@ function tryBase64ToHex(s) {
   try {
     const bin = atob(s);
     const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.codePointAt(i);
     return bytesToHex(bytes);
   } catch {
     return "";
   }
 }
 
-function coerceToHex(value) {
-  if (value == null || value === "") return "";
-  if (typeof value === "string") {
-    const asHex = normalizeHex(value);
-    if (asHex) return asHex;
-    return tryBase64ToHex(value);
-  }
+function coerceStringToHex(value) {
+  const asHex = normalizeHex(value);
+  return asHex || tryBase64ToHex(value);
+}
+
+function coerceBytesToHex(value) {
   if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
     return bytesToHex(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
   }
@@ -425,24 +424,37 @@ function coerceToHex(value) {
   if (Array.isArray(value) && value.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
     return bytesToHex(value);
   }
-  if (typeof value === "object") {
-    if (typeof value.toHex === "function") {
-      try {
-        return normalizeHex(value.toHex()) || coerceToHex(value.toHex());
-      } catch { /* ignore */ }
-    }
-    if (typeof value.toString === "function" && value.toString !== Object.prototype.toString) {
-      const s = value.toString();
-      if (looksLikeHex(s)) return normalizeHex(s);
-    }
-    // Nested common fields.
-    for (const k of ["hex", "atomicBEEF", "atomicBeef", "beef", "rawTx", "tx", "bytes"]) {
-      if (k in value) {
-        const nested = coerceToHex(value[k]);
-        if (nested) return nested;
-      }
+  return "";
+}
+
+function coerceObjectToHex(value) {
+  if (typeof value.toHex === "function") {
+    try {
+      const fromToHex = normalizeHex(value.toHex()) || coerceToHex(value.toHex());
+      if (fromToHex) return fromToHex;
+    } catch {
+      /* ignore */
     }
   }
+  if (typeof value.toString === "function" && value.toString !== Object.prototype.toString) {
+    const s = value.toString();
+    if (looksLikeHex(s)) return normalizeHex(s);
+  }
+  for (const k of ["hex", "atomicBEEF", "atomicBeef", "beef", "rawTx", "tx", "bytes"]) {
+    if (k in value) {
+      const nested = coerceToHex(value[k]);
+      if (nested) return nested;
+    }
+  }
+  return "";
+}
+
+function coerceToHex(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "string") return coerceStringToHex(value);
+  const asBytes = coerceBytesToHex(value);
+  if (asBytes) return asBytes;
+  if (typeof value === "object") return coerceObjectToHex(value);
   return "";
 }
 
@@ -687,11 +699,12 @@ els.btnFund.addEventListener("click", async () => {
     setStatus(els.fundStatus, "info", "Internalizing into operator wallet…");
     await postInternalize(body);
 
-    const ref = body.txid || (body.atomic_tx_hex ? `${body.atomic_tx_hex.slice(0, 16)}…` : "");
+    const ref = body.txid || (body.atomic_tx_hex ? body.atomic_tx_hex.slice(0, 16) + "…" : "");
+    const refSuffix = ref ? " · " + ref : "";
     setStatus(
       els.fundStatus,
       "ok",
-      `Funded OK${ref ? ` · ${ref}` : ""}. FuelKeeper will fan out into reserve/fuel.`
+      "Funded OK" + refSuffix + ". FuelKeeper will fan out into reserve/fuel."
     );
     await refreshStatus({ chart: false });
   } catch (err) {
@@ -733,7 +746,8 @@ els.btnManualInternalize.addEventListener("click", async () => {
     if (txid) body.txid = txid;
 
     await postInternalize(body);
-    setStatus(els.fundStatus, "ok", `Internalized OK${txid ? ` · ${txid}` : ""}.`);
+    const okSuffix = txid ? " · " + txid : "";
+    setStatus(els.fundStatus, "ok", "Internalized OK" + okSuffix + ".");
     els.manualTxid.value = "";
     els.manualHex.value = "";
     await refreshStatus({ chart: false });

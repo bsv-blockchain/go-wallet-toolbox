@@ -73,32 +73,39 @@ type Sampler struct {
 	subscribers   map[chan Event]struct{}
 }
 
+// Config configures a metrics Sampler.
+type Config struct {
+	Originator        string
+	Interval          time.Duration
+	TargetTPS         uint64
+	Denomination      uint64
+	TargetPool        uint64
+	LowWaterPercent   uint64
+	HighWaterPercent  uint64
+	Logger            *slog.Logger
+}
+
 // NewSampler builds a metrics sampler.
-func NewSampler(
-	wallet WalletAPI,
-	ctrl *stream.Controller,
-	originator string,
-	interval time.Duration,
-	targetTPS, denomination, targetPool, lowWaterPercent, highWaterPercent uint64,
-	logger *slog.Logger,
-) *Sampler {
+func NewSampler(wallet WalletAPI, ctrl *stream.Controller, cfg Config) *Sampler {
+	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
+	interval := cfg.Interval
 	if interval <= 0 {
 		interval = time.Second
 	}
-	low := targetPool * lowWaterPercent / 100
-	high := targetPool * highWaterPercent / 100
+	low := cfg.TargetPool * cfg.LowWaterPercent / 100
+	high := cfg.TargetPool * cfg.HighWaterPercent / 100
 	return &Sampler{
 		wallet:       wallet,
 		ctrl:         ctrl,
-		originator:   originator,
+		originator:   cfg.Originator,
 		logger:       logger,
 		interval:     interval,
-		targetTPS:    targetTPS,
-		denomination: denomination,
-		targetPool:   targetPool,
+		targetTPS:    cfg.TargetTPS,
+		denomination: cfg.Denomination,
+		targetPool:   cfg.TargetPool,
 		lowWater:     low,
 		highWater:    high,
 		maxEvents:    200,

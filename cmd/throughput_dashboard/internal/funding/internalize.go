@@ -16,14 +16,14 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 )
 
-// ActionInternalizer is the wallet surface for InternalizeAction.
-type ActionInternalizer interface {
+// InternalizeActioner is the wallet surface for InternalizeAction.
+type InternalizeActioner interface {
 	InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error)
 }
 
-// AtomicBeefSource fetches atomic BEEF bytes for a txid when AtomicTxHex is empty.
+// AtomicBeefer fetches atomic BEEF bytes for a txid when AtomicTxHex is empty.
 // Production uses services.GetBEEF; tests inject a fake via WithAtomicBeefSource.
-type AtomicBeefSource interface {
+type AtomicBeefer interface {
 	AtomicBeef(ctx context.Context, txID string) ([]byte, error)
 }
 
@@ -31,21 +31,31 @@ type AtomicBeefSource interface {
 type InternalizeRequest struct {
 	// AtomicTxHex is preferred: atomic BEEF or raw tx hex from WalletClient.
 	AtomicTxHex string `json:"atomic_tx_hex"`
-	// TxID is used when AtomicTxHex is empty (fetch BEEF via services / AtomicBeefSource).
+	// TxID is used when AtomicTxHex is empty (fetch BEEF via services / AtomicBeefer).
 	TxID string `json:"txid"`
 	// OutputIndex defaults to 0.
 	OutputIndex uint32 `json:"output_index"`
 }
 
+// InternalizeParams groups the arguments for Internalize.
+type InternalizeParams struct {
+	Wallet          InternalizeActioner
+	Network         defs.BSVNetwork
+	ExpectedAddress string
+	Request         InternalizeRequest
+	Originator      string
+	Logger          *slog.Logger
+}
+
 type internalizeOptions struct {
-	beefSource AtomicBeefSource
+	beefSource AtomicBeefer
 }
 
 // InternalizeOption configures Internalize (optional; production callers omit).
 type InternalizeOption func(*internalizeOptions)
 
 // WithAtomicBeefSource overrides the default services.GetBEEF path (unit tests).
-func WithAtomicBeefSource(src AtomicBeefSource) InternalizeOption {
+func WithAtomicBeefSource(src AtomicBeefer) InternalizeOption {
 	return func(o *internalizeOptions) {
 		o.beefSource = src
 	}
@@ -53,20 +63,12 @@ func WithAtomicBeefSource(src AtomicBeefSource) InternalizeOption {
 
 // Internalize credits a WalletClient (or external) payment into the operator default basket.
 // Prefers AtomicTxHex; otherwise fetches BEEF by TxID. Remittance is always AnyoneKey wallet-payment.
-func Internalize(
-	ctx context.Context,
-	w ActionInternalizer,
-	network defs.BSVNetwork,
-	expectedAddress string,
-	req InternalizeRequest,
-	originator string,
-	logger *slog.Logger,
-	opts ...InternalizeOption,
-) error {
+func Internalize(ctx context.Context, p InternalizeParams, opts ...InternalizeOption) error {
+	logger := p.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if w == nil {
+	if p.Wallet == nil {
 		return fmt.Errorf("wallet is required")
 	}
 
@@ -75,45 +77,61 @@ func Internalize(
 		opt(&cfg)
 	}
 
-	if req.AtomicTxHex == "" && req.TxID == "" {
-		return fmt.Errorf("atomic_tx_hex or txid is required")
+	atomic, err := loadAtomicTx(ctx, p, cfg, logger)
+	if err != nil {
+		return err
 	}
 
-	var atomic []byte
-	var err error
-	if req.AtomicTxHex != "" {
-		atomic, err = hex.DecodeString(req.AtomicTxHex)
-		if err != nil {
-			return fmt.Errorf("decode atomic_tx_hex: %w", err)
-		}
-	} else {
-		src := cfg.beefSource
-		if src == nil {
-			src = servicesAtomicBeefSource{network: network, logger: logger}
-		}
-		atomic, err = src.AtomicBeef(ctx, req.TxID)
-		if err != nil {
-			return err
-		}
+	outputIndex, err := resolveOutputIndex(atomic, p.Request.OutputIndex, p.ExpectedAddress, logger)
+	if err != nil {
+		return err
 	}
 
-	// Resolve which vout pays the operator deposit. Local wallets often put
-	// change at vout 0 and the payment later — never assume the preferred index.
-	outputIndex := req.OutputIndex
-	if expectedAddress != "" {
-		resolved, err := resolvePaymentOutputIndex(atomic, req.OutputIndex, expectedAddress)
-		if err != nil {
-			return err
-		}
-		if resolved != req.OutputIndex {
-			logger.Info("funding payment vout differs from requested index",
-				"requested", req.OutputIndex,
-				"resolved", resolved,
-			)
-		}
-		outputIndex = resolved
-	}
+	return submitInternalize(ctx, p, atomic, outputIndex, logger)
+}
 
+func loadAtomicTx(ctx context.Context, p InternalizeParams, cfg internalizeOptions, logger *slog.Logger) ([]byte, error) {
+	if p.Request.AtomicTxHex == "" && p.Request.TxID == "" {
+		return nil, fmt.Errorf("atomic_tx_hex or txid is required")
+	}
+	if p.Request.AtomicTxHex != "" {
+		atomic, err := hex.DecodeString(p.Request.AtomicTxHex)
+		if err != nil {
+			return nil, fmt.Errorf("decode atomic_tx_hex: %w", err)
+		}
+		return atomic, nil
+	}
+	src := cfg.beefSource
+	if src == nil {
+		src = servicesAtomicBeefSource{network: p.Network, logger: logger}
+	}
+	return src.AtomicBeef(ctx, p.Request.TxID)
+}
+
+func resolveOutputIndex(atomic []byte, preferred uint32, expectedAddress string, logger *slog.Logger) (uint32, error) {
+	if expectedAddress == "" {
+		return preferred, nil
+	}
+	resolved, err := resolvePaymentOutputIndex(atomic, preferred, expectedAddress)
+	if err != nil {
+		return 0, err
+	}
+	if resolved != preferred {
+		logger.Info("funding payment vout differs from requested index",
+			"requested", preferred,
+			"resolved", resolved,
+		)
+	}
+	return resolved, nil
+}
+
+func submitInternalize(
+	ctx context.Context,
+	p InternalizeParams,
+	atomic []byte,
+	outputIndex uint32,
+	logger *slog.Logger,
+) error {
 	remittance, err := AnyonePaymentRemittance()
 	if err != nil {
 		return err
@@ -131,20 +149,26 @@ func Internalize(
 		Description: "throughput dashboard WalletClient top-up",
 	}
 
-	if _, err := w.InternalizeAction(ctx, args, originator); err != nil {
+	if _, err := p.Wallet.InternalizeAction(ctx, args, p.Originator); err != nil {
 		return fmt.Errorf("internalize: %w", err)
 	}
 
-	logTxID := req.TxID
-	if logTxID == "" {
-		if parsed, parseErr := parseTx(atomic); parseErr == nil && parsed != nil {
-			if h := parsed.TxID(); h != nil {
-				logTxID = h.String()
-			}
-		}
-	}
-	logger.Info("funding internalized", "output_index", outputIndex, "txid", logTxID)
+	logger.Info("funding internalized", "output_index", outputIndex, "txid", logTxID(p.Request, atomic))
 	return nil
+}
+
+func logTxID(req InternalizeRequest, atomic []byte) string {
+	if req.TxID != "" {
+		return req.TxID
+	}
+	parsed, parseErr := parseTx(atomic)
+	if parseErr != nil || parsed == nil {
+		return ""
+	}
+	if h := parsed.TxID(); h != nil {
+		return h.String()
+	}
+	return ""
 }
 
 // servicesAtomicBeefSource is the production BEEF fetcher via pkg/services.
@@ -173,10 +197,7 @@ func (s servicesAtomicBeefSource) AtomicBeef(ctx context.Context, txID string) (
 func parseTx(atomic []byte) (*transaction.Transaction, error) {
 	tx, err := transaction.NewTransactionFromBEEF(atomic)
 	if err != nil {
-		tx, err = transaction.NewTransactionFromBytes(atomic)
-		if err != nil {
-			return nil, err
-		}
+		return transaction.NewTransactionFromBytes(atomic)
 	}
 	return tx, nil
 }

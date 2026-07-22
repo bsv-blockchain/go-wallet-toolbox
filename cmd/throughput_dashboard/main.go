@@ -98,24 +98,29 @@ func run(logger *slog.Logger) error {
 		Originator: cfg.Originator,
 	}, logger)
 
-	sampler := metrics.NewSampler(
-		wallet,
-		ctrl,
-		cfg.Originator,
-		time.Duration(cfg.SampleSeconds)*time.Second,
-		throughput.TargetTPS,
-		denom,
-		targetPool,
-		throughput.LowWaterPercent,
-		throughput.HighWaterPercent,
-		logger,
-	)
+	sampler := metrics.NewSampler(wallet, ctrl, metrics.Config{
+		Originator:       cfg.Originator,
+		Interval:         time.Duration(cfg.SampleSeconds) * time.Second,
+		TargetTPS:        throughput.TargetTPS,
+		Denomination:     denom,
+		TargetPool:       targetPool,
+		LowWaterPercent:  throughput.LowWaterPercent,
+		HighWaterPercent: throughput.HighWaterPercent,
+		Logger:           logger,
+	})
 	go sampler.Run(ctx)
 
 	webFS, err := fs.Sub(webRoot, "web")
 	if err != nil {
 		return fmt.Errorf("embed web fs: %w", err)
 	}
+
+	// Done closes when the process context is canceled (no context stored on Server).
+	done := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		close(done)
+	}()
 
 	srv := api.New(api.Deps{
 		Ctrl:       ctrl,
@@ -127,7 +132,7 @@ func run(logger *slog.Logger) error {
 		ServerURL:  cfg.ServerURL,
 		Logger:     logger,
 		WebFS:      webFS,
-		ParentCtx:  ctx,
+		Done:       done,
 	})
 
 	httpServer := &http.Server{

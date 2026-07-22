@@ -59,6 +59,27 @@ func silentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+func doInternalize(
+	ctx context.Context,
+	w funding.InternalizeActioner,
+	network defs.BSVNetwork,
+	addr string,
+	req funding.InternalizeRequest,
+	originator string,
+	logger *slog.Logger,
+	opts ...funding.InternalizeOption,
+) error {
+	return funding.Internalize(ctx, funding.InternalizeParams{
+		Wallet:          w,
+		Network:         network,
+		ExpectedAddress: addr,
+		Request:         req,
+		Originator:      originator,
+		Logger:          logger,
+	}, opts...)
+}
+
+
 func p2pkhLock(t *testing.T, address string) *script.Script {
 	t.Helper()
 	addr, err := script.NewAddressFromString(address)
@@ -96,7 +117,7 @@ func changeThenPaymentRawTxHex(t *testing.T, changeAddress, depositAddress strin
 
 func TestInternalizeRequiresTxHexOrTxID(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -111,7 +132,7 @@ func TestInternalizeRequiresTxHexOrTxID(t *testing.T) {
 }
 
 func TestInternalizeNilWallet(t *testing.T) {
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		nil,
 		defs.NetworkMainnet,
@@ -126,7 +147,7 @@ func TestInternalizeNilWallet(t *testing.T) {
 
 func TestInternalizeBadAtomicHex(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -148,7 +169,7 @@ func TestInternalizeAtomicPathSuccess(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, info.Address)
 	w := &fakeInternalizer{}
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -184,7 +205,7 @@ func TestInternalizePrefersAtomicOverTxID(t *testing.T) {
 	w := &fakeInternalizer{}
 	beef := &fakeBeefSource{atomic: []byte("should-not-be-used")}
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -214,7 +235,7 @@ func TestInternalizeTxIDPathUsesBeefSource(t *testing.T) {
 	beef := &fakeBeefSource{atomic: raw}
 	const txid = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -235,7 +256,7 @@ func TestInternalizeTxIDBeefSourceError(t *testing.T) {
 	w := &fakeInternalizer{}
 	beef := &fakeBeefSource{err: errors.New("network down")}
 
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -264,7 +285,7 @@ func TestInternalizeRejectsWrongAddress(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, otherInfo.Address)
 	w := &fakeInternalizer{}
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -293,7 +314,7 @@ func TestInternalizeAutoDetectsPaymentAfterChangeOutput(t *testing.T) {
 	rawHex := changeThenPaymentRawTxHex(t, changeInfo.Address, info.Address)
 	w := &fakeInternalizer{}
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -316,7 +337,7 @@ func TestInternalizeResolvesWrongPreferredIndexWhenPaymentExists(t *testing.T) {
 	w := &fakeInternalizer{}
 
 	// Preferred index out of range, but deposit is on vout 0 — auto-resolve.
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -333,7 +354,7 @@ func TestInternalizeResolvesWrongPreferredIndexWhenPaymentExists(t *testing.T) {
 func TestInternalizeSkipsValidationWhenUnparseable(t *testing.T) {
 	// Unparseable atomic bytes: validation is skipped; wallet is still called.
 	w := &fakeInternalizer{}
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -354,7 +375,7 @@ func TestInternalizePropagatesWalletError(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, info.Address)
 	w := &fakeInternalizer{err: errors.New("wallet reject")}
 
-	err = funding.Internalize(
+	err = doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,
@@ -370,7 +391,7 @@ func TestInternalizePropagatesWalletError(t *testing.T) {
 
 func TestInternalizeInvalidExpectedAddress(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := funding.Internalize(
+	err := doInternalize(
 		context.Background(),
 		w,
 		defs.NetworkMainnet,

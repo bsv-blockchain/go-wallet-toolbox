@@ -96,23 +96,27 @@ func newTestSampler(t *testing.T, wallet WalletAPI, ctrl *stream.Controller, tar
 	if ctrl == nil {
 		ctrl = stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1, Originator: "test"}, discardLogger())
 	}
-	return NewSampler(
-		wallet,
-		ctrl,
-		"test-originator",
-		time.Hour, // long interval; tests drive sample() directly
-		targetTPS,
-		240,  // denomination
-		1000, // target pool
-		60,   // low water %
-		100,  // high water %
-		discardLogger(),
-	)
+	// long interval; tests drive sample() directly
+	return NewSampler(wallet, ctrl, Config{
+		Originator:       "test-originator",
+		Interval:         time.Hour,
+		TargetTPS:        targetTPS,
+		Denomination:     240,
+		TargetPool:       1000,
+		LowWaterPercent:  60,
+		HighWaterPercent: 100,
+		Logger:           discardLogger(),
+	})
 }
 
 func TestNewSampler_Defaults(t *testing.T) {
 	ctrl := stream.NewController(&fakeActionCreator{}, stream.Options{}, discardLogger())
-	s := NewSampler(&fakeWallet{}, ctrl, "orig", 0, 10, 240, 1000, 60, 100, nil)
+	s := NewSampler(&fakeWallet{}, ctrl, Config{
+		Originator: "orig", Interval: 0,
+		TargetTPS: 10, Denomination: 240, TargetPool: 1000,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: nil,
+	})
 
 	assert.Equal(t, time.Second, s.interval, "non-positive interval defaults to 1s")
 	assert.Equal(t, uint64(600), s.lowWater)
@@ -412,14 +416,12 @@ func TestRecentEvents_RingCap(t *testing.T) {
 
 func TestRun_SamplesThenStopsOnCancel(t *testing.T) {
 	wallet := &fakeWallet{balance: 1, fuelTotal: 2}
-	s := NewSampler(
-		wallet,
-		stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1}, discardLogger()),
-		"orig",
-		50*time.Millisecond,
-		10, 240, 100, 60, 100,
-		discardLogger(),
-	)
+	s := NewSampler(wallet, stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1}, discardLogger()), Config{
+		Originator: "orig", Interval: 50*time.Millisecond,
+		TargetTPS: 10, Denomination: 240, TargetPool: 100,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
