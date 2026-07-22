@@ -381,6 +381,30 @@ func TestStatic_Index(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "dashboard")
 }
 
+// sseRecorder is an httptest.ResponseRecorder that implements http.Flusher and
+// signals when the first body write completes. Callers must not read Body/Header
+// until ServeHTTP has returned — ResponseRecorder is not concurrency-safe.
+type sseRecorder struct {
+	*httptest.ResponseRecorder
+	firstWrite chan struct{}
+	once       sync.Once
+}
+
+func newSSERecorder() *sseRecorder {
+	return &sseRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		firstWrite:       make(chan struct{}),
+	}
+}
+
+func (r *sseRecorder) Write(b []byte) (int, error) {
+	n, err := r.ResponseRecorder.Write(b)
+	r.once.Do(func() { close(r.firstWrite) })
+	return n, err
+}
+
+func (r *sseRecorder) Flush() {}
+
 func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -415,7 +439,7 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 
 	ctx, cancelReq := context.WithCancel(context.Background())
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/events", nil)
-	rec := httptest.NewRecorder()
+	rec := newSSERecorder()
 
 	done := make(chan struct{})
 	go func() {
@@ -423,10 +447,13 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 		srv.Handler().ServeHTTP(rec, req)
 	}()
 
-	// Wait for first SSE payload then cancel client.
-	require.Eventually(t, func() bool {
-		return rec.Body.Len() > 0
-	}, 2*time.Second, 20*time.Millisecond)
+	// Wait for the handler's first write (without reading the body concurrently —
+	// that races with ResponseRecorder.Write under -race).
+	select {
+	case <-rec.firstWrite:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first SSE write")
+	}
 	cancelReq()
 	select {
 	case <-done:
@@ -434,6 +461,7 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 		t.Fatal("SSE handler did not exit after client cancel")
 	}
 
+	// Safe: handler goroutine has exited.
 	assert.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	assert.Contains(t, rec.Body.String(), "event: tick")
 	assert.Contains(t, rec.Body.String(), "data:")
