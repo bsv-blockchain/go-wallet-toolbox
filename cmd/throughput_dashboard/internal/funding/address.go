@@ -58,7 +58,8 @@ func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) 
 		err  error
 	)
 	switch network {
-	case defs.NetworkTestnet:
+	case defs.NetworkTestnet, defs.NetworkTTN, defs.NetworkTSTN:
+		// ttn/tstn are testnet-based and use testnet address encoding.
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithTestNet())
 	case defs.NetworkMainnet:
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithMainNet())

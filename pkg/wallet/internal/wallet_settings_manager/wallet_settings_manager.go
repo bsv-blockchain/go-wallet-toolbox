@@ -99,7 +99,8 @@ func DefaultManager(chain defs.BSVNetwork) *WalletSettingsManager {
 	var trustedCertifiers []Certifier
 
 	switch chain {
-	case defs.NetworkTestnet:
+	case defs.NetworkTestnet, defs.NetworkTTN, defs.NetworkTSTN:
+		// ttn/tstn are testnet-based networks and use the testnet certifier set.
 		trustedCertifiers = GetTestnetDefaultCertifiers()
 	case defs.NetworkMainnet:
 		trustedCertifiers = GetDefaultCertifiers()

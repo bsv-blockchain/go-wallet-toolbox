@@ -360,6 +360,79 @@ func TestChangeBasketEnvVars(t *testing.T) {
 
 // setRequiredEnvs sets necessary environment variables for test configuration.
 // It ensures TEST_SERVER_PRIVATE_KEY is set with a valid private key value for proper test initialization.
+func TestServiceDefaultsReconciledForTestnet(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_BSV_NETWORK", "test")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, defs.NetworkTestnet, infraSrv.Config.BSVNetwork)
+	// testnet ARC replaces the mainnet default...
+	require.Equal(t, defs.ArcTestURL, infraSrv.Config.Services.ArcConfig.URL)
+	require.Equal(t, defs.ArcTestToken, infraSrv.Config.Services.ArcConfig.Token)
+	// ...and mainnet-only broadcasters are no longer enabled off mainnet.
+	require.False(t, infraSrv.Config.Services.Arcade.Enabled)
+	require.False(t, infraSrv.Config.Services.ArcGorillaPoolConfig.Enabled)
+	require.True(t, infraSrv.Config.Services.WhatsOnChain.Enabled)
+}
+
+func TestServiceDefaultsReconciledForTTN(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_BSV_NETWORK", "ttn")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, defs.NetworkTTN, infraSrv.Config.BSVNetwork)
+	require.Equal(t, defs.ArcadeTTNURL, infraSrv.Config.Services.ArcConfig.URL)
+	require.True(t, infraSrv.Config.Services.Arcade.Enabled)
+	require.Equal(t, defs.ArcadeTTNURL, infraSrv.Config.Services.Arcade.URL)
+	require.False(t, infraSrv.Config.Services.ArcGorillaPoolConfig.Enabled)
+	require.True(t, infraSrv.Config.Services.ChaintracksClient.Enabled)
+	require.Equal(t, "https://arcade-v2-ttn-us-1.bsvblockchain.tech/chaintracks/v1", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
+}
+
+func TestServiceDefaultsReconciledForTSTN(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_BSV_NETWORK", "tstn")
+	t.Setenv(defs.EnvTstnArcadeURL, "https://arcade.private.tstn")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, defs.NetworkTSTN, infraSrv.Config.BSVNetwork)
+	require.Equal(t, "https://arcade.private.tstn", infraSrv.Config.Services.Arcade.URL)
+	require.True(t, infraSrv.Config.Services.Arcade.Enabled)
+	require.False(t, infraSrv.Config.Services.WhatsOnChain.Enabled, "tstn has no WhatsOnChain service")
+	require.True(t, infraSrv.Config.Services.ChaintracksClient.Enabled)
+	require.Equal(t, "https://arcade.private.tstn/chaintracks/v1", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
+}
+
+func TestTSTNWithoutEnvFailsValidation(t *testing.T) {
+	// given: tstn selected but the private endpoints are not provided
+	setRequiredEnvs(t)
+	t.Setenv("TEST_BSV_NETWORK", "tstn")
+	t.Setenv(defs.EnvTstnArcadeURL, "")
+	t.Setenv(defs.EnvTstnChaintracksURL, "")
+
+	// when:
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.Error(t, err)
+	require.Contains(t, err.Error(), defs.EnvTstnArcadeURL)
+}
+
 func setRequiredEnvs(t *testing.T) {
 	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
 }

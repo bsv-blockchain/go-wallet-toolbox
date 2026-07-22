@@ -50,7 +50,8 @@ func New(httpClient *resty.Client, logger *slog.Logger, network defs.BSVNetwork,
 		SetDebug(logging.IsDebug(logger))
 
 	baseURL := ProductionURL
-	if strings.ToLower(string(network)) == "test" {
+	// test, ttn and tstn are all testnet-based and route to the testnet endpoint.
+	if network.IsTestnetBased() {
 		baseURL = TestnetURL
 	}
 

@@ -146,6 +146,30 @@ For a guided walkthrough (including faucet and local setup), see the examples ov
 
 <br>
 
+### Networks
+
+Set `bsv_network` in the config (or `BSV_NETWORK` / `<PREFIX>_BSV_NETWORK` in the env) to one of:
+
+| `bsv_network` | Description | Broadcast / merkle proofs | Headers | WhatsOnChain |
+|---|---|---|---|---|
+| `main` | Public mainnet | ARC (TAAL) + Arcade + GorillaPool failover | WhatsOnChain | ✅ |
+| `test` | Public testnet | ARC (TAAL testnet) | WhatsOnChain | ✅ |
+| `ttn` | Teranode Test Net (public scaling testnet) | Arcade (`arcade-v2-ttn-us-1.bsvblockchain.tech`) | ChainTracks (`…/chaintracks/v1`) | ✅ |
+| `tstn` | Teranode Scaling Test Net (private, per-deployment) | Arcade (`$TSTN_ARCADE_URL`) | ChainTracks (`$TSTN_CHAINTRACKS_URL`) | ❌ (not available) |
+
+`ttn` and `tstn` are testnet-based (testnet address/key encoding and overlay network).
+
+**`tstn` is private** — its endpoints are not public and must be supplied at runtime via environment variables:
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `TSTN_ARCADE_URL` | Yes | Arcade broadcaster / ARC endpoint base. Also the ChainTracks fallback host. |
+| `TSTN_CHAINTRACKS_URL` | No | ChainTracks service URL. Defaults to `${TSTN_ARCADE_URL}/chaintracks/v1` when omitted. |
+
+Selecting `tstn` without at least `TSTN_ARCADE_URL` fails startup with an actionable error.
+
+<br>
+
 ## 📚 Documentation
 - Core concepts and examples: `./examples/README.md`
 - Complex example: `./examples/complex_wallet_examples/create_faucet_server/QUICK_START.md`
