@@ -119,10 +119,9 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 		parent = context.Background()
 	}
 
-	// prodCtx is canceled only to halt the rate-limited job producer.
-	// workCtx is never canceled by Stop (or parent cancel) so in-flight
-	// CreateAction calls always run to completion.
-	prodCtx, stopProd := context.WithCancel(context.Background())
+	// prodCtx is canceled by Stop() or when parent ends — only the job producer
+	// uses it. workCtx is never canceled so in-flight CreateAction calls finish.
+	prodCtx, stopProd := context.WithCancel(parent)
 	workCtx := context.WithoutCancel(parent)
 	c.stopProd = stopProd
 	c.done = make(chan struct{})
@@ -135,15 +134,6 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	workers := c.workers
 	originator := c.originator
 	done := c.done
-
-	// Parent cancel (e.g. process shutdown signal path) also stops production.
-	go func() {
-		select {
-		case <-parent.Done():
-			stopProd()
-		case <-prodCtx.Done():
-		}
-	}()
 
 	go c.run(prodCtx, workCtx, done, tps, workers, originator)
 	c.logger.Info("event stream started", "tps", tps, "workers", workers)
