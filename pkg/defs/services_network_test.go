@@ -68,7 +68,7 @@ func TestDefaultServicesConfigPerNetwork(t *testing.T) {
 		require.NoError(t, cfg.Validate())
 	})
 
-	t.Run("tstn honours an explicit TSTN_CHAINTRACKS_URL", func(t *testing.T) {
+	t.Run("tstn honors an explicit TSTN_CHAINTRACKS_URL", func(t *testing.T) {
 		t.Setenv(defs.EnvTstnArcadeURL, "https://arcade.example.tstn")
 		t.Setenv(defs.EnvTstnChaintracksURL, "https://ct.example.tstn/v1")
 

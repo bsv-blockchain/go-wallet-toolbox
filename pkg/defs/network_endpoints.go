@@ -1,7 +1,7 @@
 package defs
 
 // networkEndpoints holds the per-network default service endpoints resolved by
-// DefaultServicesConfig. It centralises the "which services run on which network"
+// DefaultServicesConfig. It centralizes the "which services run on which network"
 // policy so that spinning up an instance for main/test/ttn/tstn produces a coherent
 // broadcaster + header + lookup set.
 //

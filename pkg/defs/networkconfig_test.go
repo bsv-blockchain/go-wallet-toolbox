@@ -36,7 +36,7 @@ func TestTstnChaintracksURL(t *testing.T) {
 
 		got, err := defs.TstnChaintracksURL()
 		require.NoError(t, err)
-		// trailing slash on the arcade URL is normalised away before appending the path.
+		// trailing slash on the arcade URL is normalized away before appending the path.
 		require.Equal(t, "https://arcade.example.tstn/chaintracks/v1", got)
 	})
 
