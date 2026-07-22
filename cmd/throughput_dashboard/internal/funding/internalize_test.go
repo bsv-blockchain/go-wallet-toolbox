@@ -306,4 +306,3 @@ func TestInternalizeInvalidExpectedAddress(t *testing.T) {
 	require.Contains(t, err.Error(), "parse expected address")
 	require.Equal(t, 0, w.calls)
 }
-

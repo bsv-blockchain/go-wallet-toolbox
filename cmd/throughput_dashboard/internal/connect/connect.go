@@ -35,7 +35,8 @@ func Wallet(
 	}
 
 	var connected *wallet.Wallet
-	err := retryWithBackoff(ctx, connectRetryWindow, connectRetryInitial, connectRetryMax,
+	err := retryWithBackoff(
+		ctx, connectRetryWindow, connectRetryInitial, connectRetryMax,
 		func() error {
 			if connected != nil {
 				connected.Close()
@@ -55,7 +56,8 @@ func Wallet(
 			return nil
 		},
 		func(n int, err error, sleep time.Duration) {
-			logger.Warn("storage not ready, retrying",
+			logger.Warn(
+				"storage not ready, retrying",
 				"server_url", serverURL,
 				"attempt", n,
 				"error", err,

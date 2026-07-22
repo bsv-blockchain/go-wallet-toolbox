@@ -18,11 +18,11 @@ type fakeWallet struct {
 	calls atomic.Uint64
 	fail  bool
 
-	mu        sync.Mutex
-	args      []sdk.CreateActionArgs
-	origins   []string
-	seenHash  map[string]struct{}
-	delay     time.Duration
+	mu       sync.Mutex
+	args     []sdk.CreateActionArgs
+	origins  []string
+	seenHash map[string]struct{}
+	delay    time.Duration
 }
 
 func (f *fakeWallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {

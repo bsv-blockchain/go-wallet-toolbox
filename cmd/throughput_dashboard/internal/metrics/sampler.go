@@ -75,14 +75,14 @@ type Sampler struct {
 
 // Config configures a metrics Sampler.
 type Config struct {
-	Originator        string
-	Interval          time.Duration
-	TargetTPS         uint64
-	Denomination      uint64
-	TargetPool        uint64
-	LowWaterPercent   uint64
-	HighWaterPercent  uint64
-	Logger            *slog.Logger
+	Originator       string
+	Interval         time.Duration
+	TargetTPS        uint64
+	Denomination     uint64
+	TargetPool       uint64
+	LowWaterPercent  uint64
+	HighWaterPercent uint64
+	Logger           *slog.Logger
 }
 
 // NewSampler builds a metrics sampler.
@@ -222,12 +222,12 @@ func (s *Sampler) sample(ctx context.Context) {
 				Type:      "topup",
 				Timestamp: tick.Timestamp,
 				Payload: map[string]any{
-					"basket":     wdk.BasketNameForFuel,
-					"before":     s.prevFuel,
-					"after":      fuelCount,
-					"delta":      fuelCount - s.prevFuel,
-					"kind":       "fuel_inventory_increase",
-					"message":    "fuel pool inventory increased (FuelKeeper mint activity)",
+					"basket":  wdk.BasketNameForFuel,
+					"before":  s.prevFuel,
+					"after":   fuelCount,
+					"delta":   fuelCount - s.prevFuel,
+					"kind":    "fuel_inventory_increase",
+					"message": "fuel pool inventory increased (FuelKeeper mint activity)",
 				},
 			})
 		}

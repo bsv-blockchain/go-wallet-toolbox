@@ -417,7 +417,7 @@ func TestRecentEvents_RingCap(t *testing.T) {
 func TestRun_SamplesThenStopsOnCancel(t *testing.T) {
 	wallet := &fakeWallet{balance: 1, fuelTotal: 2}
 	s := NewSampler(wallet, stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1}, discardLogger()), Config{
-		Originator: "orig", Interval: 50*time.Millisecond,
+		Originator: "orig", Interval: 50 * time.Millisecond,
 		TargetTPS: 10, Denomination: 240, TargetPool: 100,
 		LowWaterPercent: 60, HighWaterPercent: 100,
 		Logger: discardLogger(),

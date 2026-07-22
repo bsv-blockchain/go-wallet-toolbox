@@ -152,7 +152,7 @@ func newTestEnv(t *testing.T, opts ...func(*api.Deps)) *testEnv {
 		Originator: "test-origin",
 		ServerURL:  "http://127.0.0.1:8101",
 		Logger:     discardLogger(),
-		Done: doneFromCtx(parent),
+		Done:       doneFromCtx(parent),
 		WebFS: fstest.MapFS{
 			"index.html": &fstest.MapFile{Data: []byte("<html>dashboard</html>")},
 		},
@@ -226,7 +226,7 @@ func TestStatus_IncludesTickAfterSample(t *testing.T) {
 
 	walletAPI := &fakeWalletAPI{balance: 42, fuelTotal: 7, reserveTotal: 3}
 	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
-		Originator: "o", Interval: 50*time.Millisecond,
+		Originator: "o", Interval: 50 * time.Millisecond,
 		TargetTPS: 10, Denomination: 20, TargetPool: 100,
 		LowWaterPercent: 60, HighWaterPercent: 100,
 		Logger: discardLogger(),
@@ -247,7 +247,7 @@ func TestStatus_IncludesTickAfterSample(t *testing.T) {
 		Originator: "o",
 		ServerURL:  "http://example",
 		Logger:     discardLogger(),
-		Done: doneFromCtx(parent),
+		Done:       doneFromCtx(parent),
 	})
 
 	rec := doJSON(t, srv.Handler(), http.MethodGet, "/api/status", nil)
@@ -394,7 +394,7 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 
 	walletAPI := &fakeWalletAPI{fuelTotal: 1}
 	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
-		Originator: "o", Interval: 50*time.Millisecond,
+		Originator: "o", Interval: 50 * time.Millisecond,
 		TargetTPS: 10, Denomination: 20, TargetPool: 100,
 		LowWaterPercent: 60, HighWaterPercent: 100,
 		Logger: discardLogger(),
@@ -413,7 +413,7 @@ func TestEvents_SSEHeadersAndInitialTick(t *testing.T) {
 		Originator: "o",
 		ServerURL:  "http://example",
 		Logger:     discardLogger(),
-		Done: doneFromCtx(parent),
+		Done:       doneFromCtx(parent),
 	})
 
 	ctx, cancelReq := context.WithCancel(context.Background())

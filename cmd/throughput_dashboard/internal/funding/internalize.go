@@ -117,7 +117,8 @@ func resolveOutputIndex(atomic []byte, preferred uint32, expectedAddress string,
 		return 0, err
 	}
 	if resolved != preferred {
-		logger.Info("funding payment vout differs from requested index",
+		logger.Info(
+			"funding payment vout differs from requested index",
 			"requested", preferred,
 			"resolved", resolved,
 		)

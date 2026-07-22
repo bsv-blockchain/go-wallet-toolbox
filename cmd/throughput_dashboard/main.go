@@ -57,7 +57,8 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("connecting to storage",
+	logger.Info(
+		"connecting to storage",
 		"server_url", cfg.ServerURL,
 		"network", network,
 		"http_addr", cfg.HTTPAddr,
@@ -78,7 +79,8 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("resolve denomination: %w", err)
 	}
 	targetPool := throughput.TargetPool()
-	logger.Info("throughput profile",
+	logger.Info(
+		"throughput profile",
 		"denomination_satoshis", denom,
 		"target_tps", throughput.TargetTPS,
 		"target_pool", targetPool,
