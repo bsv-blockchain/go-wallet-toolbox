@@ -488,24 +488,39 @@ function extractAtomicHex(result) {
 }
 
 function extractOutputIndex(result, lockingScriptHex) {
-  // Prefer explicit single-output payment (vout 0) unless wallet reports outputs.
-  const outs =
-    result?.outputs ||
-    result?.Outputs ||
-    result?.tx?.outputs ||
-    null;
-  if (Array.isArray(outs) && lockingScriptHex) {
-    const want = normalizeHex(lockingScriptHex);
+  // Prefer the vout that matches the deposit locking script. Local wallets
+  // usually put *change* at vout 0 and the payment later — defaulting to 0 is
+  // wrong. The server also auto-scans if this is still 0 / wrong.
+  const want = normalizeHex(lockingScriptHex || "");
+  const lists = [
+    result?.outputs,
+    result?.Outputs,
+    result?.tx?.outputs,
+    result?.tx?.Outputs,
+    result?.rawTx?.outputs,
+  ].filter((x) => Array.isArray(x));
+
+  for (const outs of lists) {
     for (let i = 0; i < outs.length; i++) {
       const ls =
         outs[i]?.lockingScript ||
         outs[i]?.locking_script ||
         outs[i]?.script ||
+        outs[i]?.lockingScriptHex ||
         "";
       const hex = coerceToHex(ls);
-      if (hex && want && hex === want) return i;
+      if (hex && want && normalizeHex(hex) === want) return i;
+      // Some wallets report a basket/payment target address string.
+      if (
+        fundingInfo?.address &&
+        (outs[i]?.address === fundingInfo.address ||
+          outs[i]?.to === fundingInfo.address)
+      ) {
+        return i;
+      }
     }
   }
+  // Leave 0 as a hint only — server resolvePaymentOutputIndex will scan.
   return 0;
 }
 

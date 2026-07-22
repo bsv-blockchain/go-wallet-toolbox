@@ -101,10 +101,11 @@ func TestDemoThroughputMatchesLiveTestShape(t *testing.T) {
 	tp := config.DemoThroughput()
 	require.Equal(t, uint64(200), tp.ExpectedTxSizeBytes)
 	require.Equal(t, uint64(0), tp.ExpectedOutputSatoshis)
-	require.Equal(t, uint64(1000), tp.TargetTPS)
+	require.Equal(t, uint64(10), tp.TargetTPS)
+	require.Equal(t, uint64(500), tp.TargetPool())
 
 	// DefaultFeeModel is 100 sat/kb; DefaultCommission disabled →
-	// ceil(200/1000 * 100) + 0 = 20 sats (matches mainnet demo yaml).
+	// ceil(200/1000 * 100) + 0 = 20 sats (matches OP_RETURN demo shape).
 	fee := defs.DefaultFeeModel()
 	require.Equal(t, defs.SatPerKB, fee.Type)
 	require.Equal(t, int64(100), fee.Value)

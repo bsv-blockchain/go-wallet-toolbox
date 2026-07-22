@@ -164,15 +164,24 @@ func (s *Sampler) sample(ctx context.Context) {
 	s.prevSucceeded = stats.Succeeded
 	s.prevFailed = stats.Failed
 
-	defaultSats, err := s.wallet.Balance(ctx)
+	// Bound each storage call so a hung RPC cannot freeze ticks forever.
+	const callTimeout = 15 * time.Second
+
+	defaultSats, err := s.withTimeout(ctx, callTimeout, func(cctx context.Context) (uint64, error) {
+		return s.wallet.Balance(cctx)
+	})
 	if err != nil {
 		s.logger.Warn("balance sample failed", "error", err)
 	}
-	fuelCount, err := s.basketCount(ctx, wdk.BasketNameForFuel)
+	fuelCount, err := s.withTimeout(ctx, callTimeout, func(cctx context.Context) (uint64, error) {
+		return s.basketCount(cctx, wdk.BasketNameForFuel)
+	})
 	if err != nil {
 		s.logger.Warn("fuel count sample failed", "error", err)
 	}
-	reserveCount, err := s.basketCount(ctx, wdk.BasketNameForReserve)
+	reserveCount, err := s.withTimeout(ctx, callTimeout, func(cctx context.Context) (uint64, error) {
+		return s.basketCount(cctx, wdk.BasketNameForReserve)
+	})
 	if err != nil {
 		s.logger.Warn("reserve count sample failed", "error", err)
 	}
@@ -256,6 +265,12 @@ func (s *Sampler) basketCount(ctx context.Context, basket string) (uint64, error
 		return 0, err
 	}
 	return uint64(result.TotalOutputs), nil
+}
+
+func (s *Sampler) withTimeout(ctx context.Context, d time.Duration, fn func(context.Context) (uint64, error)) (uint64, error) {
+	cctx, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	return fn(cctx)
 }
 
 func (s *Sampler) emit(ev Event) {

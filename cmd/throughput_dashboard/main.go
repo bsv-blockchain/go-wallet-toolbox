@@ -22,6 +22,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/connect"
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
+	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/syncwallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/fuelkeeper"
 )
@@ -66,7 +67,10 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create wallet: %w", err)
 	}
-	defer operatorWallet.Close()
+	// Serialize all storage RPCs: concurrent AuthFetch handshakes deadlock and
+	// leave FuelKeeper + sampler stuck so the UI never shows internalized funds.
+	wallet := syncwallet.New(operatorWallet)
+	defer wallet.Close()
 
 	throughput := config.DemoThroughput()
 	denom, err := throughput.Denomination(defs.DefaultFeeModel(), defs.DefaultCommission())
@@ -82,20 +86,20 @@ func run(logger *slog.Logger) error {
 		"high_water_percent", throughput.HighWaterPercent,
 	)
 
-	keeper, err := fuelkeeper.New(operatorWallet, fuelkeeper.FromThroughput(throughput, denom), logger)
+	keeper, err := fuelkeeper.New(wallet, fuelkeeper.FromThroughput(throughput, denom), logger)
 	if err != nil {
 		return fmt.Errorf("create fuel keeper: %w", err)
 	}
 	go keeper.Run(ctx)
 
-	ctrl := stream.NewController(operatorWallet, stream.Options{
+	ctrl := stream.NewController(wallet, stream.Options{
 		TPS:        cfg.TPS,
 		Workers:    cfg.Workers,
 		Originator: cfg.Originator,
 	}, logger)
 
 	sampler := metrics.NewSampler(
-		operatorWallet,
+		wallet,
 		ctrl,
 		cfg.Originator,
 		time.Duration(cfg.SampleSeconds)*time.Second,
@@ -116,7 +120,7 @@ func run(logger *slog.Logger) error {
 	srv := api.New(api.Deps{
 		Ctrl:       ctrl,
 		Sampler:    sampler,
-		Wallet:     operatorWallet,
+		Wallet:     wallet,
 		Priv:       priv,
 		Network:    network,
 		Originator: cfg.Originator,

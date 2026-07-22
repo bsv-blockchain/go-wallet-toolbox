@@ -97,11 +97,21 @@ func Internalize(
 		}
 	}
 
-	// Validate the claimed output pays the operator deposit address when possible.
+	// Resolve which vout pays the operator deposit. Local wallets often put
+	// change at vout 0 and the payment later — never assume the preferred index.
+	outputIndex := req.OutputIndex
 	if expectedAddress != "" {
-		if err := validateOutputPaysAddress(atomic, req.OutputIndex, expectedAddress); err != nil {
+		resolved, err := resolvePaymentOutputIndex(atomic, req.OutputIndex, expectedAddress)
+		if err != nil {
 			return err
 		}
+		if resolved != req.OutputIndex {
+			logger.Info("funding payment vout differs from requested index",
+				"requested", req.OutputIndex,
+				"resolved", resolved,
+			)
+		}
+		outputIndex = resolved
 	}
 
 	remittance, err := AnyonePaymentRemittance()
@@ -113,7 +123,7 @@ func Internalize(
 		Tx: atomic,
 		Outputs: []sdk.InternalizeOutput{
 			{
-				OutputIndex:       req.OutputIndex,
+				OutputIndex:       outputIndex,
 				Protocol:          sdk.InternalizeProtocolWalletPayment,
 				PaymentRemittance: remittance,
 			},
@@ -133,7 +143,7 @@ func Internalize(
 			}
 		}
 	}
-	logger.Info("funding internalized", "output_index", req.OutputIndex, "txid", logTxID)
+	logger.Info("funding internalized", "output_index", outputIndex, "txid", logTxID)
 	return nil
 }
 
@@ -171,27 +181,46 @@ func parseTx(atomic []byte) (*transaction.Transaction, error) {
 	return tx, nil
 }
 
-func validateOutputPaysAddress(atomic []byte, outputIndex uint32, expectedAddress string) error {
+// resolvePaymentOutputIndex returns the vout that pays expectedAddress.
+// Prefer preferredIndex when it matches; otherwise scan all outputs (wallets
+// commonly place change at vout 0 and the deposit later). If the tx cannot be
+// parsed, preferredIndex is returned unchanged so InternalizeAction can try.
+func resolvePaymentOutputIndex(atomic []byte, preferredIndex uint32, expectedAddress string) (uint32, error) {
 	addr, err := script.NewAddressFromString(expectedAddress)
 	if err != nil {
-		return fmt.Errorf("parse expected address: %w", err)
+		return 0, fmt.Errorf("parse expected address: %w", err)
 	}
 	expectedLock, err := p2pkh.Lock(addr)
 	if err != nil {
-		return fmt.Errorf("expected lock: %w", err)
+		return 0, fmt.Errorf("expected lock: %w", err)
 	}
 
-	// Try BEEF first, then raw tx.
 	tx, err := parseTx(atomic)
 	if err != nil {
 		// Skip strict validation if we cannot parse; InternalizeAction will fail if bad.
-		return nil
+		return preferredIndex, nil
 	}
-	if outputIndex >= uint32(len(tx.Outputs)) {
-		return fmt.Errorf("output_index %d out of range (tx has %d outputs)", outputIndex, len(tx.Outputs))
+	if len(tx.Outputs) == 0 {
+		return 0, fmt.Errorf("transaction has no outputs")
 	}
-	if !tx.Outputs[outputIndex].LockingScript.Equals(expectedLock) {
-		return fmt.Errorf("output[%d] does not pay operator deposit address", outputIndex)
+
+	pays := func(i int) bool {
+		out := tx.Outputs[i]
+		return out != nil && out.LockingScript != nil && out.LockingScript.Equals(expectedLock)
 	}
-	return nil
+
+	if int(preferredIndex) < len(tx.Outputs) && pays(int(preferredIndex)) {
+		return preferredIndex, nil
+	}
+
+	for i := range tx.Outputs {
+		if pays(i) {
+			return uint32(i), nil //nolint:gosec // output index fits uint32
+		}
+	}
+
+	return 0, fmt.Errorf(
+		"no output pays operator deposit address %s (tx has %d outputs; requested vout %d often is wallet change — payment may be a later vout)",
+		expectedAddress, len(tx.Outputs), preferredIndex,
+	)
 }

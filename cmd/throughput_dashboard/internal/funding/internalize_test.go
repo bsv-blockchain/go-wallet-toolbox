@@ -59,17 +59,37 @@ func silentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func p2pkhRawTxHex(t *testing.T, address string) string {
+func p2pkhLock(t *testing.T, address string) *script.Script {
 	t.Helper()
 	addr, err := script.NewAddressFromString(address)
 	require.NoError(t, err)
 	lock, err := p2pkh.Lock(addr)
 	require.NoError(t, err)
+	return lock
+}
 
+func p2pkhRawTxHex(t *testing.T, address string) string {
+	t.Helper()
 	tx := transaction.NewTransaction()
 	tx.AddOutput(&transaction.TransactionOutput{
 		Satoshis:      50_000,
-		LockingScript: lock,
+		LockingScript: p2pkhLock(t, address),
+	})
+	return hex.EncodeToString(tx.Bytes())
+}
+
+// changeThenPaymentRawTxHex models a typical local-wallet createAction layout:
+// vout 0 = change back to the payer, vout 1 = payment to the deposit address.
+func changeThenPaymentRawTxHex(t *testing.T, changeAddress, depositAddress string) string {
+	t.Helper()
+	tx := transaction.NewTransaction()
+	tx.AddOutput(&transaction.TransactionOutput{
+		Satoshis:      10_000,
+		LockingScript: p2pkhLock(t, changeAddress),
+	})
+	tx.AddOutput(&transaction.TransactionOutput{
+		Satoshis:      50_000,
+		LockingScript: p2pkhLock(t, depositAddress),
 	})
 	return hex.EncodeToString(tx.Bytes())
 }
@@ -254,11 +274,40 @@ func TestInternalizeRejectsWrongAddress(t *testing.T) {
 		silentLogger(),
 	)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "does not pay operator deposit address")
+	require.Contains(t, err.Error(), "no output pays operator deposit address")
 	require.Equal(t, 0, w.calls)
 }
 
-func TestInternalizeOutputIndexOutOfRange(t *testing.T) {
+func TestInternalizeAutoDetectsPaymentAfterChangeOutput(t *testing.T) {
+	// Local wallets typically put change at vout 0 and the payment later.
+	// Requesting vout 0 (default) must still resolve to the deposit output.
+	opPriv := testOperatorPriv(t)
+	info, err := funding.DeriveInfo(opPriv, defs.NetworkMainnet, 0)
+	require.NoError(t, err)
+
+	changePriv, err := ec.NewPrivateKey()
+	require.NoError(t, err)
+	changeInfo, err := funding.DeriveInfo(changePriv, defs.NetworkMainnet, 0)
+	require.NoError(t, err)
+
+	rawHex := changeThenPaymentRawTxHex(t, changeInfo.Address, info.Address)
+	w := &fakeInternalizer{}
+
+	err = funding.Internalize(
+		context.Background(),
+		w,
+		defs.NetworkMainnet,
+		info.Address,
+		funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 0}, // wrong preferred index
+		"origin",
+		silentLogger(),
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, w.calls)
+	require.Equal(t, uint32(1), w.lastArgs.Outputs[0].OutputIndex)
+}
+
+func TestInternalizeResolvesWrongPreferredIndexWhenPaymentExists(t *testing.T) {
 	priv := testOperatorPriv(t)
 	info, err := funding.DeriveInfo(priv, defs.NetworkMainnet, 0)
 	require.NoError(t, err)
@@ -266,6 +315,7 @@ func TestInternalizeOutputIndexOutOfRange(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, info.Address)
 	w := &fakeInternalizer{}
 
+	// Preferred index out of range, but deposit is on vout 0 — auto-resolve.
 	err = funding.Internalize(
 		context.Background(),
 		w,
@@ -275,9 +325,9 @@ func TestInternalizeOutputIndexOutOfRange(t *testing.T) {
 		"origin",
 		silentLogger(),
 	)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "out of range")
-	require.Equal(t, 0, w.calls)
+	require.NoError(t, err)
+	require.Equal(t, 1, w.calls)
+	require.Equal(t, uint32(0), w.lastArgs.Outputs[0].OutputIndex)
 }
 
 func TestInternalizeSkipsValidationWhenUnparseable(t *testing.T) {

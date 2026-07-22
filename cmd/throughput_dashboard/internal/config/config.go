@@ -66,12 +66,17 @@ func ConfigFromEnv() (Config, error) {
 	return cfg, nil
 }
 
-// DemoThroughput returns the fuel profile matching infra-config-docker-throughput-mainnet.yaml.
+// DemoThroughput returns the fuel profile for the local demo dashboard.
+// Denomination shape matches the live-test OP_RETURN config (200 B / 0 output sats
+// → 20 sat fuel). Target pool is intentionally small so FuelKeeper can refill
+// from a modest deposit without minting hundreds of thousands of UTXOs.
 func DemoThroughput() defs.Throughput {
 	base := defs.DefaultUTXOManagement().Throughput
 	base.ExpectedTxSizeBytes = 200
 	base.ExpectedOutputSatoshis = 0
-	base.TargetTPS = 1000
+	base.TargetTPS = 10
+	base.TargetPoolSize = 500 // explicit demo pool (not 1000 TPS × 300s × 1.5)
+	base.FanoutMaxTxsPerRound = 50
 	return base
 }
 
