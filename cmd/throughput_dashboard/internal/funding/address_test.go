@@ -59,7 +59,7 @@ func TestDeriveInfoTestnet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "test", info.Network)
 	require.NotEmpty(t, info.Address)
-	require.NotEqual(t, "", info.LockingScriptHex)
+	require.NotEmpty(t, info.LockingScriptHex)
 	require.Equal(t, uint64(1_000), info.SuggestedSatoshis)
 
 	_, anyonePub := sdk.AnyoneKey()

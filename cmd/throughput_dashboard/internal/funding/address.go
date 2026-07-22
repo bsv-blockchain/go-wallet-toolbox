@@ -60,9 +60,10 @@ func DeriveInfo(priv *ec.PrivateKey, network defs.BSVNetwork, suggested uint64) 
 	switch network {
 	case defs.NetworkTestnet:
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithTestNet())
-	default:
-		// NetworkMainnet (and any future validated mainnet aliases).
+	case defs.NetworkMainnet:
 		addr, err = brc29.AddressForSelf(anyonePub, keyID, priv, brc29.WithMainNet())
+	default:
+		return Info{}, fmt.Errorf("unsupported network: %s", network)
 	}
 	if err != nil {
 		return Info{}, fmt.Errorf("derive brc29 address: %w", err)

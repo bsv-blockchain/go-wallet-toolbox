@@ -120,7 +120,7 @@ type testEnv struct {
 	cancel  context.CancelFunc
 }
 
-func newTestEnv(t *testing.T, opts ...func(*api.Deps)) *testEnv {
+func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 
 	parent, cancel := context.WithCancel(context.Background())
@@ -157,9 +157,6 @@ func newTestEnv(t *testing.T, opts ...func(*api.Deps)) *testEnv {
 			"index.html": &fstest.MapFile{Data: []byte("<html>dashboard</html>")},
 		},
 	}
-	for _, o := range opts {
-		o(&deps)
-	}
 
 	srv := api.New(deps)
 	return &testEnv{
@@ -179,7 +176,7 @@ func doJSON(t *testing.T, h http.Handler, method, path string, body any) *httpte
 		require.NoError(t, err)
 		rdr = bytes.NewReader(b)
 	}
-	req := httptest.NewRequest(method, path, rdr)
+	req := httptest.NewRequestWithContext(context.Background(), method, path, rdr)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -254,9 +251,9 @@ func TestStatus_IncludesTickAfterSample(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := decodeMap(t, rec)
 	tick := body["tick"].(map[string]any)
-	assert.Equal(t, float64(42), tick["default_sats"])
-	assert.Equal(t, float64(7), tick["fuel_count"])
-	assert.Equal(t, float64(3), tick["reserve_count"])
+	assert.InDelta(t, 42, tick["default_sats"], 0.001)
+	assert.InDelta(t, 7, tick["fuel_count"], 0.001)
+	assert.InDelta(t, 3, tick["reserve_count"], 0.001)
 	streamStats := tick["stream"].(map[string]any)
 	assert.Equal(t, false, streamStats["running"])
 }
@@ -274,8 +271,8 @@ func TestStreamStartStop_StatusRunning(t *testing.T) {
 	assert.Equal(t, true, startBody["ok"])
 	stats := startBody["stats"].(map[string]any)
 	assert.Equal(t, true, stats["running"])
-	assert.Equal(t, float64(25), stats["tps"])
-	assert.Equal(t, float64(3), stats["workers"])
+	assert.InDelta(t, 25, stats["tps"], 0.001)
+	assert.InDelta(t, 3, stats["workers"], 0.001)
 	require.True(t, env.ctrl.Running())
 
 	// Double start → 409 Conflict.
@@ -307,8 +304,8 @@ func TestStreamStart_EmptyBodyUsesDefaults(t *testing.T) {
 	stats := body["stats"].(map[string]any)
 	assert.Equal(t, true, stats["running"])
 	// Defaults from NewController in newTestEnv.
-	assert.Equal(t, float64(10), stats["tps"])
-	assert.Equal(t, float64(2), stats["workers"])
+	assert.InDelta(t, 10, stats["tps"], 0.001)
+	assert.InDelta(t, 2, stats["workers"], 0.001)
 
 	env.ctrl.Stop()
 }
@@ -324,7 +321,7 @@ func TestFunding_ReturnsDepositAddress(t *testing.T) {
 	assert.NotEmpty(t, body["locking_script_hex"])
 	assert.Equal(t, funding.DerivationPrefixB64, body["derivation_prefix_b64"])
 	assert.Equal(t, funding.DerivationSuffixB64, body["derivation_suffix_b64"])
-	assert.Equal(t, float64(100_000), body["suggested_satoshis"])
+	assert.InDelta(t, 100_000, body["suggested_satoshis"], 0.001)
 }
 
 func TestInternalize_AtomicPath(t *testing.T) {
@@ -344,7 +341,7 @@ func TestInternalize_AtomicPath(t *testing.T) {
 func TestInternalize_InvalidJSON(t *testing.T) {
 	env := newTestEnv(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/funding/internalize", bytes.NewBufferString("{not-json"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/funding/internalize", bytes.NewBufferString("{not-json"))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	env.handler.ServeHTTP(rec, req)
@@ -366,7 +363,7 @@ func TestInternalize_MissingFields(t *testing.T) {
 func TestCORS_Options(t *testing.T) {
 	env := newTestEnv(t)
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/status", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/api/status", nil)
 	rec := httptest.NewRecorder()
 	env.handler.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusNoContent, rec.Code)
@@ -377,7 +374,7 @@ func TestCORS_Options(t *testing.T) {
 func TestStatic_Index(t *testing.T) {
 	env := newTestEnv(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	env.handler.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)

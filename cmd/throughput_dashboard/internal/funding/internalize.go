@@ -237,7 +237,7 @@ func resolvePaymentOutputIndex(atomic []byte, preferredIndex uint32, expectedAdd
 
 	for i := range tx.Outputs {
 		if pays(i) {
-			return uint32(i), nil //nolint:gosec // output index fits uint32
+			return uint32(i), nil
 		}
 	}
 

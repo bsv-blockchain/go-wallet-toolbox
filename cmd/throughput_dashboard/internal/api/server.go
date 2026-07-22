@@ -146,7 +146,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-s.deps.Done:
 			return
 		case <-keepalive.C:
-			fmt.Fprintf(w, ": keepalive\n\n")
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
 			flusher.Flush()
 		case ev, ok := <-ch:
 			if !ok {
@@ -196,14 +196,19 @@ func writeSSE(w http.ResponseWriter, flusher http.Flusher, ev metrics.Event) {
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, b)
+	_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, b)
 	flusher.Flush()
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		http.Error(w, `{"error":"encode failed"}`, http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set(headerContentType, "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(append(b, '\n'))
 }
 
 func withCORS(next http.Handler) http.Handler {

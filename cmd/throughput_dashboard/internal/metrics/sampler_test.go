@@ -161,7 +161,7 @@ func TestSample_RunwayZeroWhenTargetTPSZero(t *testing.T) {
 	s := newTestSampler(t, wallet, nil, 0)
 
 	s.sample(context.Background())
-	assert.Equal(t, float64(0), s.LastTick().FuelRunwaySec)
+	assert.InDelta(t, 0, s.LastTick().FuelRunwaySec, 0.001)
 }
 
 func TestSample_EmitsTickEvent(t *testing.T) {
