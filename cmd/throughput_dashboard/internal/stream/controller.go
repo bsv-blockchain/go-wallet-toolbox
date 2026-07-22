@@ -51,7 +51,7 @@ type Controller struct {
 
 	mu         sync.Mutex
 	running    bool
-	cancel     context.CancelFunc
+	stopProd   context.CancelFunc // stops new job production only
 	done       chan struct{}
 	tps        int
 	workers    int
@@ -88,6 +88,9 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 }
 
 // Start begins the event stream. Returns an error if a stream is already running.
+//
+// parent, when canceled, stops scheduling new events (same as Stop) but does not
+// abort createActions already in flight. Stop always waits for those to finish.
 func (c *Controller) Start(parent context.Context, opts Options) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -112,9 +115,16 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	if c.workers > MaxWorkers {
 		return fmt.Errorf("workers %d exceeds max %d", c.workers, MaxWorkers)
 	}
+	if parent == nil {
+		parent = context.Background()
+	}
 
-	ctx, cancel := context.WithCancel(parent)
-	c.cancel = cancel
+	// prodCtx is canceled only to halt the rate-limited job producer.
+	// workCtx is never canceled by Stop (or parent cancel) so in-flight
+	// CreateAction calls always run to completion.
+	prodCtx, stopProd := context.WithCancel(context.Background())
+	workCtx := context.WithoutCancel(parent)
+	c.stopProd = stopProd
 	c.done = make(chan struct{})
 	c.running = true
 	c.startedAt = time.Now().UTC()
@@ -126,12 +136,22 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	originator := c.originator
 	done := c.done
 
-	go c.run(ctx, done, tps, workers, originator)
+	// Parent cancel (e.g. process shutdown signal path) also stops production.
+	go func() {
+		select {
+		case <-parent.Done():
+			stopProd()
+		case <-prodCtx.Done():
+		}
+	}()
+
+	go c.run(prodCtx, workCtx, done, tps, workers, originator)
 	c.logger.Info("event stream started", "tps", tps, "workers", workers)
 	return nil
 }
 
-// Stop requests stream shutdown and waits for workers to drain.
+// Stop stops scheduling new createAction events and waits for in-flight ones to finish.
+// It does not cancel wallet RPCs that have already started.
 // Concurrent Stop calls are safe; a Stop that loses a race with a subsequent Start
 // will not tear down the newer run.
 func (c *Controller) Stop() {
@@ -140,23 +160,23 @@ func (c *Controller) Stop() {
 		c.mu.Unlock()
 		return
 	}
-	cancel := c.cancel
+	stopProd := c.stopProd
 	done := c.done
 	c.mu.Unlock()
 
-	if cancel != nil {
-		cancel()
+	if stopProd != nil {
+		stopProd()
 	}
 	if done != nil {
 		<-done
 	}
 
 	c.mu.Lock()
-	// Only clear state if this Stop still owns the generation it cancelled.
+	// Only clear state if this Stop still owns the generation it stopped.
 	// run() may already have cleared running; a newer Start may have replaced done.
 	if c.done == done {
 		c.running = false
-		c.cancel = nil
+		c.stopProd = nil
 		c.done = nil
 	}
 	c.mu.Unlock()
@@ -200,7 +220,7 @@ func (c *Controller) SnapshotAndDelta(prevAttempted, prevSucceeded, prevFailed u
 	return s, s.Attempted - prevAttempted, s.Succeeded - prevSucceeded, s.Failed - prevFailed
 }
 
-func (c *Controller) run(ctx context.Context, done chan struct{}, tps, workers int, originator string) {
+func (c *Controller) run(prodCtx, workCtx context.Context, done chan struct{}, tps, workers int, originator string) {
 	defer close(done)
 
 	jobs := make(chan struct{}, workers)
@@ -210,18 +230,19 @@ func (c *Controller) run(ctx context.Context, done chan struct{}, tps, workers i
 		go func() {
 			defer wg.Done()
 			for range jobs {
-				c.runOne(ctx, originator)
+				// workCtx is never canceled by Stop — only production is halted.
+				c.runOne(workCtx, originator)
 			}
 		}()
 	}
 
 	limiter := rate.NewLimiter(rate.Limit(tps), 1)
 	for {
-		if err := limiter.Wait(ctx); err != nil {
+		if err := limiter.Wait(prodCtx); err != nil {
 			break
 		}
 		select {
-		case <-ctx.Done():
+		case <-prodCtx.Done():
 			goto drain
 		case jobs <- struct{}{}:
 		}
@@ -234,7 +255,7 @@ drain:
 	// Mark stopped if this generation is still current. Stop() may also clear.
 	if c.done == done {
 		c.running = false
-		c.cancel = nil
+		c.stopProd = nil
 	}
 	c.mu.Unlock()
 }

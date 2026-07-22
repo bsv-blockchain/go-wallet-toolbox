@@ -79,11 +79,34 @@ func TestControllerStartStop(t *testing.T) {
 	stats := ctrl.Stats()
 	require.Positive(t, stats.Attempted)
 	require.Positive(t, stats.Succeeded)
-	// Stop cancels in-flight CreateAction; those count as failed, not crashes.
-	// Do not require Succeeded == Attempted after Stop.
-	require.Equal(t, stats.Attempted, stats.Succeeded+stats.Failed)
+	// Stop does not cancel in-flight createActions; all started calls finish successfully.
+	require.Equal(t, stats.Attempted, stats.Succeeded)
+	require.Zero(t, stats.Failed)
 	require.Equal(t, stats.Attempted, fake.calls.Load())
 	require.Equal(t, stats.Iteration, stats.Attempted)
+}
+
+func TestControllerStopDoesNotCancelInFlightCreateAction(t *testing.T) {
+	// Slow createAction so Stop races with in-flight work.
+	started := make(chan struct{})
+	slow := &signalingWallet{delay: 300 * time.Millisecond, started: started}
+	ctrl := stream.NewController(slow, stream.Options{TPS: 100, Workers: 1, Originator: "test"}, nil)
+
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{}))
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for createAction to start")
+	}
+	// Stop while at least one createAction is mid-flight; none may be aborted.
+	ctrl.Stop()
+	require.False(t, ctrl.Running())
+
+	stats := ctrl.Stats()
+	require.Positive(t, stats.Attempted)
+	require.Equal(t, stats.Attempted, stats.Succeeded)
+	require.Zero(t, stats.Failed)
+	require.Equal(t, stats.Attempted, slow.calls.Load())
 }
 
 func TestControllerCountsFailures(t *testing.T) {
@@ -225,12 +248,41 @@ func TestControllerParentCancelStopsStream(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
-	// Wait until run marks itself not running.
-	require.Eventually(t, func() bool { return !ctrl.Running() }, time.Second, 10*time.Millisecond)
+	// Parent cancel stops production; in-flight createActions still finish.
+	// Wait until run drains and marks itself not running.
+	require.Eventually(t, func() bool { return !ctrl.Running() }, 2*time.Second, 10*time.Millisecond)
 
 	stats := ctrl.Stats()
-	require.Equal(t, stats.Attempted, stats.Succeeded+stats.Failed)
+	require.Equal(t, stats.Attempted, stats.Succeeded)
+	require.Zero(t, stats.Failed)
 	// Stop after parent cancel is still a safe no-op / drain.
 	ctrl.Stop()
 	require.False(t, ctrl.Running())
+}
+
+// signalingWallet is like fakeWallet but signals when CreateAction starts.
+type signalingWallet struct {
+	calls   atomic.Uint64
+	delay   time.Duration
+	started chan struct{}
+	once    sync.Once
+}
+
+func (f *signalingWallet) CreateAction(ctx context.Context, _ sdk.CreateActionArgs, _ string) (*sdk.CreateActionResult, error) {
+	f.calls.Add(1)
+	f.once.Do(func() {
+		if f.started != nil {
+			close(f.started)
+		}
+	})
+	delay := f.delay
+	if delay <= 0 {
+		delay = time.Millisecond
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(delay):
+	}
+	return &sdk.CreateActionResult{}, nil
 }
