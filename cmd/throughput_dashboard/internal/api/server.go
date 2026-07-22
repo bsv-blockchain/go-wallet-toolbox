@@ -95,7 +95,9 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil {
 		_ = json.NewDecoder(r.Body).Decode(&body)
 	}
-	err := s.deps.Ctrl.Start(s.processContext(), stream.Options{
+	// Process shutdown cancels the stream via Ctrl.Stop() in main; no long-lived
+	// parent context is stored on Server (avoids context-in-struct / cancel leaks).
+	err := s.deps.Ctrl.Start(context.Background(), stream.Options{
 		TPS:        body.TPS,
 		Workers:    body.Workers,
 		Originator: s.deps.Originator,
@@ -187,19 +189,6 @@ func (s *Server) handleInternalize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
-
-// processContext returns a context canceled when the process Done channel closes.
-func (s *Server) processContext() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		select {
-		case <-s.deps.Done:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	return ctx
 }
 
 func writeSSE(w http.ResponseWriter, flusher http.Flusher, ev metrics.Event) {

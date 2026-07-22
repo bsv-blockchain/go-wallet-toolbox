@@ -140,9 +140,9 @@ body {
   margin: 0.75rem 2rem 1rem;
   padding: 0.85rem 1rem;
   border-radius: 10px;
-  background: rgba(255, 92, 122, 0.18);
-  border: 1px solid rgba(255, 92, 122, 0.45);
-  color: #ffe8ec;
+  background: #4a1522;
+  border: 1px solid rgba(255, 92, 122, 0.55);
+  color: #ffffff;
   font-size: 0.92rem;
 }
 
@@ -415,14 +415,14 @@ button.busy {
   text-transform: uppercase;
   padding: 0.12rem 0.4rem;
   border-radius: 4px;
-  background: rgba(255, 176, 32, 0.22);
-  color: #ffd28a;
-  border: 1px solid rgba(255, 176, 32, 0.45);
+  background: #5c3a08;
+  color: #fff6df;
+  border: 1px solid rgba(255, 176, 32, 0.55);
 }
 .log .tag.reserve {
-  background: rgba(139, 156, 255, 0.22);
-  color: #c8d2ff;
-  border-color: rgba(139, 156, 255, 0.45);
+  background: #1c2558;
+  color: #eef2ff;
+  border-color: rgba(139, 156, 255, 0.55);
 }
 .empty-state {
   margin: 0.5rem 0 0;

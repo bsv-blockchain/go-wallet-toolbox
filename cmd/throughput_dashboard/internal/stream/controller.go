@@ -37,6 +37,13 @@ type Options struct {
 	Originator string
 }
 
+// Hard caps for stream knobs. Workers sizes a channel buffer and a goroutine
+// pool; unbounded user input would allow a denial-of-service allocation.
+const (
+	MaxTPS     = 100_000
+	MaxWorkers = 512
+)
+
 // Controller is a start/stop controllable rate-limited createAction stream.
 type Controller struct {
 	wallet ActionCreator
@@ -98,6 +105,12 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	}
 	if c.tps <= 0 || c.workers <= 0 {
 		return fmt.Errorf("invalid stream options: tps=%d workers=%d", c.tps, c.workers)
+	}
+	if c.tps > MaxTPS {
+		return fmt.Errorf("tps %d exceeds max %d", c.tps, MaxTPS)
+	}
+	if c.workers > MaxWorkers {
+		return fmt.Errorf("workers %d exceeds max %d", c.workers, MaxWorkers)
 	}
 
 	ctx, cancel := context.WithCancel(parent)

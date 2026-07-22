@@ -180,6 +180,22 @@ func TestControllerDefaults(t *testing.T) {
 	require.False(t, stats.Running)
 }
 
+func TestControllerRejectsExcessiveWorkers(t *testing.T) {
+	ctrl := stream.NewController(&fakeWallet{}, stream.Options{TPS: 10, Workers: 8}, nil)
+	err := ctrl.Start(context.Background(), stream.Options{Workers: stream.MaxWorkers + 1})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "exceeds max")
+	require.False(t, ctrl.Running())
+}
+
+func TestControllerRejectsExcessiveTPS(t *testing.T) {
+	ctrl := stream.NewController(&fakeWallet{}, stream.Options{TPS: 10, Workers: 8}, nil)
+	err := ctrl.Start(context.Background(), stream.Options{TPS: stream.MaxTPS + 1})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "exceeds max")
+	require.False(t, ctrl.Running())
+}
+
 func TestControllerSnapshotAndDelta(t *testing.T) {
 	fake := &fakeWallet{}
 	ctrl := stream.NewController(fake, stream.Options{TPS: 50, Workers: 2, Originator: "test"}, nil)

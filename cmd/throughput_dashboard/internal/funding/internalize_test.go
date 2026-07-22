@@ -59,26 +59,24 @@ func silentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func doInternalize(
-	ctx context.Context,
-	w funding.InternalizeActioner,
-	network defs.BSVNetwork,
-	addr string,
-	req funding.InternalizeRequest,
-	originator string,
-	logger *slog.Logger,
-	opts ...funding.InternalizeOption,
-) error {
-	return funding.Internalize(ctx, funding.InternalizeParams{
-		Wallet:          w,
-		Network:         network,
-		ExpectedAddress: addr,
-		Request:         req,
-		Originator:      originator,
-		Logger:          logger,
-	}, opts...)
+func doInternalize(p funding.InternalizeParams, opts ...funding.InternalizeOption) error {
+	return funding.Internalize(context.Background(), p, opts...)
 }
 
+func params(
+	w funding.InternalizeActioner,
+	addr string,
+	req funding.InternalizeRequest,
+) funding.InternalizeParams {
+	return funding.InternalizeParams{
+		Wallet:          w,
+		Network:         defs.NetworkMainnet,
+		ExpectedAddress: addr,
+		Request:         req,
+		Originator:      "origin",
+		Logger:          silentLogger(),
+	}
+}
 
 func p2pkhLock(t *testing.T, address string) *script.Script {
 	t.Helper()
@@ -117,45 +115,21 @@ func changeThenPaymentRawTxHex(t *testing.T, changeAddress, depositAddress strin
 
 func TestInternalizeRequiresTxHexOrTxID(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		"",
-		funding.InternalizeRequest{},
-		"origin",
-		silentLogger(),
-	)
+	err := doInternalize(params(w, "", funding.InternalizeRequest{}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "atomic_tx_hex or txid")
 	require.Equal(t, 0, w.calls)
 }
 
 func TestInternalizeNilWallet(t *testing.T) {
-	err := doInternalize(
-		context.Background(),
-		nil,
-		defs.NetworkMainnet,
-		"",
-		funding.InternalizeRequest{AtomicTxHex: "00"},
-		"origin",
-		silentLogger(),
-	)
+	err := doInternalize(params(nil, "", funding.InternalizeRequest{AtomicTxHex: "00"}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "wallet")
 }
 
 func TestInternalizeBadAtomicHex(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		"",
-		funding.InternalizeRequest{AtomicTxHex: "zz"},
-		"origin",
-		silentLogger(),
-	)
+	err := doInternalize(params(w, "", funding.InternalizeRequest{AtomicTxHex: "zz"}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "decode atomic_tx_hex")
 	require.Equal(t, 0, w.calls)
@@ -169,15 +143,9 @@ func TestInternalizeAtomicPathSuccess(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, info.Address)
 	w := &fakeInternalizer{}
 
-	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 0},
-		"throughput-dashboard.local",
-		silentLogger(),
-	)
+	p := params(w, info.Address, funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 0})
+	p.Originator = "throughput-dashboard.local"
+	err = doInternalize(p)
 	require.NoError(t, err)
 	require.Equal(t, 1, w.calls)
 	require.Equal(t, "throughput-dashboard.local", w.lastOriginator)
@@ -206,16 +174,10 @@ func TestInternalizePrefersAtomicOverTxID(t *testing.T) {
 	beef := &fakeBeefSource{atomic: []byte("should-not-be-used")}
 
 	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{
+		params(w, info.Address, funding.InternalizeRequest{
 			AtomicTxHex: rawHex,
 			TxID:        "aabbccdd", // ignored when atomic present
-		},
-		"origin",
-		silentLogger(),
+		}),
 		funding.WithAtomicBeefSource(beef),
 	)
 	require.NoError(t, err)
@@ -236,13 +198,7 @@ func TestInternalizeTxIDPathUsesBeefSource(t *testing.T) {
 	const txid = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
 	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{TxID: txid, OutputIndex: 0},
-		"origin",
-		silentLogger(),
+		params(w, info.Address, funding.InternalizeRequest{TxID: txid, OutputIndex: 0}),
 		funding.WithAtomicBeefSource(beef),
 	)
 	require.NoError(t, err)
@@ -257,13 +213,7 @@ func TestInternalizeTxIDBeefSourceError(t *testing.T) {
 	beef := &fakeBeefSource{err: errors.New("network down")}
 
 	err := doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		"",
-		funding.InternalizeRequest{TxID: "aa"},
-		"origin",
-		silentLogger(),
+		params(w, "", funding.InternalizeRequest{TxID: "aa"}),
 		funding.WithAtomicBeefSource(beef),
 	)
 	require.Error(t, err)
@@ -285,15 +235,7 @@ func TestInternalizeRejectsWrongAddress(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, otherInfo.Address)
 	w := &fakeInternalizer{}
 
-	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{AtomicTxHex: rawHex},
-		"origin",
-		silentLogger(),
-	)
+	err = doInternalize(params(w, info.Address, funding.InternalizeRequest{AtomicTxHex: rawHex}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no output pays operator deposit address")
 	require.Equal(t, 0, w.calls)
@@ -314,15 +256,7 @@ func TestInternalizeAutoDetectsPaymentAfterChangeOutput(t *testing.T) {
 	rawHex := changeThenPaymentRawTxHex(t, changeInfo.Address, info.Address)
 	w := &fakeInternalizer{}
 
-	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 0}, // wrong preferred index
-		"origin",
-		silentLogger(),
-	)
+	err = doInternalize(params(w, info.Address, funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 0})) // wrong preferred index
 	require.NoError(t, err)
 	require.Equal(t, 1, w.calls)
 	require.Equal(t, uint32(1), w.lastArgs.Outputs[0].OutputIndex)
@@ -337,15 +271,7 @@ func TestInternalizeResolvesWrongPreferredIndexWhenPaymentExists(t *testing.T) {
 	w := &fakeInternalizer{}
 
 	// Preferred index out of range, but deposit is on vout 0 — auto-resolve.
-	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 5},
-		"origin",
-		silentLogger(),
-	)
+	err = doInternalize(params(w, info.Address, funding.InternalizeRequest{AtomicTxHex: rawHex, OutputIndex: 5}))
 	require.NoError(t, err)
 	require.Equal(t, 1, w.calls)
 	require.Equal(t, uint32(0), w.lastArgs.Outputs[0].OutputIndex)
@@ -354,15 +280,7 @@ func TestInternalizeResolvesWrongPreferredIndexWhenPaymentExists(t *testing.T) {
 func TestInternalizeSkipsValidationWhenUnparseable(t *testing.T) {
 	// Unparseable atomic bytes: validation is skipped; wallet is still called.
 	w := &fakeInternalizer{}
-	err := doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		"1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", // valid address form
-		funding.InternalizeRequest{AtomicTxHex: "00"},
-		"origin",
-		silentLogger(),
-	)
+	err := doInternalize(params(w, "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", funding.InternalizeRequest{AtomicTxHex: "00"})) // valid address form
 	require.NoError(t, err)
 	require.Equal(t, 1, w.calls)
 }
@@ -375,15 +293,7 @@ func TestInternalizePropagatesWalletError(t *testing.T) {
 	rawHex := p2pkhRawTxHex(t, info.Address)
 	w := &fakeInternalizer{err: errors.New("wallet reject")}
 
-	err = doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		info.Address,
-		funding.InternalizeRequest{AtomicTxHex: rawHex},
-		"origin",
-		silentLogger(),
-	)
+	err = doInternalize(params(w, info.Address, funding.InternalizeRequest{AtomicTxHex: rawHex}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "internalize")
 	require.Contains(t, err.Error(), "wallet reject")
@@ -391,15 +301,7 @@ func TestInternalizePropagatesWalletError(t *testing.T) {
 
 func TestInternalizeInvalidExpectedAddress(t *testing.T) {
 	w := &fakeInternalizer{}
-	err := doInternalize(
-		context.Background(),
-		w,
-		defs.NetworkMainnet,
-		"not-an-address",
-		funding.InternalizeRequest{AtomicTxHex: "00"},
-		"origin",
-		silentLogger(),
-	)
+	err := doInternalize(params(w, "not-an-address", funding.InternalizeRequest{AtomicTxHex: "00"}))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "parse expected address")
 	require.Equal(t, 0, w.calls)
