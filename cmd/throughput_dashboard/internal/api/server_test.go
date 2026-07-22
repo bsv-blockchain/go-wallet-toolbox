@@ -386,6 +386,7 @@ func TestStatic_Index(t *testing.T) {
 // until ServeHTTP has returned — ResponseRecorder is not concurrency-safe.
 type sseRecorder struct {
 	*httptest.ResponseRecorder
+
 	firstWrite chan struct{}
 	once       sync.Once
 }
