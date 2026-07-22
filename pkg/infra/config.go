@@ -105,12 +105,71 @@ func (c *Config) OnPostLoad() error {
 	}
 	c.Services.Chain = c.BSVNetwork
 
-	// if testnet selected - switch to testnet-ARC if default config points to mainnet-ARC
-	if c.BSVNetwork == defs.NetworkTestnet && c.Services.ArcConfig.URL == defs.ArcURL {
-		c.Services.ArcConfig.URL = defs.ArcTestURL
-		c.Services.ArcConfig.Token = defs.ArcTestToken
-	}
+	// The service defaults baked in by Defaults() are for mainnet (the network is only
+	// known after the config file/env are loaded). Re-derive the network-specific service
+	// endpoints for the selected network, preserving any operator overrides.
+	c.reconcileServiceDefaultsForNetwork()
 	return nil
+}
+
+// reconcileServiceDefaultsForNetwork swaps service endpoints that still carry the mainnet
+// defaults (from Defaults()) over to the defaults for the selected network. Operator
+// overrides in the config file/env are preserved: a field is only adjusted when it still
+// equals the mainnet default value the operator did not touch. This generalises the former
+// testnet-ARC-only swap so that test/ttn/tstn also get coherent Arcade / GorillaPool /
+// WhatsOnChain / ChainTracks defaults (and for tstn, the TSTN_ARCADE_URL / TSTN_CHAINTRACKS_URL
+// runtime endpoints).
+func (c *Config) reconcileServiceDefaultsForNetwork() {
+	if c.BSVNetwork == defs.NetworkMainnet {
+		return // Defaults() already holds the mainnet service defaults.
+	}
+
+	mainDefaults := defs.DefaultServicesConfig(defs.NetworkMainnet)
+	target := defs.DefaultServicesConfig(c.BSVNetwork)
+	s := &c.Services
+
+	// ARC (TAAL / primary merkle-path source)
+	if s.ArcConfig.URL == mainDefaults.ArcConfig.URL {
+		s.ArcConfig.URL = target.ArcConfig.URL
+	}
+	if s.ArcConfig.Token == mainDefaults.ArcConfig.Token {
+		s.ArcConfig.Token = target.ArcConfig.Token
+	}
+
+	// Arcade (primary broadcaster)
+	if s.Arcade.Enabled == mainDefaults.Arcade.Enabled {
+		s.Arcade.Enabled = target.Arcade.Enabled
+	}
+	if s.Arcade.URL == mainDefaults.Arcade.URL {
+		s.Arcade.URL = target.Arcade.URL
+	}
+	if s.Arcade.EventsURL == mainDefaults.Arcade.EventsURL {
+		s.Arcade.EventsURL = target.Arcade.EventsURL
+	}
+
+	// GorillaPool ARC (mainnet-only broadcast failover)
+	if s.ArcGorillaPoolConfig.Enabled == mainDefaults.ArcGorillaPoolConfig.Enabled {
+		s.ArcGorillaPoolConfig.Enabled = target.ArcGorillaPoolConfig.Enabled
+	}
+	if s.ArcGorillaPoolConfig.URL == mainDefaults.ArcGorillaPoolConfig.URL {
+		s.ArcGorillaPoolConfig.URL = target.ArcGorillaPoolConfig.URL
+	}
+
+	// WhatsOnChain (absent on tstn)
+	if s.WhatsOnChain.Enabled == mainDefaults.WhatsOnChain.Enabled {
+		s.WhatsOnChain.Enabled = target.WhatsOnChain.Enabled
+	}
+
+	// ChainTracks (headers; enabled by default on the Teranode networks)
+	if s.ChaintracksClient.Enabled == mainDefaults.ChaintracksClient.Enabled {
+		s.ChaintracksClient.Enabled = target.ChaintracksClient.Enabled
+	}
+	if s.ChaintracksClient.Mode == mainDefaults.ChaintracksClient.Mode {
+		s.ChaintracksClient.Mode = target.ChaintracksClient.Mode
+	}
+	if s.ChaintracksClient.RemoteURL == mainDefaults.ChaintracksClient.RemoteURL {
+		s.ChaintracksClient.RemoteURL = target.ChaintracksClient.RemoteURL
+	}
 }
 
 // Validate validates the whole configuration

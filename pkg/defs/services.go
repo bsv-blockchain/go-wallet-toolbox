@@ -79,6 +79,18 @@ func (ws *WalletServices) Validate() error {
 		return fmt.Errorf("chain is required")
 	}
 
+	// tstn endpoints are private and supplied at runtime via environment variables.
+	// Fail fast with an actionable message when they are missing, instead of surfacing
+	// a generic "arcade url is empty" later on.
+	if ws.Chain == NetworkTSTN {
+		if ws.Arcade.URL == "" {
+			return fmt.Errorf("tstn network requires %s to be set in the environment", EnvTstnArcadeURL)
+		}
+		if ws.ChaintracksClient.Enabled && ws.ChaintracksClient.RemoteURL == "" {
+			return fmt.Errorf("tstn network requires %s or %s to be set in the environment", EnvTstnChaintracksURL, EnvTstnArcadeURL)
+		}
+	}
+
 	if err = ws.FiatExchangeRates.Validate(); err != nil {
 		return fmt.Errorf("invalid fiat exchange rates: %w", err)
 	}
@@ -114,19 +126,22 @@ func (ws *WalletServices) Validate() error {
 func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 	ratesTimestamp := time.Date(2023, time.December, 13, 0, 0, 0, 0, time.UTC)
 
+	ep := endpointsForChain(chain)
+
 	cfg := WalletServices{ //nolint:gosec // G101 - not hardcoded credentials, default config values
 		Chain: chain,
 		ArcConfig: ARC{
 			Enabled: true,
-			URL:     to.IfThen(chain == NetworkMainnet, ArcURL).ElseThen(ArcTestURL),
-			Token:   to.IfThen(chain == NetworkMainnet, ArcToken).ElseThen(ArcTestToken),
+			URL:     ep.arcURL,
+			Token:   ep.arcToken,
 		},
 		Arcade: Arcade{
-			Enabled: chain == NetworkMainnet,
-			// off mainnet the URL is left empty on purpose: flipping Enabled on testnet
-			// must not silently hit mainnet - Validate() then forces an explicit URL.
-			URL:               to.IfThen(chain == NetworkMainnet, ArcadeURL).ElseThen(""),
-			EventsURL:         to.IfThen(chain == NetworkMainnet, ArcadeURL).ElseThen(""),
+			Enabled: ep.arcadeEnabled,
+			// on networks without an Arcade default the URL is left empty on purpose:
+			// flipping Enabled without a URL must not silently hit mainnet - Validate()
+			// then forces an explicit URL.
+			URL:               ep.arcadeURL,
+			EventsURL:         ep.arcadeURL,
 			FullStatusUpdates: true,
 			CircuitBreaker: ArcadeCircuitBreaker{
 				FailureThreshold:           3,
@@ -134,8 +149,8 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			},
 		},
 		ArcGorillaPoolConfig: ARC{
-			Enabled: chain == NetworkMainnet,
-			URL:     to.IfThen(chain == NetworkMainnet, GorillaPoolArcURL).ElseThen(""),
+			Enabled: ep.gorillaEnabled,
+			URL:     ep.gorillaURL,
 		},
 		BHS: BHS{
 			Enabled: false,
@@ -143,7 +158,7 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			APIKey:  BHSApiKey,
 		},
 		WhatsOnChain: WhatsOnChain{
-			Enabled:           true,
+			Enabled:           ep.wocEnabled,
 			BSVUpdateInterval: to.Ptr(DefaultBSVExchangeUpdateInterval),
 			BSVExchangeRate: BSVExchangeRate{
 				Timestamp: ratesTimestamp,
@@ -159,9 +174,9 @@ func DefaultServicesConfig(chain BSVNetwork) WalletServices {
 			ScriptHashHistoryPageLimit: defaultScriptHashHistoryPageLimit,
 		},
 		ChaintracksClient: ChaintracksClient{
-			Enabled:   false,
-			Mode:      "remote",
-			RemoteURL: ChaintracksTestURL,
+			Enabled:   ep.chaintracksEnabled,
+			Mode:      ChaintracksClientModeRemote,
+			RemoteURL: ep.chaintracksURL,
 		},
 		FiatExchangeRates: FiatExchangeRates{
 			Timestamp: ratesTimestamp,
