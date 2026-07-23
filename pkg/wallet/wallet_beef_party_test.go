@@ -1,10 +1,11 @@
 package wallet_test
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 )
 
 const storagePartyID = "storage 0320bbfb879bbd6761ecd2962badbb41ba9d60ca88327d78b07ae7141af6b6c810"

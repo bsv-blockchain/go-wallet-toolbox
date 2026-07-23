@@ -1,27 +1,26 @@
 {
     "$schema": "../../../schema/vector.schema.json",
-    "id": "wallet.brc100.listactions",
-    "name": "BRC-100 listactions",
     "brc": [
         "BRC-100"
     ],
-    "version": "2.0.1",
-    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
+    "id": "wallet.brc100.listactions",
+    "name": "BRC-100 listactions",
     "parity_class": "required",
+    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
     "vectors": [
         {
-            "id": "wallet.brc100.listactions.1",
             "description": "listActions by single label",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.1",
             "input": {
                 "args": {
                     "labels": [
                         "payment"
                     ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -30,20 +29,20 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.2",
             "description": "listActions by multiple labels any-mode",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.2",
             "input": {
                 "args": {
+                    "labelQueryMode": "any",
                     "labels": [
                         "payment",
                         "invoice"
-                    ],
-                    "labelQueryMode": "any"
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -52,20 +51,20 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.3",
             "description": "listActions by multiple labels all-mode",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.3",
             "input": {
                 "args": {
+                    "labelQueryMode": "all",
                     "labels": [
                         "payment",
                         "confirmed"
-                    ],
-                    "labelQueryMode": "all"
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -74,19 +73,19 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.4",
             "description": "listActions with includeLabels=true",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.4",
             "input": {
                 "args": {
+                    "includeLabels": true,
                     "labels": [
                         "payment"
-                    ],
-                    "includeLabels": true
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -95,19 +94,19 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.5",
             "description": "listActions with includeInputs=true",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.5",
             "input": {
                 "args": {
+                    "includeInputs": true,
                     "labels": [
                         "payment"
-                    ],
-                    "includeInputs": true
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -116,19 +115,19 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.6",
             "description": "listActions with includeOutputs=true",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.6",
             "input": {
                 "args": {
+                    "includeOutputs": true,
                     "labels": [
                         "payment"
-                    ],
-                    "includeOutputs": true
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -137,24 +136,24 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.7",
             "description": "listActions with all includes",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.7",
             "input": {
                 "args": {
-                    "labels": [
-                        "payment"
-                    ],
-                    "includeLabels": true,
-                    "includeInputs": true,
                     "includeInputSourceLockingScripts": true,
                     "includeInputUnlockingScripts": true,
+                    "includeInputs": true,
+                    "includeLabels": true,
+                    "includeOutputLockingScripts": true,
                     "includeOutputs": true,
-                    "includeOutputLockingScripts": true
+                    "labels": [
+                        "payment"
+                    ]
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -163,8 +162,12 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.8",
             "description": "listActions with limit and offset",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.8",
             "input": {
                 "args": {
                     "labels": [
@@ -174,10 +177,6 @@
                     "offset": 10
                 }
             },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
-            },
             "tags": [
                 "brc-100",
                 "listActions",
@@ -185,8 +184,12 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.9",
             "description": "listActions with limit=1",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.9",
             "input": {
                 "args": {
                     "labels": [
@@ -195,10 +198,6 @@
                     "limit": 1
                 }
             },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
-            },
             "tags": [
                 "brc-100",
                 "listActions",
@@ -206,8 +205,12 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.10",
             "description": "listActions with limit=10000 (max)",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.10",
             "input": {
                 "args": {
                     "labels": [
@@ -216,10 +219,6 @@
                     "limit": 10000
                 }
             },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
-            },
             "tags": [
                 "brc-100",
                 "listActions",
@@ -227,16 +226,16 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.11",
             "description": "listActions with empty labels",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.11",
             "input": {
                 "args": {
                     "labels": []
                 }
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
             },
             "tags": [
                 "brc-100",
@@ -245,8 +244,12 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.12",
             "description": "listActions seekPermission=false",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.12",
             "input": {
                 "args": {
                     "labels": [
@@ -255,10 +258,6 @@
                     "seekPermission": false
                 }
             },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
-            },
             "tags": [
                 "brc-100",
                 "listActions",
@@ -266,19 +265,19 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.13",
             "description": "listActions result shape: { totalActions, actions[] }",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.13",
             "input": {
+                "_schema_note": "result must have totalActions (int) and actions (array)",
                 "args": {
                     "labels": [
                         "payment"
                     ]
-                },
-                "_schema_note": "result must have totalActions (int) and actions (array)"
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
+                }
             },
             "tags": [
                 "brc-100",
@@ -287,59 +286,59 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.14",
             "description": "listActions WalletAction shape when populated",
-            "input": {
-                "args": {
-                    "labels": [
-                        "payment"
-                    ],
-                    "includeOutputs": true
-                },
-                "_schema_note": "WalletAction has txid, satoshis, status, isOutgoing, description, version, lockTime"
-            },
             "expected": {
-                "totalActions": 1,
                 "actions": [
                     {
-                        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                        "satoshis": 1000,
-                        "status": "completed",
-                        "isOutgoing": true,
                         "description": "test payment",
+                        "inputs": [],
+                        "isOutgoing": true,
                         "labels": [
                             "payment"
                         ],
-                        "version": 1,
                         "lockTime": 0,
-                        "inputs": [],
-                        "outputs": []
+                        "outputs": [],
+                        "satoshis": 1000,
+                        "status": "completed",
+                        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "version": 1
                     }
-                ]
+                ],
+                "totalActions": 1
             },
+            "id": "wallet.brc100.listactions.14",
+            "input": {
+                "_schema_note": "WalletAction has txid, satoshis, status, isOutgoing, description, version, lockTime",
+                "args": {
+                    "includeOutputs": true,
+                    "labels": [
+                        "payment"
+                    ]
+                }
+            },
+            "parity_class": "intended",
+            "skip_reason": "Expects pre-populated action (1 result); fresh empty wallet returns 0.",
             "tags": [
                 "brc-100",
                 "listActions",
                 "schema",
                 "non-empty"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Expects pre-populated action (1 result); fresh empty wallet returns 0."
+            ]
         },
         {
-            "id": "wallet.brc100.listactions.15",
             "description": "listActions ActionStatus values",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.15",
             "input": {
+                "_schema_note": "status can be: completed, unprocessed, sending, unproven, unsigned, nosend, nonfinal, failed",
                 "args": {
                     "labels": [
                         "all"
                     ]
-                },
-                "_schema_note": "status can be: completed, unprocessed, sending, unproven, unsigned, nosend, nonfinal, failed"
-            },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
+                }
             },
             "tags": [
                 "brc-100",
@@ -348,8 +347,12 @@
             ]
         },
         {
-            "id": "wallet.brc100.listactions.16",
             "description": "listActions with originator",
+            "expected": {
+                "actions": [],
+                "totalActions": 0
+            },
+            "id": "wallet.brc100.listactions.16",
             "input": {
                 "args": {
                     "labels": [
@@ -358,15 +361,12 @@
                 },
                 "originator": "app.example.com"
             },
-            "expected": {
-                "totalActions": 0,
-                "actions": []
-            },
             "tags": [
                 "brc-100",
                 "listActions",
                 "originator"
             ]
         }
-    ]
+    ],
+    "version": "2.0.1"
 }

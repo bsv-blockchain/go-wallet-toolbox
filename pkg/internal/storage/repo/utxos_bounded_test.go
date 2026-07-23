@@ -191,7 +191,8 @@ func TestFindLargestInsufficientUTXOsForUpdate(t *testing.T) {
 			_, err := fx.repos.FindLargestInsufficientUTXOsForUpdate(
 				t.Context(), fx.db,
 				wdk.BoundedUTXOQuery{UserID: fx.userID, BasketName: wdk.BasketNameForChange, Status: wdk.UTXOStatusMined},
-				1000, limit)
+				1000, limit,
+			)
 			require.Errorf(t, err, "limit=%d must be rejected", limit)
 		}
 	})

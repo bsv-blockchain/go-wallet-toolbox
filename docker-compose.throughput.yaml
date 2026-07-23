@@ -8,7 +8,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=storage
     ports:
-      - "127.0.0.1:5433:5432"   # 5433 host to avoid clash with standard stack
+      - "127.0.0.1:5433:5432" # 5433 host to avoid clash with standard stack
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d storage"]
       interval: 5s
@@ -24,7 +24,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "8101:8100"             # 8101 host to avoid clash with standard stack
+      - "8101:8100" # 8101 host to avoid clash with standard stack
     volumes:
       - ./infra-config-docker-throughput.yaml:/app/infra-config-throughput.yaml:ro
     restart: unless-stopped

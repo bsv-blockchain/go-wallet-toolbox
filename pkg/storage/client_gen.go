@@ -4,9 +4,9 @@ package storage
 
 import (
 	"context"
-)
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 type WalletStorageProviderClient struct {
 	client *walletStorageProviderImpl

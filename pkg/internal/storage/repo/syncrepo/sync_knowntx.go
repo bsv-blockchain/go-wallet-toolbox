@@ -158,7 +158,7 @@ func (s *SyncKnownTx) upsertKnownTxModel(ctx context.Context, tx *gorm.DB, entit
 	return true, nil
 }
 
-func (s *SyncKnownTx) updateKnownTxIfNewer(ctx context.Context, tx *gorm.DB, entity *entity.KnownTx, model models.KnownTx, existing models.KnownTx) error {
+func (s *SyncKnownTx) updateKnownTxIfNewer(ctx context.Context, tx *gorm.DB, entity *entity.KnownTx, model, existing models.KnownTx) error {
 	if !model.UpdatedAt.After(existing.UpdatedAt) {
 		return nil
 	}

@@ -694,7 +694,8 @@ func (p *ChunkProcessor) upsertCertificate(chunkCertificate *wdk.TableCertificat
 		return fmt.Errorf("chunk certificate user ID %d does not match chunk user ID %d", chunkCertificate.UserID, p.chunk.User.UserID)
 	}
 
-	p.logger.DebugContext(p.ctx, "upserting certificate",
+	p.logger.DebugContext(
+		p.ctx, "upserting certificate",
 		slog.String("serialNumber", string(chunkCertificate.SerialNumber)),
 		slog.String("certifier", string(chunkCertificate.Certifier)),
 	)
@@ -743,7 +744,8 @@ func (p *ChunkProcessor) upsertCertificateField(chunkField *wdk.TableCertificate
 		return fmt.Errorf("chunk certificate field user ID %d does not match chunk user ID %d", chunkField.UserID, p.chunk.User.UserID)
 	}
 
-	p.logger.DebugContext(p.ctx, "upserting certificate field",
+	p.logger.DebugContext(
+		p.ctx, "upserting certificate field",
 		logging.Number("certificateID", chunkField.CertificateID),
 		slog.String("fieldName", chunkField.FieldName),
 	)
@@ -781,7 +783,8 @@ func (p *ChunkProcessor) upsertCommission(chunkCommission *wdk.TableCommission) 
 		return fmt.Errorf("chunk commission user ID %d does not match chunk user ID %d", chunkCommission.UserID, p.chunk.User.UserID)
 	}
 
-	p.logger.DebugContext(p.ctx, "upserting commission",
+	p.logger.DebugContext(
+		p.ctx, "upserting commission",
 		logging.Number("commissionID", chunkCommission.CommissionID),
 		logging.Number("transactionID", chunkCommission.TransactionID),
 	)

@@ -55,7 +55,8 @@ func TestUserUTXOIndexes_Postgres(t *testing.T) {
 	}
 
 	require.NotEmpty(t, selectionIndexDef, "expected idx_user_utxos_selection to exist")
-	require.Regexp(t,
+	require.Regexp(
+		t,
 		`\(user_id, basket_name, reserved_by_id, utxo_status, satoshis\)`,
 		selectionIndexDef,
 		"idx_user_utxos_selection must cover columns in order: user_id, basket_name, reserved_by_id, utxo_status, satoshis",

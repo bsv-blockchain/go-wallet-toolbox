@@ -1,29 +1,39 @@
 package dbfixtures_test
 
 import (
-	"net"
+	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
-	"github.com/stretchr/testify/require"
 )
 
 // skipIfPostgresUnavailable guards the fixture self-test so it doesn't fail
-// hard in environments without a local Postgres running. It only probes TCP
-// reachability (no SQL driver needed here — dbfixtures.TestDatabase below
-// does the real connect through gorm's postgres dialector).
+// hard in environments without the expected local Postgres running. It
+// authenticates with the same credentials dbfixtures.TestDatabase below uses,
+// rather than merely probing TCP reachability: some dev machines run an
+// unrelated Postgres on 5432 (different role/password), which would otherwise
+// be mistaken for the docker-compose test instance and fail with an auth error.
 func skipIfPostgresUnavailable(t *testing.T) {
 	t.Helper()
 
-	dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
-	conn, err := dialer.DialContext(t.Context(), "tcp", "localhost:5432")
+	db, err := sql.Open("pgx", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 	if err != nil {
 		t.Skip("postgres not available: start with `docker compose up -d db`")
 		return
 	}
-	_ = conn.Close()
+	defer func() { _ = db.Close() }()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		t.Skip("postgres not available: start with `docker compose up -d db`")
+	}
 }
 
 // Requires: docker compose up -d db

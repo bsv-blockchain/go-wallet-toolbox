@@ -42,7 +42,8 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 	onEvent := func(ev wdk.BroadcastStatusEvent) error {
 		results, storageErr := d.storage.ProcessExternalTxStatusUpdate(ctx, ev)
 		if storageErr != nil {
-			d.logger.ErrorContext(ctx, "ProcessExternalTxStatusUpdate failed",
+			d.logger.ErrorContext(
+				ctx, "ProcessExternalTxStatusUpdate failed",
 				slog.String("txID", ev.TxID),
 				slog.String("eventID", ev.EventID),
 				slog.Any("error", storageErr),
@@ -57,14 +58,16 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 		// resume with no Last-Event-ID and skip every event in the gap —
 		// replaying events is safe, skipping them is not).
 		if ev.EventID == "" {
-			d.logger.WarnContext(ctx, "Broadcast event carried no event ID, replay cursor not advanced",
+			d.logger.WarnContext(
+				ctx, "Broadcast event carried no event ID, replay cursor not advanced",
 				slog.String("txID", ev.TxID),
 			)
 		} else if persistErr := d.storage.SetKeyValue(ctx, LastEventIDKey, []byte(ev.EventID)); persistErr != nil {
 			// Keep the old in-memory cursor on persist failure so reconnects
 			// resume from the last durably persisted position instead of a
 			// position the durable cursor never reached.
-			d.logger.ErrorContext(ctx, "Failed to persist SSE replay cursor",
+			d.logger.ErrorContext(
+				ctx, "Failed to persist SSE replay cursor",
 				slog.String("eventID", ev.EventID),
 				slog.Any("error", persistErr),
 			)

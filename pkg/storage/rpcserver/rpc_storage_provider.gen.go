@@ -5,9 +5,9 @@ package rpcserver
 import (
 	"context"
 	"fmt"
-)
 
-import "github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
 
 // Migrate migrates a wallet storage database.
 func (p *RPCStorageProvider) Migrate(ctx context.Context, storageName string, storageIdentityKey string) (string, error) {
