@@ -18,7 +18,8 @@ import (
 const arcadeBroadcastURL = defs.ArcadeURL + "/tx"
 
 func givenArcadeBroadcastSucceeds(given testservices.ServicesFixture, txID string) {
-	given.Transport().RegisterResponder(http.MethodPost, arcadeBroadcastURL,
+	given.Transport().RegisterResponder(
+		http.MethodPost, arcadeBroadcastURL,
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, map[string]any{
 			"txid":     txID,
 			"txStatus": "SEEN_ON_NETWORK",
@@ -27,7 +28,8 @@ func givenArcadeBroadcastSucceeds(given testservices.ServicesFixture, txID strin
 }
 
 func givenArcadeRejectsTransaction(given testservices.ServicesFixture) {
-	given.Transport().RegisterResponder(http.MethodPost, arcadeBroadcastURL,
+	given.Transport().RegisterResponder(
+		http.MethodPost, arcadeBroadcastURL,
 		httpmock.NewJsonResponderOrPanic(http.StatusBadRequest, map[string]any{
 			"error": "mocked arcade rejection",
 		}),
@@ -35,7 +37,8 @@ func givenArcadeRejectsTransaction(given testservices.ServicesFixture) {
 }
 
 func givenGorillaPoolARCIsFailing(given testservices.ServicesFixture) {
-	given.Transport().RegisterResponder(http.MethodPost, defs.GorillaPoolArcURL+"/v1/tx",
+	given.Transport().RegisterResponder(
+		http.MethodPost, defs.GorillaPoolArcURL+"/v1/tx",
 		httpmock.NewJsonResponderOrPanic(http.StatusInternalServerError, map[string]any{
 			"error": "mocked gorillapool outage",
 		}),
