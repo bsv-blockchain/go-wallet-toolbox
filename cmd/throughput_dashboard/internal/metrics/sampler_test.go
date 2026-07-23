@@ -11,10 +11,11 @@ import (
 	"time"
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // fakeWallet implements WalletAPI with controllable balance and basket totals.

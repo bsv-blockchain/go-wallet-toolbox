@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/script"
-	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
 )
 
 func TestHashPayloadIsSHA256OfIterationConcatTimestamp(t *testing.T) {

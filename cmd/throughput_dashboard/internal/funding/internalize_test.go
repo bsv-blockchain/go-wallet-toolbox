@@ -13,9 +13,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/funding"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/stretchr/testify/require"
 )
 
 type fakeInternalizer struct {
