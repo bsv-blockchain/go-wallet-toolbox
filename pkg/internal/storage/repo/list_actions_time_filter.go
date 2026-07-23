@@ -1,8 +1,9 @@
 package repo
 
 import (
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 )
 
 // applyListActionsTimeFilters applies BRC-114 created_at range filters.
