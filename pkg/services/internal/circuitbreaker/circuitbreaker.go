@@ -187,7 +187,8 @@ func (cb *CircuitBreaker) transitionTo(state State) {
 	if cb.state == state {
 		return
 	}
-	cb.logger.Info("circuit breaker state change",
+	cb.logger.Info(
+		"circuit breaker state change",
 		slog.String("from", cb.state.String()),
 		slog.String("to", state.String()),
 	)
