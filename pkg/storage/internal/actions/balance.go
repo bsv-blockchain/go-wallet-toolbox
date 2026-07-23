@@ -45,7 +45,8 @@ func sumSpendableBasketSatoshis(ctx context.Context, outputsRepo OutputRepo, use
 
 // GetBalance returns total spendable satoshis in the given basket for the user.
 func (l *listOutputs) GetBalance(ctx context.Context, userID int, basket string) (balance uint64, err error) {
-	ctx, span := tracing.StartTracing(ctx, "StorageActions-GetBalance",
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageActions-GetBalance",
 		attribute.Int("userID", userID),
 		attribute.String("basket", basket),
 	)
@@ -53,7 +54,8 @@ func (l *listOutputs) GetBalance(ctx context.Context, userID int, basket string)
 		tracing.EndTracing(span, err)
 	}()
 
-	l.logger.DebugContext(ctx, "GetBalance",
+	l.logger.DebugContext(
+		ctx, "GetBalance",
 		slog.Int("userID", userID),
 		slog.String("basket", basket),
 	)
