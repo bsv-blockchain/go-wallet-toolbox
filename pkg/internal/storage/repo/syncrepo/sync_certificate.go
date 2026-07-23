@@ -128,7 +128,7 @@ func (s *SyncCertificate) upsertCertificateModel(tx *gorm.DB, e *entity.Certific
 	return true, id, nil
 }
 
-func (s *SyncCertificate) updateCertificateIfNewer(tx *gorm.DB, e *entity.Certificate, model models.Certificate, existing models.Certificate) (uint, error) {
+func (s *SyncCertificate) updateCertificateIfNewer(tx *gorm.DB, e *entity.Certificate, model, existing models.Certificate) (uint, error) {
 	if !model.UpdatedAt.After(existing.UpdatedAt) {
 		return existing.ID, nil
 	}

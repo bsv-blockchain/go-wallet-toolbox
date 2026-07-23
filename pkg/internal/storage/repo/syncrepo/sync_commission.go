@@ -123,7 +123,7 @@ func (s *SyncCommission) upsertCommissionModel(tx *gorm.DB, e *entity.Commission
 	return true, id, nil
 }
 
-func (s *SyncCommission) updateCommissionIfNewer(tx *gorm.DB, model models.Commission, existing models.Commission) (uint, error) {
+func (s *SyncCommission) updateCommissionIfNewer(tx *gorm.DB, model, existing models.Commission) (uint, error) {
 	if !model.UpdatedAt.After(existing.UpdatedAt) {
 		return existing.ID, nil
 	}
