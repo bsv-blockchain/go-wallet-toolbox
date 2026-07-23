@@ -1,23 +1,22 @@
 {
     "$schema": "../../../schema/vector.schema.json",
-    "id": "wallet.brc100.getnetwork",
-    "name": "BRC-100 getnetwork",
     "brc": [
         "BRC-100"
     ],
-    "version": "2.0.0",
-    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
+    "id": "wallet.brc100.getnetwork",
+    "name": "BRC-100 getnetwork",
     "parity_class": "required",
+    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
     "vectors": [
         {
-            "id": "wallet.brc100.getnetwork.1",
             "description": "getNetwork returns mainnet",
-            "input": {
-                "args": {},
-                "_scenario": "mainnet wallet"
-            },
             "expected": {
                 "network": "mainnet"
+            },
+            "id": "wallet.brc100.getnetwork.1",
+            "input": {
+                "_scenario": "mainnet wallet",
+                "args": {}
             },
             "tags": [
                 "brc-100",
@@ -26,14 +25,14 @@
             ]
         },
         {
-            "id": "wallet.brc100.getnetwork.2",
             "description": "getNetwork returns testnet",
-            "input": {
-                "args": {},
-                "_scenario": "testnet wallet"
-            },
             "expected": {
                 "network": "testnet"
+            },
+            "id": "wallet.brc100.getnetwork.2",
+            "input": {
+                "_scenario": "testnet wallet",
+                "args": {}
             },
             "tags": [
                 "brc-100",
@@ -42,14 +41,14 @@
             ]
         },
         {
-            "id": "wallet.brc100.getnetwork.3",
             "description": "getNetwork with originator",
+            "expected": {
+                "network": "mainnet"
+            },
+            "id": "wallet.brc100.getnetwork.3",
             "input": {
                 "args": {},
                 "originator": "myapp.example.com"
-            },
-            "expected": {
-                "network": "mainnet"
             },
             "tags": [
                 "brc-100",
@@ -58,13 +57,13 @@
             ]
         },
         {
-            "id": "wallet.brc100.getnetwork.4",
             "description": "getNetwork no originator",
-            "input": {
-                "args": {}
-            },
             "expected": {
                 "network": "mainnet"
+            },
+            "id": "wallet.brc100.getnetwork.4",
+            "input": {
+                "args": {}
             },
             "tags": [
                 "brc-100",
@@ -72,14 +71,14 @@
             ]
         },
         {
-            "id": "wallet.brc100.getnetwork.5",
             "description": "getNetwork result is WalletNetwork (mainnet|testnet)",
-            "input": {
-                "args": {},
-                "_schema_note": "network must be \"mainnet\" or \"testnet\""
-            },
             "expected": {
                 "network": "mainnet"
+            },
+            "id": "wallet.brc100.getnetwork.5",
+            "input": {
+                "_schema_note": "network must be \"mainnet\" or \"testnet\"",
+                "args": {}
             },
             "tags": [
                 "brc-100",
@@ -87,5 +86,6 @@
                 "schema"
             ]
         }
-    ]
+    ],
+    "version": "2.0.0"
 }
