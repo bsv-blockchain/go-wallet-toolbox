@@ -131,6 +131,8 @@ func (f *fakeFuelPool) SetTargetPoolSize(n uint64) error {
 
 func (f *fakeFuelPool) TargetPoolSize() uint64 { return f.size }
 
+func (f *fakeFuelPool) RunOnce(context.Context) error { return nil }
+
 type testEnv struct {
 	handler http.Handler
 	ctrl    *stream.Controller
@@ -318,6 +320,105 @@ func TestStreamStartStop_StatusRunning(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec4.Code)
 }
 
+func TestStatus_OverlaysLiveStreamStats(t *testing.T) {
+	env := newTestEnv(t)
+	// Sampler never ran (hour interval, Run not started): LastTick is zero.
+	// Status must still report the live run-state.
+	rec := doJSON(t, env.handler, http.MethodPost, "/api/stream/start", map[string]any{"tps": 5, "workers": 1})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+
+	st := doJSON(t, env.handler, http.MethodGet, "/api/status", nil)
+	require.Equal(t, http.StatusOK, st.Code)
+	body := decodeMap(t, st)
+
+	live, ok := body["stream"].(map[string]any)
+	require.True(t, ok, "status must include live stream stats")
+	assert.Equal(t, true, live["running"])
+	assert.NotEmpty(t, body["now"])
+
+	tick := body["tick"].(map[string]any)
+	tickStream := tick["stream"].(map[string]any)
+	assert.Equal(t, true, tickStream["running"], "stale tick must carry live overlay")
+
+	env.ctrl.Stop()
+}
+
+// gatedActionCreator blocks CreateAction until release closes; entered closes
+// on the first call.
+type gatedActionCreator struct {
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *gatedActionCreator) CreateAction(context.Context, sdk.CreateActionArgs, string) (*sdk.CreateActionResult, error) {
+	g.once.Do(func() { close(g.entered) })
+	<-g.release
+	return &sdk.CreateActionResult{}, nil
+}
+
+func TestStreamStop_Returns202WhileDraining(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	gate := &gatedActionCreator{entered: make(chan struct{}), release: make(chan struct{})}
+	t.Cleanup(func() {
+		gate.once.Do(func() { close(gate.entered) }) // avoid double-close if never entered
+		select {
+		case <-gate.release:
+		default:
+			close(gate.release)
+		}
+	})
+	ctrl := stream.NewController(gate, stream.Options{TPS: 100, Workers: 1, Originator: "o"}, discardLogger())
+
+	walletAPI := &fakeWalletAPI{}
+	sampler := metrics.NewSampler(walletAPI, ctrl, metrics.Config{
+		Originator: "o", Interval: time.Hour,
+		TargetTPS: 10, Denomination: 20, TargetPool: 100,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
+
+	fuel := &fakeFuelPool{size: 100}
+	srv := api.New(api.Deps{
+		Ctrl:       ctrl,
+		Sampler:    sampler,
+		Fuel:       fuel,
+		Wallet:     &fakeInternalizer{},
+		Priv:       testPriv(t),
+		Network:    defs.NetworkMainnet,
+		Originator: "o",
+		ServerURL:  "http://example",
+		Logger:     discardLogger(),
+		Done:       doneFromCtx(parent),
+		StopWait:   50 * time.Millisecond,
+	})
+	h := srv.Handler()
+
+	rec := doJSON(t, h, http.MethodPost, "/api/stream/start", map[string]any{"tps": 100, "workers": 1})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	select {
+	case <-gate.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no createAction in flight")
+	}
+
+	// Worker stuck in CreateAction → bounded stop answers 202 with draining.
+	rec2 := doJSON(t, h, http.MethodPost, "/api/stream/stop", nil)
+	require.Equal(t, http.StatusAccepted, rec2.Code, "body=%s", rec2.Body.String())
+	body := decodeMap(t, rec2)
+	assert.Equal(t, true, body["draining"])
+	stats := body["stats"].(map[string]any)
+	assert.Equal(t, true, stats["draining"])
+
+	// Unblock: drain finishes in background, subsequent stop reports stopped.
+	close(gate.release)
+	require.Eventually(t, func() bool { return !ctrl.Running() }, 5*time.Second, 10*time.Millisecond)
+	rec3 := doJSON(t, h, http.MethodPost, "/api/stream/stop", nil)
+	require.Equal(t, http.StatusOK, rec3.Code)
+}
+
 func TestStreamStart_EmptyBodyUsesDefaults(t *testing.T) {
 	env := newTestEnv(t)
 
@@ -374,7 +475,7 @@ func TestStreamStart_OmittingWorkersDerivesFromTPS(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	stats := decodeMap(t, rec)["stats"].(map[string]any)
 	assert.InDelta(t, 25, stats["tps"], 0.001)
-	assert.InDelta(t, 25, stats["workers"], 0.001)
+	assert.InDelta(t, float64(stream.WorkersForTPS(25)), stats["workers"], 0.001)
 
 	env.ctrl.Stop()
 }

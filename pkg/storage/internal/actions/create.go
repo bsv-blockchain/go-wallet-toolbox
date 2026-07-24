@@ -675,7 +675,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
-	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs)
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.TrustSelf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}
@@ -1179,6 +1179,7 @@ func (c *create) mergeAllocatedUTXOs(
 	inputBeef *transaction.Beef,
 	allocatedUTXOs []*funder.UTXO,
 	knownTxIDs primitives.TXIDHexStrings,
+	trustSelf bool,
 ) (primitives.ExplicitByteArray, error) {
 	txIDs, err := c.outputRepo.FindTxIDsByOutputIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
@@ -1187,7 +1188,20 @@ func (c *create) mergeAllocatedUTXOs(
 		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
 	}
 
-	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	opts := []entity.GetBEEFOption{
+		entity.WithMergeToBEEF(inputBeef),
+		entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...),
+	}
+	if trustSelf {
+		// trustSelf=known: every allocated (storage-managed) input collapses to
+		// a TxIDOnly stub instead of a recursive ancestry walk — no raw-tx
+		// reads, BUMP merges, or multi-kB response BEEFs. Signing does not need
+		// the ancestry (per-input SourceLockingScript/SourceSatoshis are in the
+		// result), and delayed broadcast rebuilds its own BEEF from known_txes.
+		// At high TPS this walk dominates createAction CPU on both sides.
+		opts = append(opts, entity.WithTrustSelf(sdk.TrustSelfKnown))
+	}
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
 	}

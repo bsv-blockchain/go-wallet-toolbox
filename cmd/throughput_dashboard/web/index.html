@@ -87,14 +87,14 @@
         </label>
         <div class="stat workers-stat">
           <span class="label" id="lbl-workers">Workers</span>
-          <span id="workers-display" class="value value-muted" aria-labelledby="lbl-workers" title="Derived from TPS (one concurrent slot per TPS, capped at 512)">auto (10)</span>
+          <span id="workers-display" class="value value-muted" aria-labelledby="lbl-workers" title="Auto workers: min(64, ceil(2×√TPS)) — in-flight budget; RPC concurrency is slot-bounded">auto (7)</span>
         </div>
         <button type="button" id="btn-start" class="primary">Start stream</button>
         <button type="button" id="btn-stop" class="danger" disabled>Stop stream</button>
       </fieldset>
       <output id="stream-status" class="status" aria-live="polite"></output>
       <p id="stream-hint" class="hint">Each action embeds OP_RETURN <code>sha256(iteration ‖ RFC3339Nano timestamp)</code>.</p>
-      <p id="workers-hint" class="hint">Workers are chosen automatically from TPS (≈1 in-flight createAction per TPS unit, max 512).</p>
+      <p id="workers-hint" class="hint">Workers auto-size as min(64, ceil(2×√TPS)) — e.g. 10→7, 100→20, 1000→64. Workers are an in-flight budget; actual RPC concurrency is bounded by the wallet slot pool.</p>
     </section>
 
     <section class="card" aria-labelledby="balances-heading">

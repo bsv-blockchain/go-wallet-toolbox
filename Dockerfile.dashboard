@@ -10,6 +10,9 @@ RUN apk add --no-cache ca-certificates git tzdata
 WORKDIR /src
 
 COPY go.mod go.sum ./
+# go.mod replaces go-sdk with the locally patched copy (BRC-104 concurrency
+# fixes); the replace target must exist before module download.
+COPY third_party ./third_party
 RUN go mod download
 
 COPY . .

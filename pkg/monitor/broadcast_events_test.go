@@ -141,14 +141,18 @@ func TestBroadcastEvents_EventsForwardedToStorage(t *testing.T) {
 	// Wait until all three events have been processed.
 	require.Eventually(t, func() bool { return storage.ProcessExternalTxStatusUpdateCalled.Load() >= 3 }, 5*time.Second, time.Millisecond)
 
+	// Events apply through a bounded worker pool, so arrival order at storage
+	// is not guaranteed — assert on the set.
 	events := storage.ExternalEvents()
 	require.Len(t, events, 3)
-	assert.Equal(t, "aa", events[0].TxID)
-	assert.Equal(t, "bb", events[1].TxID)
-	assert.Equal(t, "cc", events[2].TxID)
+	got := make([]string, 0, len(events))
+	for _, ev := range events {
+		got = append(got, ev.TxID)
+	}
+	assert.ElementsMatch(t, []string{"aa", "bb", "cc"}, got)
 }
 
-func TestBroadcastEvents_EventIDPersistedAfterEachEvent(t *testing.T) {
+func TestBroadcastEvents_EventIDPersistedPerBatch(t *testing.T) {
 	t.Parallel()
 
 	logger := logging.NewTestLogger(t)
@@ -164,15 +168,12 @@ func TestBroadcastEvents_EventIDPersistedAfterEachEvent(t *testing.T) {
 	daemon := newTestDaemon(t, logger, storage, streamer)
 	require.NoError(t, daemon.Start(ctx, nil))
 
-	// Wait until both SetKeyValue calls have completed — SetKeyValue is called
-	// *after* ProcessExternalTxStatusUpdate, so waiting on ProcessExternalTxStatusUpdateCalled
-	// would leave the second SetKeyValue still in-flight (TOCTOU race).
-	require.Eventually(t, func() bool { return storage.SetKeyValueCalled.Load() >= 2 }, 5*time.Second, time.Millisecond)
-
-	val, found, err := storage.GetKeyValue(t.Context(), monitor.LastEventIDKey)
-	require.NoError(t, err)
-	assert.True(t, found)
-	assert.Equal(t, "evt-2", string(val))
+	// Events apply in batches with one cursor write per batch; regardless of
+	// batching, the durable cursor must end at the newest event ID.
+	require.Eventually(t, func() bool {
+		val, found, err := storage.GetKeyValue(t.Context(), monitor.LastEventIDKey)
+		return err == nil && found && string(val) == "evt-2"
+	}, 5*time.Second, time.Millisecond)
 }
 
 func TestBroadcastEvents_ProvenEventsForwarded(t *testing.T) {

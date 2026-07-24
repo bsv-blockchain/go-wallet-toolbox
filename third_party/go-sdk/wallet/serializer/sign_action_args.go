@@ -1,0 +1,99 @@
+package serializer
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/bsv-blockchain/go-sdk/util"
+	"github.com/bsv-blockchain/go-sdk/wallet"
+)
+
+func SerializeSignActionArgs(args *wallet.SignActionArgs) ([]byte, error) {
+	w := util.NewWriter()
+
+	// Serialize spends map
+	w.WriteVarInt(uint64(len(args.Spends)))
+	keys := make([]uint32, 0, len(args.Spends))
+	for key := range args.Spends {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, key := range keys {
+		spend := args.Spends[key]
+		w.WriteVarInt(uint64(key))
+
+		// Unlocking script
+		w.WriteIntBytes(spend.UnlockingScript)
+
+		// Sequence number
+		w.WriteOptionalUint32(spend.SequenceNumber)
+	}
+
+	// Reference
+	w.WriteIntBytes(args.Reference)
+
+	// Options
+	if args.Options != nil {
+		w.WriteByteValue(1) // options present
+
+		// AcceptDelayedBroadcast, ReturnTXIDOnly, NoSend
+		w.WriteOptionalBool(args.Options.AcceptDelayedBroadcast)
+		w.WriteOptionalBool(args.Options.ReturnTXIDOnly)
+		w.WriteOptionalBool(args.Options.NoSend)
+
+		// SendWith
+		if err := w.WriteTxidSlice(args.Options.SendWith); err != nil {
+			return nil, fmt.Errorf("error writing sendWith txids: %w", err)
+		}
+	} else {
+		w.WriteByteValue(0) // options not present
+	}
+
+	return w.Buf, nil
+}
+
+func DeserializeSignActionArgs(data []byte) (*wallet.SignActionArgs, error) {
+	r := util.NewReaderHoldError(data)
+	args := &wallet.SignActionArgs{}
+
+	// Deserialize spends
+	spendCount := r.ReadVarInt()
+	args.Spends = make(map[uint32]wallet.SignActionSpend)
+	for i := 0; i < int(spendCount); i++ { //nolint:gosec // G115 -- value is bounded by domain constraints
+		inputIndex := r.ReadVarInt32()
+		spend := wallet.SignActionSpend{}
+
+		// Unlocking script, sequence number
+		spend.UnlockingScript = r.ReadIntBytes()
+		spend.SequenceNumber = r.ReadOptionalUint32()
+
+		args.Spends[inputIndex] = spend
+		if r.Err != nil {
+			return nil, fmt.Errorf("error reading spend %d: %w", inputIndex, r.Err)
+		}
+	}
+
+	// Reference
+	args.Reference = r.ReadIntBytes()
+
+	// Options
+	optionsPresent := r.ReadByteValue()
+	if optionsPresent == 1 {
+		args.Options = &wallet.SignActionOptions{}
+
+		// AcceptDelayedBroadcast, ReturnTXIDOnly, NoSend
+		args.Options.AcceptDelayedBroadcast = r.ReadOptionalBool()
+		args.Options.ReturnTXIDOnly = r.ReadOptionalBool()
+		args.Options.NoSend = r.ReadOptionalBool()
+
+		// SendWith
+		args.Options.SendWith = r.ReadTxidSlice()
+	}
+
+	r.CheckComplete()
+	if r.Err != nil {
+		return nil, fmt.Errorf("error reading sign action args: %w", r.Err)
+	}
+
+	return args, nil
+}

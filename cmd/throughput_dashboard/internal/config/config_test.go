@@ -101,19 +101,23 @@ func TestDemoThroughputMatchesLiveTestShape(t *testing.T) {
 	tp := config.DemoThroughput()
 	require.Equal(t, uint64(200), tp.ExpectedTxSizeBytes)
 	require.Equal(t, uint64(0), tp.ExpectedOutputSatoshis)
-	require.Equal(t, uint64(10), tp.TargetTPS)
+	require.Equal(t, uint64(1000), tp.TargetTPS)
 	// Static demo profile still pins TargetPoolSize=500; live dashboard uses
 	// DemoTargetPoolForTPS so the keeper tracks the UI TPS instead.
 	require.Equal(t, uint64(500), tp.TargetPool())
+	require.Equal(t, uint64(300), tp.FanoutMaxTxsPerRound)
+	require.Equal(t, uint(2), tp.TopUp.IntervalSeconds)
 
-	// Mainnet demo: 100 sat/kb → ceil(200/1000 * 100) = 20 sats.
+	// Demo fee rate matches the Arcade host min-fee policy: 100 sat/kb.
 	fee := config.DemoFeeModel(defs.NetworkMainnet)
 	require.Equal(t, defs.SatPerKB, fee.Type)
 	require.Equal(t, int64(100), fee.Value)
 
+	// Explicit 30-sat denomination: covers the ~21-sat real fee with ONE
+	// fuel claim per action (derived 20 forced multi_claim=2).
 	denom, err := config.DemoDenomination(defs.NetworkMainnet)
 	require.NoError(t, err)
-	require.Equal(t, uint64(20), denom)
+	require.Equal(t, uint64(30), denom)
 }
 
 func TestDemoTargetPoolForTPS(t *testing.T) {
@@ -128,15 +132,15 @@ func TestDemoTargetPoolForTPS(t *testing.T) {
 }
 
 func TestDemoFeeModelTSTNMatchesArcadeFloor(t *testing.T) {
-	// Arcade DefaultMinFeePerKB is 100 sat/kb; wallet must match or posts get ARC 465.
+	// Arcade host GoBDK floor is 100 sat/kb; wallet must match or posts get ARC 465.
 	fee := config.DemoFeeModel(defs.NetworkTSTN)
 	require.Equal(t, defs.SatPerKB, fee.Type)
 	require.Equal(t, int64(100), fee.Value)
 
-	// 200 B OP_RETURN shape → ceil(200/1000*100)=20 > MarginalFuelInputFee(15).
+	// Explicit 30 sats (> MarginalFuelInputFee 15, covers ~21-sat real fee).
 	denom, err := config.DemoDenomination(defs.NetworkTSTN)
 	require.NoError(t, err)
-	require.Equal(t, uint64(20), denom)
+	require.Equal(t, uint64(30), denom)
 
 	// Same as mainnet demo fee/denom (host floor, not "TSTN is 1 sat/kb").
 	mainDenom, err := config.DemoDenomination(defs.NetworkMainnet)

@@ -1,0 +1,800 @@
+package clients
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/bsv-blockchain/go-sdk/auth"
+	"github.com/bsv-blockchain/go-sdk/auth/authpayload"
+	"github.com/bsv-blockchain/go-sdk/auth/certificates"
+	"github.com/bsv-blockchain/go-sdk/auth/transports"
+	"github.com/bsv-blockchain/go-sdk/auth/utils"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
+	"github.com/bsv-blockchain/go-sdk/wallet"
+)
+
+const (
+	PaymentVersion = "1.0"
+)
+
+// SimplifiedFetchRequestOptions represents configuration options for HTTP requests.
+type SimplifiedFetchRequestOptions struct {
+	Method       string
+	Headers      map[string]string
+	Body         []byte
+	RetryCounter *int
+}
+
+// AuthPeer represents an authenticated peer with potential certificate requests.
+type AuthPeer struct {
+	Peer                       *auth.Peer
+	IdentityKey                string
+	SupportsMutualAuth         *bool
+	PendingCertificateRequests []bool
+}
+
+// AuthFetchOptions provides configuration options for AuthFetch.
+type AuthFetchOptions struct {
+	CertificatesToRequest *utils.RequestedCertificateSet
+	SessionManager        auth.SessionManager
+	Logger                *slog.Logger
+	HttpClient            *http.Client
+}
+
+// WithCertificatesToRequest sets the CertificatesToRequest with the provided certificate set.
+// Those certificates will be requested on the handshake with any server.
+// CertificatesToRequest argument cannot be nil.
+func WithCertificatesToRequest(certificatesToRequest *utils.RequestedCertificateSet) func(*AuthFetchOptions) {
+	if certificatesToRequest == nil {
+		panic("certificatesToRequest must be provided in WithCertificatesToRequest")
+	}
+	return func(opts *AuthFetchOptions) {
+		opts.CertificatesToRequest = certificatesToRequest
+	}
+}
+
+// WithSessionManager sets a custom session manager for AuthFetch.
+// sessionManager argument cannot be nil.
+func WithSessionManager(sessionManager auth.SessionManager) func(*AuthFetchOptions) {
+	if sessionManager == nil {
+		panic("sessionManager cannot be set to nil")
+	}
+	return func(opts *AuthFetchOptions) {
+		opts.SessionManager = sessionManager
+	}
+}
+
+// WithLogger sets provided logger for AuthFetch.
+// Logger cannot be nil.
+// To prevent AuthFetch from logging, use WithoutLogging or simply pass a logger with slog.DiscardHandler.
+func WithLogger(logger *slog.Logger) func(*AuthFetchOptions) {
+	if logger == nil {
+		panic("logger cannot be set to nil")
+	}
+	return func(opts *AuthFetchOptions) {
+		opts.Logger = logger
+	}
+}
+
+// WithoutLogging disables logging by assigning a no-op logger to the AuthFetch.
+func WithoutLogging() func(*AuthFetchOptions) {
+	return func(opts *AuthFetchOptions) {
+		opts.Logger = slog.New(slog.DiscardHandler)
+	}
+}
+
+// WithHttpClient sets a custom HTTP client for AuthFetch.
+// Useful if you have preconfigured HttpClient, or want to reuse a single HttpClient for all operations.
+// Provided client cannot be nil.
+func WithHttpClient(httpClient *http.Client) func(*AuthFetchOptions) {
+	if httpClient == nil {
+		panic("httpClient cannot be set to nil")
+	}
+	return func(opts *AuthFetchOptions) {
+		opts.HttpClient = httpClient
+	}
+}
+
+// WithHttpClientTransport sets a custom HTTP Transport on the HttpClient in AuthFetch.
+// Useful for testing purposes.
+// Provided transport cannot be nil.
+//
+// WARNING: It will override a transport in configured HttpClient - use with caution.
+func WithHttpClientTransport(transport http.RoundTripper) func(*AuthFetchOptions) {
+	if transport == nil {
+		panic("roundTripper cannot be set to nil")
+	}
+	return func(opts *AuthFetchOptions) {
+		if opts.HttpClient == nil {
+			opts.HttpClient = &http.Client{}
+		}
+		opts.HttpClient.Transport = transport
+	}
+}
+
+// AuthFetch provides a lightweight client for interacting with servers
+// over a simplified HTTP transport mechanism. It integrates session management, peer communication,
+// and certificate handling to enable secure and mutually-authenticated requests.
+//
+// Additionally, it automatically handles 402 Payment Required responses by creating
+// and sending BSV payment transactions when necessary.
+type AuthFetch struct {
+	sessionManager        auth.SessionManager
+	wallet                wallet.Interface
+	callbacks             sync.Map // map[string]authCallback
+	certificatesReceived  []*certificates.VerifiableCertificate
+	requestedCertificates *utils.RequestedCertificateSet
+	peers                 sync.Map // map[string]*AuthPeer
+	logger                *slog.Logger
+	client                *http.Client
+	certsMu               sync.Mutex // Protects certificatesReceived only
+}
+
+// authCallback holds resolve/reject functions for a pending request.
+type authCallback struct {
+	resolve func(interface{})
+	reject  func(interface{})
+}
+
+// New constructs a new AuthFetch instance.
+func New(w wallet.Interface, opts ...func(*AuthFetchOptions)) *AuthFetch {
+	if w == nil {
+		panic("wallet cannot be nil")
+	}
+
+	options := &AuthFetchOptions{
+		SessionManager: auth.NewSessionManager(),
+		HttpClient:     &http.Client{},
+		Logger:         slog.Default(),
+	}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	logger := options.Logger.With("component", "AuthFetch")
+
+	return &AuthFetch{
+		logger:                logger,
+		wallet:                w,
+		sessionManager:        options.SessionManager,
+		requestedCertificates: options.CertificatesToRequest,
+		certificatesReceived:  []*certificates.VerifiableCertificate{},
+		client:                options.HttpClient,
+	}
+}
+
+// Deprecated: SetLogger is deprecated; pass logger to New(..., logger) instead.
+func (a *AuthFetch) SetLogger(logger *slog.Logger) { a.logger = logger }
+
+// Fetch mutually authenticates and sends a HTTP request to a server.
+//
+// 1) Attempt the request.
+// 2) If 402 Payment Required, automatically create and send payment.
+// 3) Return the final response.
+func (a *AuthFetch) Fetch(ctx context.Context, urlStr string, config *SimplifiedFetchRequestOptions) (*http.Response, error) {
+	if config == nil {
+		config = &SimplifiedFetchRequestOptions{}
+	}
+	if config.Method == "" {
+		config.Method = "GET"
+	}
+
+	// validate headers
+	for key := range config.Headers {
+		if !authpayload.IsHeaderToIncludeInRequest(key) {
+			return nil, fmt.Errorf("header %s is not allowed in auth fetch", key)
+		}
+	}
+
+	// Handle retry counter
+	if config.RetryCounter != nil {
+		if *config.RetryCounter <= 0 {
+			return nil, errors.New("request failed after maximum number of retries")
+		}
+		counter := *config.RetryCounter - 1
+		config.RetryCounter = &counter
+	}
+
+	req, err := http.NewRequestWithContext(ctx, config.Method, urlStr, bytes.NewReader(config.Body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	for key, value := range config.Headers {
+		req.Header.Set(key, value)
+	}
+
+	// Create response channel
+	responseChan := make(chan struct {
+		resp *http.Response
+		err  error
+	})
+
+	go func() {
+		baseURL := fmt.Sprintf("%s://%s", req.URL.Scheme, req.URL.Host)
+
+		// Create new transport for this base URL if needed
+		var peerToUse *AuthPeer
+		var isNew bool
+		if existing, ok := a.peers.Load(baseURL); ok {
+			peerToUse = existing.(*AuthPeer)
+		} else {
+			transport, err := transports.NewSimplifiedHTTPTransport(&transports.SimplifiedHTTPTransportOptions{
+				BaseURL: baseURL,
+				Client:  a.client,
+			})
+			if err != nil {
+				responseChan <- struct {
+					resp *http.Response
+					err  error
+				}{nil, fmt.Errorf("failed to create transport: %w", err)}
+				return
+			}
+
+			peerOpts := &auth.PeerOptions{
+				Wallet:                a.wallet,
+				Transport:             transport,
+				CertificatesToRequest: a.requestedCertificates,
+				SessionManager:        a.sessionManager,
+				Logger:                a.logger,
+			}
+
+			newPeer := &AuthPeer{
+				Peer:                       auth.NewPeer(peerOpts),
+				PendingCertificateRequests: []bool{},
+			}
+			// Use LoadOrStore to handle race conditions
+			actual, loaded := a.peers.LoadOrStore(baseURL, newPeer)
+			if loaded {
+				peerToUse = actual.(*AuthPeer)
+			} else {
+				peerToUse = newPeer
+				isNew = true
+			}
+		}
+
+		if isNew {
+			// Set up certificate received listener
+			peerToUse.Peer.ListenForCertificatesReceived(func(_ context.Context, senderPublicKey *ec.PublicKey, certs []*certificates.VerifiableCertificate) error {
+				a.certsMu.Lock()
+				a.certificatesReceived = append(a.certificatesReceived, certs...)
+				a.certsMu.Unlock()
+				return nil
+			})
+
+			// Set up certificate requested listener
+			peerToUse.Peer.ListenForCertificatesRequested(func(_ context.Context, verifier *ec.PublicKey, requestedCertificates utils.RequestedCertificateSet) error {
+				if p, ok := a.peers.Load(baseURL); ok {
+					peer := p.(*AuthPeer)
+					peer.PendingCertificateRequests = append(peer.PendingCertificateRequests, true)
+				}
+
+				certificatesToInclude, err := utils.GetVerifiableCertificates(
+					ctx,
+					&utils.GetVerifiableCertificatesOptions{
+						Wallet:                a.wallet,
+						RequestedCertificates: &requestedCertificates,
+						VerifierIdentityKey:   verifier,
+					},
+				)
+				if err != nil {
+					return err
+				}
+
+				if p, ok := a.peers.Load(baseURL); ok {
+					peer := p.(*AuthPeer)
+					err = peer.Peer.SendCertificateResponse(ctx, verifier, certificatesToInclude)
+					if err != nil {
+						return err
+					}
+				}
+
+				// Give the backend time to process certificates
+				go func() {
+					time.Sleep(500 * time.Millisecond)
+					if p, ok := a.peers.Load(baseURL); ok {
+						peer := p.(*AuthPeer)
+						if len(peer.PendingCertificateRequests) > 0 {
+							peer.PendingCertificateRequests = peer.PendingCertificateRequests[1:]
+						}
+					}
+				}()
+				return nil
+			})
+		} else {
+			// Check if there's a session associated with this baseURL
+			if peerToUse.SupportsMutualAuth != nil && !*peerToUse.SupportsMutualAuth {
+				// Use standard fetch if mutual authentication is not supported
+				resp, err := a.handleFetchAndValidate(ctx, urlStr, config, peerToUse) //nolint:bodyclose // response is forwarded via responseChan to Fetch's caller, which closes it
+				responseChan <- struct {
+					resp *http.Response
+					err  error
+				}{resp, err}
+				return
+			}
+		}
+
+		// Generate request nonce
+		requestNonce := make([]byte, 32)
+		if _, err := rand.Read(requestNonce); err != nil {
+			responseChan <- struct {
+				resp *http.Response
+				err  error
+			}{nil, fmt.Errorf("failed to generate nonce: %w", err)}
+			return
+		}
+		requestNonceBase64 := base64.StdEncoding.EncodeToString(requestNonce)
+
+		// Serialize the simplified fetch request
+		requestData, err := authpayload.FromHTTPRequest(requestNonce, req)
+		if err != nil {
+			responseChan <- struct {
+				resp *http.Response
+				err  error
+			}{nil, fmt.Errorf("failed to serialize request: %w", err)}
+			return
+		}
+
+		// Setup callback for this request
+		a.callbacks.Store(requestNonceBase64, authCallback{
+			resolve: func(resp interface{}) {
+				if httpResp, ok := resp.(*http.Response); ok {
+					responseChan <- struct {
+						resp *http.Response
+						err  error
+					}{httpResp, nil}
+				} else {
+					responseChan <- struct {
+						resp *http.Response
+						err  error
+					}{nil, fmt.Errorf("invalid response type")}
+				}
+			},
+			reject: func(err interface{}) {
+				if errStr, ok := err.(string); ok {
+					responseChan <- struct {
+						resp *http.Response
+						err  error
+					}{nil, errors.New(errStr)}
+				} else if errObj, ok := err.(error); ok {
+					responseChan <- struct {
+						resp *http.Response
+						err  error
+					}{nil, errObj}
+				} else {
+					responseChan <- struct {
+						resp *http.Response
+						err  error
+					}{nil, fmt.Errorf("%v", err)}
+				}
+			},
+		})
+
+		// Set up listener for response
+		//
+		// LOCAL PATCH (go-wallet-toolbox): the upstream v1.3.1 listener called
+		// StopListeningForGeneralMessages unconditionally BEFORE the nonce-match
+		// check. Peer.handleGeneralMessage fans every received message out to all
+		// registered listeners, so with concurrent requests in flight the first
+		// response to arrive deregistered every other request's listener; those
+		// requests then never resolved and hit the 30s ToPeer timeout. That is why
+		// callers had to serialize all requests through one mutex. The listener now
+		// deregisters only when the response is its own, and the request goroutine
+		// cleans up its listener/callback on exit (upstream leaked both on errors).
+		var listenerID int32
+		listenerID = peerToUse.Peer.ListenForGeneralMessages(func(_ context.Context, senderPublicKey *ec.PublicKey, payload []byte) error {
+			if senderPublicKey != nil {
+				if p, ok := a.peers.Load(baseURL); ok {
+					peer := p.(*AuthPeer)
+					peer.IdentityKey = senderPublicKey.ToDERHex()
+					supportsMutualAuth := true
+					peer.SupportsMutualAuth = &supportsMutualAuth
+				}
+			}
+
+			requestIDFromResponse, response, respErr := authpayload.ToHTTPResponse(payload, authpayload.WithSenderPublicKey(senderPublicKey)) //nolint:bodyclose // response body is an in-memory io.NopCloser (see authpayload.ToHTTPResponse), nothing to leak
+			if respErr != nil {
+				return fmt.Errorf("invalid response send by server: %w", respErr)
+			}
+
+			responseNonceBase64 := base64.StdEncoding.EncodeToString(requestIDFromResponse)
+			if responseNonceBase64 != requestNonceBase64 {
+				return nil // Not our response; keep listening (do NOT deregister).
+			}
+			peerToUse.Peer.StopListeningForGeneralMessages(listenerID)
+
+			// Resolve with the response
+			if cb, ok := a.callbacks.LoadAndDelete(requestNonceBase64); ok {
+				cb.(authCallback).resolve(response)
+			}
+
+			return nil
+		})
+		// LOCAL PATCH: on every exit of this request goroutine make sure the
+		// listener and callback are gone. Both calls are idempotent map deletes,
+		// so the success path — where the listener already removed itself — is
+		// unaffected, while error/timeout paths no longer leak a listener that
+		// would be invoked for every future response.
+		defer func() {
+			peerToUse.Peer.StopListeningForGeneralMessages(listenerID)
+			a.callbacks.Delete(requestNonceBase64)
+		}()
+
+		// Make sure no certificate requests are pending
+		hasPending := func() bool {
+			if p, ok := a.peers.Load(baseURL); ok {
+				return len(p.(*AuthPeer).PendingCertificateRequests) > 0
+			}
+			return false
+		}
+		if hasPending() {
+			ticker := time.NewTicker(100 * time.Millisecond)
+			defer ticker.Stop()
+
+			for {
+				<-ticker.C
+				if !hasPending() {
+					break
+				}
+			}
+		}
+
+		// Send the request
+		var identityKey string
+		if p, ok := a.peers.Load(baseURL); ok {
+			identityKey = p.(*AuthPeer).IdentityKey
+		}
+		var idKeyObject *ec.PublicKey
+		var toPublicKeyError error
+		if identityKey != "" {
+			idKeyObject, toPublicKeyError = ec.PublicKeyFromString(identityKey)
+			if toPublicKeyError != nil {
+				idKeyObject = nil // Reset if there was an error
+			}
+		}
+
+		err = peerToUse.Peer.ToPeer(ctx, requestData, idKeyObject, 30000) // 30 second timeout
+		if err != nil {
+			if strings.Contains(err.Error(), "Session not found for nonce") {
+				// Session expired, retry with a new session
+				a.peers.Delete(baseURL)
+
+				// Set up retry counter if not set
+				if config.RetryCounter == nil {
+					retryCount := 3
+					config.RetryCounter = &retryCount
+				}
+
+				// Retry the request
+				resp, retryErr := a.Fetch(ctx, urlStr, config) //nolint:bodyclose // response is forwarded via responseChan to Fetch's caller, which closes it
+				responseChan <- struct {
+					resp *http.Response
+					err  error
+				}{resp, retryErr}
+				return
+			} else if errors.Is(err, transports.ErrHTTPServerFailedToAuthenticate) {
+				// Fall back to regular HTTP request
+				resp, fallbackErr := a.handleFetchAndValidate(ctx, urlStr, config, peerToUse) //nolint:bodyclose // response is forwarded via responseChan to Fetch's caller, which closes it
+				responseChan <- struct {
+					resp *http.Response
+					err  error
+				}{resp, fallbackErr}
+				return
+			} else {
+				responseChan <- struct {
+					resp *http.Response
+					err  error
+				}{nil, err}
+				return
+			}
+		}
+	}()
+
+	// Wait for the response or context cancellation
+	select {
+	case result := <-responseChan:
+		if result.err != nil {
+			return nil, result.err
+		}
+
+		// Check if server requires payment
+		if result.resp.StatusCode == 402 {
+			// Create and attach payment, then retry
+			return a.handlePaymentAndRetry(ctx, urlStr, config, result.resp)
+		}
+
+		return result.resp, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// SendCertificateRequest requests Certificates from a Peer
+func (a *AuthFetch) SendCertificateRequest(ctx context.Context, baseURL string, certificatesToRequest *utils.RequestedCertificateSet) ([]*certificates.VerifiableCertificate, error) {
+	// Parse the URL to get the base URL
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	baseURLStr := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+
+	// Get or create a peer for this base URL
+	var peerToUse *AuthPeer
+	if existing, ok := a.peers.Load(baseURLStr); ok {
+		peerToUse = existing.(*AuthPeer)
+	} else {
+		transport, err := transports.NewSimplifiedHTTPTransport(&transports.SimplifiedHTTPTransportOptions{
+			BaseURL: baseURLStr,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transport: %w", err)
+		}
+
+		peerOpts := &auth.PeerOptions{
+			Wallet:                a.wallet,
+			Transport:             transport,
+			CertificatesToRequest: a.requestedCertificates,
+			SessionManager:        a.sessionManager,
+		}
+
+		newPeer := &AuthPeer{
+			Peer:                       auth.NewPeer(peerOpts),
+			PendingCertificateRequests: []bool{},
+		}
+		actual, loaded := a.peers.LoadOrStore(baseURLStr, newPeer)
+		if loaded {
+			peerToUse = actual.(*AuthPeer)
+		} else {
+			peerToUse = newPeer
+		}
+	}
+
+	// Create a channel for waiting for certificates
+	certChan := make(chan struct {
+		certs []*certificates.VerifiableCertificate
+		err   error
+	})
+
+	// Set up certificate received listener
+	var callbackID int32
+	callbackID = peerToUse.Peer.ListenForCertificatesReceived(func(_ context.Context, senderPublicKey *ec.PublicKey, certs []*certificates.VerifiableCertificate) error {
+		peerToUse.Peer.StopListeningForCertificatesReceived(callbackID)
+		a.certsMu.Lock()
+		a.certificatesReceived = append(a.certificatesReceived, certs...)
+		a.certsMu.Unlock()
+		certChan <- struct {
+			certs []*certificates.VerifiableCertificate
+			err   error
+		}{certs, nil}
+		return nil
+	})
+
+	// Get peer identity key if available
+	var identityKey *ec.PublicKey
+	if peerToUse.IdentityKey != "" {
+		pubKey, err := ec.PublicKeyFromString(peerToUse.IdentityKey)
+		if err == nil {
+			identityKey = pubKey
+		}
+	}
+
+	// Request certificates
+	go func() {
+		err := peerToUse.Peer.RequestCertificates(ctx, identityKey, *certificatesToRequest, 30000) // 30 second timeout
+		if err != nil {
+			peerToUse.Peer.StopListeningForCertificatesReceived(callbackID)
+			certChan <- struct {
+				certs []*certificates.VerifiableCertificate
+				err   error
+			}{nil, err}
+		}
+	}()
+
+	// Wait for response or context cancellation
+	select {
+	case result := <-certChan:
+		return result.certs, result.err
+	case <-ctx.Done():
+		peerToUse.Peer.StopListeningForCertificatesReceived(callbackID)
+		return nil, ctx.Err()
+	}
+}
+
+// ConsumeReceivedCertificates returns any certificates collected thus far, then clears them out.
+func (a *AuthFetch) ConsumeReceivedCertificates() []*certificates.VerifiableCertificate {
+	a.certsMu.Lock()
+	defer a.certsMu.Unlock()
+	certs := a.certificatesReceived
+	a.certificatesReceived = []*certificates.VerifiableCertificate{}
+	return certs
+}
+
+// handleFetchAndValidate handles a non-authenticated fetch requests and validates that the server is not claiming to be authenticated.
+func (a *AuthFetch) handleFetchAndValidate(ctx context.Context, urlStr string, config *SimplifiedFetchRequestOptions, peerToUse *AuthPeer) (*http.Response, error) {
+	// Create HTTP client
+	client := &http.Client{}
+
+	// Create request
+	var reqBody io.Reader
+	if len(config.Body) > 0 {
+		reqBody = bytes.NewReader(config.Body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, config.Method, urlStr, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add headers
+	for k, v := range config.Headers {
+		req.Header.Add(k, v)
+	}
+
+	// Send request
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	// Validate that the server is not trying to fake authentication
+	for k := range response.Header {
+		if strings.ToLower(k) == "x-bsv-auth-identity-key" || strings.HasPrefix(strings.ToLower(k), "x-bsv-auth") {
+			_ = response.Body.Close()
+			return nil, errors.New("the server is trying to claim it has been authenticated when it has not")
+		}
+	}
+
+	// Set supportsMutualAuth to false if successful
+	if response.StatusCode < 400 {
+		supportsMutualAuth := false
+		peerToUse.SupportsMutualAuth = &supportsMutualAuth
+		return response, nil
+	}
+
+	_ = response.Body.Close()
+	return nil, fmt.Errorf("request failed with status: %d", response.StatusCode)
+}
+
+// handlePaymentAndRetry builds a transaction via wallet.CreateAction() and re-attempts the request with an x-bsv-payment header
+// if we get 402 Payment Required.
+func (a *AuthFetch) handlePaymentAndRetry(ctx context.Context, urlStr string, config *SimplifiedFetchRequestOptions, originalResponse *http.Response) (*http.Response, error) {
+	// Make sure the server is using the correct payment version
+	paymentVersion := originalResponse.Header.Get("x-bsv-payment-version")
+	if paymentVersion != PaymentVersion {
+		return nil, fmt.Errorf("unsupported x-bsv-payment-version response header. Client version: %s, Server version: %s",
+			PaymentVersion, paymentVersion)
+	}
+
+	// Get required headers from the 402 response
+	satoshisRequiredHeader := originalResponse.Header.Get("x-bsv-payment-satoshis-required")
+	if satoshisRequiredHeader == "" {
+		return nil, errors.New("missing x-bsv-payment-satoshis-required response header")
+	}
+
+	satoshisRequired, err := strconv.ParseUint(satoshisRequiredHeader, 10, 64)
+	if err != nil || satoshisRequired <= 0 {
+		return nil, errors.New("invalid x-bsv-payment-satoshis-required response header value")
+	}
+
+	serverIdentityKey := originalResponse.Header.Get("x-bsv-auth-identity-key")
+	if serverIdentityKey == "" {
+		return nil, errors.New("missing x-bsv-auth-identity-key response header")
+	}
+
+	derivationPrefix := originalResponse.Header.Get("x-bsv-payment-derivation-prefix")
+	if derivationPrefix == "" {
+		return nil, errors.New("missing x-bsv-payment-derivation-prefix response header")
+	}
+
+	// Create a random suffix for the derivation path
+	nonceResult, err := utils.CreateNonce(ctx, a.wallet, wallet.Counterparty{
+		Type: wallet.CounterpartyTypeSelf,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create derivation suffix: %w", err)
+	}
+	derivationSuffix := nonceResult
+
+	// Convert server identity key to PublicKey object
+	serverPubKey, err := ec.PublicKeyFromString(serverIdentityKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid server identity key: %w", err)
+	}
+
+	// Derive the public key for payment
+	derivedKey, err := a.wallet.GetPublicKey(ctx, wallet.GetPublicKeyArgs{
+		EncryptionArgs: wallet.EncryptionArgs{
+			ProtocolID: wallet.Protocol{
+				SecurityLevel: 2,
+				Protocol:      "3241645161d8", // wallet payment protocol
+			},
+			KeyID: fmt.Sprintf("%s %s", derivationPrefix, derivationSuffix),
+			Counterparty: wallet.Counterparty{
+				Type:         wallet.CounterpartyTypeOther,
+				Counterparty: serverPubKey,
+			},
+		},
+	}, "auth-payment")
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive payment key: %w", err)
+	}
+
+	// Build a P2PKH locking script from the derived public key
+	// Determine network for address construction
+	mainnet := true
+	if netRes, netErr := a.wallet.GetNetwork(ctx, nil, "auth-payment"); netErr == nil {
+		if netRes.Network == wallet.NetworkTestnet {
+			mainnet = false
+		}
+	}
+	addr, err := script.NewAddressFromPublicKey(derivedKey.PublicKey, mainnet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create address from derived key: %w", err)
+	}
+	lockScript, err := p2pkh.Lock(addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create P2PKH locking script: %w", err)
+	}
+
+	randomizeOutputs := false
+	actionResult, err := a.wallet.CreateAction(ctx, wallet.CreateActionArgs{
+		Description: fmt.Sprintf("Payment for request to %s", urlStr),
+		Outputs: []wallet.CreateActionOutput{
+			{
+				Satoshis:      satoshisRequired,
+				LockingScript: lockScript.Bytes(),
+				CustomInstructions: fmt.Sprintf(`{"derivationPrefix":"%s","derivationSuffix":"%s","payee":"%s"}`,
+					derivationPrefix, derivationSuffix, serverIdentityKey),
+				OutputDescription: "HTTP request payment",
+			},
+		},
+		Options: &wallet.CreateActionOptions{
+			RandomizeOutputs: &randomizeOutputs,
+		},
+	}, "auth-payment")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create payment transaction: %w", err)
+	}
+
+	// Attach payment info to request headers
+	paymentInfo := map[string]interface{}{
+		"derivationPrefix": derivationPrefix,
+		"derivationSuffix": derivationSuffix,
+		"transaction":      base64.StdEncoding.EncodeToString(actionResult.Tx),
+	}
+
+	paymentInfoJSON, err := json.Marshal(paymentInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize payment info: %w", err)
+	}
+
+	if config.Headers == nil {
+		config.Headers = make(map[string]string)
+	}
+	config.Headers["x-bsv-payment"] = string(paymentInfoJSON)
+
+	// Set up retry counter if not set
+	if config.RetryCounter == nil {
+		retryCount := 3
+		config.RetryCounter = &retryCount
+	}
+
+	// Re-attempt request with payment attached
+	return a.Fetch(ctx, urlStr, config)
+}

@@ -15,6 +15,8 @@ type WalletParty struct {
 
 // GetKnownTxIDs merges new known transaction IDs into the wallet's known transactions and returns a list of known txIDs.
 func (wp *WalletParty) GetKnownTxIDs(newKnownTxIDs ...chainhash.Hash) (primitives.TXIDHexStrings, error) {
+	// Locked BeefParty wrappers: the shared Beef graph is mutated by every
+	// concurrent action on this wallet.
 	for _, txID := range newKnownTxIDs {
 		wp.BeefParty.MergeTxidOnly(&txID)
 	}

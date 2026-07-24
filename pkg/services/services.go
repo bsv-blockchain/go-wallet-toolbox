@@ -177,10 +177,15 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	if config.Arcade.Enabled {
 		arcadeService = arcade.New(logger, options.RestyClientFactory.New(), config.Arcade)
 		// Fallback poll order only: first among pull providers, not the preferred path.
+		// GetStatusForTxIDs (GET /tx/{txid}) makes status sync work on networks
+		// where Arcade is the only reachable service (private TSTN has no
+		// WhatsOnChain/Bitails, which previously left the status queue empty:
+		// "failed to get status for txIDs: no services registered").
 		predefined = append([]Named[Implementation]{{
 			Name: arcade.ServiceName,
 			Item: Implementation{
-				MerklePath: arcadeService.MerklePath,
+				MerklePath:        arcadeService.MerklePath,
+				GetStatusForTxIDs: arcadeService.GetStatusForTxIDs,
 			},
 		}}, predefined...)
 		breaker := circuitbreaker.New(logger, circuitbreaker.Config{
@@ -409,6 +414,13 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		chaintracks:    chaintracksAdapter,
 		reorgBroadcast: reorgBroadcast,
 		tipBroadcast:   tipBroadcast,
+	}
+
+	if arcadeService != nil {
+		// Depth of mined txs = tip − blockHeight + 1; resolve the tip through
+		// the aggregated CurrentHeight queue (chaintracks first). Wired after
+		// construction because the queue lives on walletServices.
+		arcadeService.SetChainTipHeight(walletServices.CurrentHeight)
 	}
 
 	walletServices.logActiveServices()

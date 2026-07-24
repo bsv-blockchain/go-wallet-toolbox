@@ -6,12 +6,13 @@
 # Locked demo profile (must match dashboard config.DemoThroughput() / DemoFeeModel):
 #   bsv_network: tstn
 #   utxo_management.strategy: throughput
-#   fee_model: sat/kb value 100  (must match Arcade DefaultMinFeePerKB — 1 sat/kb
-#                               was rejected by GoBDK as insufficient-fee / ARC 465)
+#   fee_model: sat/kb value 100 (matches Arcade host GoBDK DefaultMinFeePerKB;
+#                               1 sat/kb is the network going rate but this host
+#                               465-rejects below its floor — verified 2026-07-24)
 #   expected_tx_size_bytes: 200
 #   expected_output_satoshis: 0
-#   denomination_satoshis: 0    → derive ceil(200/1000*100)=20 (> marginal input fee 15)
-#   target_tps: 100             (pool sizing; UI TPS resizes the live FuelKeeper target)
+#   denomination_satoshis: 30   (covers the ~21-sat real fee with ONE fuel claim)
+#   target_tps: 1000            (server pool identity; UI TPS resizes client FuelKeeper)
 #
 # Private endpoints are NOT in this file. Supply at runtime:
 #   TSTN_ARCADE_URL          (required) Arcade / ARC base
@@ -93,7 +94,9 @@ http:
 logging:
   enabled: true
   handler: json
-  level: info
+  # warn: at high TPS the per-createAction INFO lines ("Throughput funding
+  # outcome") become a measurable cost (hundreds of JSON log writes/second).
+  level: warn
 
 # --- Monitor / Background Tasks ---
 monitor:
@@ -122,8 +125,10 @@ change_basket:
   minimum_desired_utxo_value: 1000
   number_of_desired_utxos: 32
 
-# --- Fee Model (match Arcade DefaultMinFeePerKB = 100 sat/kb) ---
-# Private TSTN Arcade (v0.10.x) rejects lower fees with ARC 465 "Fee too low".
+# --- Fee Model (match Arcade host min-fee policy: 100 sat/kb) ---
+# To run at the 1 sat/kb network rate: lower the Arcade policy first, then set
+# value: 1 and denomination_satoshis: 2 here AND in dashboard config.DemoFeeModel /
+# DemoThroughput. This host rejects lower fees with ARC 465 "fee is too low".
 fee_model:
   type: sat/kb
   value: 100
@@ -134,9 +139,12 @@ utxo_management:
   throughput:
     expected_tx_size_bytes: 200
     expected_output_satoshis: 0
-    # 0 → derive: ceil(200/1000*100)=20 sats; must exceed MarginalFuelInputFee (15).
-    denomination_satoshis: 0
-    target_tps: 100
+    # Explicit 30 (derived would be 20): the real ~202 B 1-input OP_RETURN tx
+    # costs 21 sats at 100 sat/kb, so 20-sat fuel forces TWO claims per action
+    # (multi_claim) — double burn + double UTXO contention. (2 at 1 sat/kb.)
+    # Must match the dashboard's config.DemoThroughput DenominationSatoshis.
+    denomination_satoshis: 30
+    target_tps: 1000
     expected_confirmation_seconds: 300
     pool_headroom_factor: 1.5
     # 0 → derive from target_tps × confirmation × headroom; dashboard also resizes
@@ -150,13 +158,16 @@ utxo_management:
     pool_basket: fuel
     reserve_basket: reserve
     fanout_outputs_per_tx: 100
-    # Cap mint pressure per keeper round (demo-friendly; not the production 12k).
-    fanout_max_txs_per_round: 50
+    # 100 × 300 = 30k fuel UTXOs per keeper round (was 50 → only 5k/round).
+    # Sustained identity: max_txs × outputs >= target_tps × interval × 1.2
+    # → 30000 >= 1000 × 2 × 1.2. Client FuelKeeper also catch-up-loops while
+    # below low water so interval does not throttle fill rate.
+    fanout_max_txs_per_round: 300
     fanout_tree_depth: 2
     consolidation_inputs_per_tx: 1000
     top_up:
       enabled: true
-      interval_seconds: 10
+      interval_seconds: 2
       start_immediately: true
 
 # --- Transaction Status Sync ---

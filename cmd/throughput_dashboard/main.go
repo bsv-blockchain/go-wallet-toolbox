@@ -68,9 +68,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create wallet: %w", err)
 	}
-	// Serialize all storage RPCs: concurrent AuthFetch handshakes deadlock and
-	// leave FuelKeeper + sampler stuck so the UI never shows internalized funds.
-	wallet := syncwallet.New(operatorWallet)
+	// Bound concurrent storage RPCs: the patched go-sdk AuthFetch (see
+	// third_party/go-sdk) handles concurrent requests on one session, but the
+	// local infra HTTP stack degrades past ~16 in flight, and FIFO slot wakeups
+	// keep FuelKeeper bursts from starving the sampler and stream.
+	wallet := syncwallet.New(operatorWallet, cfg.WalletMaxInFlight)
 	defer wallet.Close()
 
 	throughput := config.DemoThroughput()
@@ -86,6 +88,13 @@ func run(logger *slog.Logger) error {
 	targetPool := config.DemoTargetPoolForTPS(cfg.TPS)
 	fkCfg := fuelkeeper.FromThroughput(throughput, denom)
 	fkCfg.TargetPoolSize = targetPool
+	// Demo mint-rate knobs, sized for the concurrent (bounded) wallet: burn at
+	// high TPS is ~1 fuel per action, so refill needs several leaf fan-outs
+	// (100 outputs each) per second. Parallel leaves + a light yield keep the
+	// keeper near mint≈burn without starving stream slots.
+	fkCfg.MintConcurrency = 6
+	fkCfg.StreamLeafCap = 50
+	fkCfg.StreamYieldMultiple = 1
 	logger.Info(
 		"throughput profile",
 		"denomination_satoshis", denom,
@@ -106,6 +115,9 @@ func run(logger *slog.Logger) error {
 		Workers:    cfg.Workers,
 		Originator: cfg.Originator,
 	}, logger)
+	// Fair-share minting follows the stream's real run-state transitions
+	// (start / fully-drained stop), atomically with the controller's own state.
+	ctrl.SetRunningListener(keeper.SetStreamActive)
 
 	sampler := metrics.NewSampler(wallet, ctrl, metrics.Config{
 		Originator:       cfg.Originator,
@@ -169,7 +181,9 @@ func run(logger *slog.Logger) error {
 		}
 	}
 
-	ctrl.Stop()
+	// Bounded: docker stop grants ~10s before SIGKILL; a hung storage RPC must
+	// not turn shutdown into a kill.
+	_ = ctrl.StopWithTimeout(5 * time.Second)
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpServer.Shutdown(shutdownCtx)

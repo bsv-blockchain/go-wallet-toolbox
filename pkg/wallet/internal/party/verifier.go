@@ -16,14 +16,24 @@ func VerifyReturnedTxIDOnlyBeef(bp *wdk.BeefParty, beef primitives.BEEF) (primit
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
 	}
 
-	b, err = verifyReturnedTxIDOnly(bp, b)
+	// Resolve TxIDOnly entries against the shared party graph and serialize
+	// under one lock: transactions returned by FindAtomicTransactionByHash
+	// reference objects inside the shared Beef, so serialization must not
+	// interleave with concurrent merges.
+	var bytes []byte
+	err = bp.WithLock(func(partyBeef *transaction.Beef) error {
+		verified, verifyErr := verifyReturnedTxIDOnly(partyBeef, b)
+		if verifyErr != nil {
+			return fmt.Errorf("failed to verify returned beef txid only: %w", verifyErr)
+		}
+		bytes, verifyErr = verified.Bytes()
+		if verifyErr != nil {
+			return fmt.Errorf("failed to get bytes from beef: %w", verifyErr)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify returned beef txid only: %w", err)
-	}
-
-	bytes, err := b.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get bytes from beef: %w", err)
+		return nil, err
 	}
 
 	return bytes, nil
@@ -36,25 +46,36 @@ func VerifyReturnedTxIDOnlyAtomicBEEF(bp *wdk.BeefParty, txID chainhash.Hash, be
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
 	}
 
-	b, err = verifyReturnedTxIDOnly(bp, b, knownTxIDs...)
+	// See VerifyReturnedTxIDOnlyBeef for why resolution + serialization share
+	// one lock over the party graph.
+	var bytes []byte
+	err = bp.WithLock(func(partyBeef *transaction.Beef) error {
+		verified, verifyErr := verifyReturnedTxIDOnly(partyBeef, b, knownTxIDs...)
+		if verifyErr != nil {
+			return fmt.Errorf("failed to verify returned beef txid only: %w", verifyErr)
+		}
+		bytes, verifyErr = verified.AtomicBytes(&txID)
+		if verifyErr != nil {
+			return fmt.Errorf("failed to get bytes from beef: %w", verifyErr)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify returned beef txid only: %w", err)
-	}
-
-	bytes, err := b.AtomicBytes(&txID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get bytes from beef: %w", err)
+		return nil, err
 	}
 
 	return bytes, nil
 }
 
-func verifyReturnedTxIDOnly(beefParty *wdk.BeefParty, beef *transaction.Beef, knownTxIDs ...primitives.TXIDHexString) (*transaction.Beef, error) {
+// verifyReturnedTxIDOnly resolves TxIDOnly entries in beef against the shared
+// party graph. partyBeef must only be accessed under the BeefParty lock (see
+// wdk.BeefParty.WithLock).
+func verifyReturnedTxIDOnly(partyBeef *transaction.Beef, beef *transaction.Beef, knownTxIDs ...primitives.TXIDHexString) (*transaction.Beef, error) {
 	for _, btx := range beef.Transactions {
 		if btx.DataFormat != transaction.TxIDOnly {
 			continue
 		}
-		tx := beefParty.FindAtomicTransactionByHash(btx.KnownTxID)
+		tx := partyBeef.FindAtomicTransactionByHash(btx.KnownTxID)
 		if tx == nil {
 			return nil, fmt.Errorf("tx with only txid not found in beef party: %s", btx.KnownTxID.String())
 		}

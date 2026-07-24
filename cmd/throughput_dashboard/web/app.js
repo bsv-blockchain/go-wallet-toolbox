@@ -53,6 +53,7 @@ const els = {
 
 let fundingInfo = null;
 let lastTickKey = "";
+let lastChartTs = "";
 let chartsEnabled = typeof window.Chart === "function";
 const seenTopups = new Set();
 let streamBusy = false;
@@ -273,8 +274,9 @@ function applyTick(tick, { chart = true } = {}) {
 
   const stream = tick.stream || {};
   const running = !!stream.running;
+  const draining = !!stream.draining;
 
-  els.streamState.textContent = running ? "running" : "stopped";
+  els.streamState.textContent = draining ? "draining" : running ? "running" : "stopped";
   els.streamState.className = `value state-pill ${running ? "state-running" : "state-stopped"}`;
   els.succeeded.textContent = fmt(stream.succeeded ?? 0);
   els.failed.textContent = fmt(stream.failed ?? 0);
@@ -284,8 +286,10 @@ function applyTick(tick, { chart = true } = {}) {
   if (!streamBusy) {
     els.btnStart.disabled = running;
     els.btnStart.dataset.forceDisabled = running ? "1" : "0";
-    els.btnStop.disabled = !running;
-    els.btnStop.dataset.forceDisabled = !running ? "1" : "0";
+    // While draining, stop was already requested; the server finishes it in
+    // the background (a second stop is harmless but pointless).
+    els.btnStop.disabled = !running || draining;
+    els.btnStop.dataset.forceDisabled = !running || draining ? "1" : "0";
     els.tps.disabled = running;
   }
 
@@ -313,7 +317,12 @@ function applyTick(tick, { chart = true } = {}) {
 
   els.metaDenom.textContent = tick.denomination ?? "—";
 
-  if (chart && !isDup) {
+  // Chart dedup keys on the sampler timestamp alone: /api/status overlays live
+  // stream counters onto the tick, so the full tickKey changes between polls
+  // even when no new sampler tick exists — timestamp identity is what makes a
+  // chart point new.
+  if (chart && !isDup && tick.timestamp && tick.timestamp !== lastChartTs) {
+    lastChartTs = tick.timestamp;
     const label =
       (tick.timestamp || "").slice(11, 19) || new Date().toISOString().slice(11, 19);
     pushPoint(tpsChart, label, [tick.tps_succeeded || 0, tick.tps_failed || 0]);
@@ -670,8 +679,10 @@ async function postInternalize(body) {
 // Stream controls
 // ---------------------------------------------------------------------------
 
-// Must match stream.WorkersForTPS / MaxWorkers in the Go controller.
-const MAX_WORKERS = 512;
+// Must match stream.WorkersForTPS / AutoWorkersCap in the Go controller.
+// Sub-linear: min(64, max(1, ceil(2 × √tps))) — in-flight budget at high TPS
+// while the dashboard wallet serializes storage RPCs.
+const AUTO_WORKERS_CAP = 64;
 
 function parsePositiveInt(input, fallback, { min = 1, max = 1e9 } = {}) {
   const n = Number(input);
@@ -682,7 +693,8 @@ function parsePositiveInt(input, fallback, { min = 1, max = 1e9 } = {}) {
 function workersForTPS(tps) {
   const n = Number(tps);
   if (!Number.isFinite(n) || n <= 0) return 1;
-  return Math.min(MAX_WORKERS, Math.floor(n));
+  const w = Math.ceil(2 * Math.sqrt(n));
+  return Math.min(AUTO_WORKERS_CAP, Math.max(1, w));
 }
 
 function setWorkersDisplay(workers, running) {
@@ -787,8 +799,17 @@ els.btnStop.addEventListener("click", async () => {
   try {
     const res = await fetch("/api/stream/stop", { method: "POST" });
     const data = await readJSON(res);
-    if (!res.ok) throw new Error(data.error || "failed to stop");
-    setStatus(els.streamStatus, "ok", "Stream stopped. FuelKeeper continues running.");
+    if (res.status === 202 || data.draining) {
+      setStatus(
+        els.streamStatus,
+        "info",
+        "Stream stopping — draining in-flight createActions (finishes in background)…",
+      );
+    } else if (!res.ok) {
+      throw new Error(data.error || "failed to stop");
+    } else {
+      setStatus(els.streamStatus, "ok", "Stream stopped. FuelKeeper continues running.");
+    }
   } catch (err) {
     setStatus(els.streamStatus, "err", err?.message || String(err));
   } finally {

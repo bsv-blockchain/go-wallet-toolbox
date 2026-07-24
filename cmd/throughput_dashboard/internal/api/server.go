@@ -26,12 +26,15 @@ const headerContentType = "Content-Type"
 type FuelPool interface {
 	SetTargetPoolSize(n uint64) error
 	TargetPoolSize() uint64
+	// RunOnce kicks a single top-up round (used after target resize so minting
+	// does not wait for the idle TopUp interval).
+	RunOnce(ctx context.Context) error
 }
 
 // Deps wires the HTTP server.
 type Deps struct {
-	Ctrl       *stream.Controller
-	Sampler    *metrics.Sampler
+	Ctrl    *stream.Controller
+	Sampler *metrics.Sampler
 	// Fuel is optional; when set, stream start resizes the target pool from TPS.
 	Fuel       FuelPool
 	Wallet     funding.InternalizeActioner
@@ -43,6 +46,10 @@ type Deps struct {
 	WebFS      fs.FS
 	// Done is closed when the process is shutting down (not a context.Context field).
 	Done <-chan struct{}
+	// StopWait bounds how long POST /api/stream/stop waits for in-flight
+	// createActions before answering 202 (drain continues in background).
+	// 0 → defaultStopWait.
+	StopWait time.Duration
 }
 
 // Server is the dashboard HTTP API.
@@ -85,12 +92,19 @@ func (s *Server) routes() {
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	tick := s.deps.Sampler.LastTick()
+	// Overlay live controller stats: LastTick lags while storage RPCs queue
+	// under load, but run-state (running/draining) and counters must be
+	// current — the UI start/stop buttons and status pill key off them.
+	live := s.deps.Ctrl.Stats()
+	tick.Stream = live
 	writeJSON(w, http.StatusOK, map[string]any{
 		"network":    string(s.deps.Network),
 		"server_url": s.deps.ServerURL,
 		"originator": s.deps.Originator,
 		"mainnet":    s.deps.Network == defs.NetworkMainnet,
 		"tick":       tick,
+		"stream":     live,
+		"now":        time.Now().UTC().Format(time.RFC3339Nano),
 		"events":     s.deps.Sampler.RecentEvents(),
 	})
 }
@@ -121,9 +135,30 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 	// Resize FuelKeeper inventory target from the effective stream TPS so the
 	// pool scales with the UI setting (not a fixed demo TargetPoolSize).
 	targetPool := config.DemoTargetPoolForTPS(stats.TPS)
+	// Fair-share minting toggles via the controller's running-listener (wired
+	// in main), atomically with the state transition — not here, where racing
+	// start/stop handlers could apply flags out of order.
 	if s.deps.Fuel != nil {
 		if err := s.deps.Fuel.SetTargetPoolSize(targetPool); err != nil {
 			s.deps.Logger.Warn("fuel keeper target pool update failed", "error", err, "target_pool", targetPool)
+		} else {
+			// Kick an immediate top-up round so a large TPS jump does not wait
+			// for the idle keeper interval (catch-up continues in FuelKeeper.Run).
+			// The round aborts on process shutdown (Done), not on request end.
+			go func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				go func() {
+					select {
+					case <-s.deps.Done:
+						cancel()
+					case <-ctx.Done():
+					}
+				}()
+				if err := s.deps.Fuel.RunOnce(ctx); err != nil {
+					s.deps.Logger.Warn("fuel keeper kick after stream start failed", "error", err)
+				}
+			}()
 		}
 	}
 	if s.deps.Sampler != nil {
@@ -143,9 +178,31 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// defaultStopWait bounds how long the stop endpoint waits for in-flight
+// createActions. Past it the drain continues in the background and the
+// endpoint reports draining instead of hanging the HTTP request.
+const defaultStopWait = 10 * time.Second
+
 func (s *Server) handleStreamStop(w http.ResponseWriter, r *http.Request) {
-	s.deps.Ctrl.Stop()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stats": s.deps.Ctrl.Stats()})
+	wait := s.deps.StopWait
+	if wait <= 0 {
+		wait = defaultStopWait
+	}
+	stopped := s.deps.Ctrl.StopWithTimeout(wait)
+	// Keeper fair-share lifts via the controller's running-listener when the
+	// drain fully completes — while createActions are still draining the keeper
+	// keeps yielding to them.
+	stats := s.deps.Ctrl.Stats()
+	if !stopped {
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"ok":       false,
+			"draining": true,
+			"error":    "stream still draining in-flight createActions; it will stop shortly",
+			"stats":    stats,
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stats": stats})
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {

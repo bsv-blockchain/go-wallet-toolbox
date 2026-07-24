@@ -24,6 +24,7 @@ import (
 
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -55,7 +56,37 @@ type Config struct {
 	// fan-out including its fee.
 	ChunkFeeHeadroom uint64
 	Originator       string
+
+	// StreamLeafCap caps leaf fan-outs per round while SetStreamActive(true):
+	// small rounds re-measure inventory often and keep the keeper responsive
+	// to target changes, while back-to-back rounds keep minting continuous.
+	// 0 → DefaultStreamLeafCap.
+	StreamLeafCap uint64
+	// StreamYieldMultiple sizes the pause after each fan-out RPC while a
+	// stream is active: pause = multiple × RPC duration. With N=3 the keeper
+	// consumes ~1/(1+3)=25% of the shared serialized-wallet time, leaving the
+	// rest to stream createActions and metrics. 0 → DefaultStreamYieldMultiple.
+	StreamYieldMultiple uint64
+
+	// MintConcurrency is how many leaf fan-outs a round runs in parallel.
+	// Leaves are independent (each consumes its own reserve chunk), and a
+	// wallet whose RPC layer allows concurrent requests can mint several at
+	// once — a single serial mint loop cannot refill fast enough to match a
+	// high-TPS stream's burn rate. 0 → 1 (serial).
+	MintConcurrency uint64
 }
+
+// Defaults for the stream-active fairness knobs (see Config).
+const (
+	DefaultStreamLeafCap       = 10
+	DefaultStreamYieldMultiple = 3
+	minStreamYield             = 10 * time.Millisecond
+	// maxStreamYield caps the post-fan-out pause. The measured RPC duration
+	// includes any time spent queued for a shared wallet slot, which inflates
+	// under load; an uncapped multiple of it would collapse the keeper's share
+	// toward zero and let the pool drain mid-stream.
+	maxStreamYield = 3 * time.Second
+)
 
 // FromThroughput derives the keeper configuration from the server-side
 // throughput configuration and the resolved denomination.
@@ -116,6 +147,11 @@ type Keeper struct {
 	// while Run's ticker round is still minting): both would measure the same
 	// deficit and double-mint.
 	roundInFlight atomic.Bool
+
+	// streamActive switches minting into fair-share mode: leaf caps per round
+	// and a yield after every fan-out RPC so the createAction stream, metrics
+	// sampler, and stop paths sharing the serialized wallet are not starved.
+	streamActive atomic.Bool
 }
 
 // New creates a Keeper. It validates the configuration eagerly so
@@ -126,6 +162,12 @@ func New(walletAPI WalletAPI, cfg Config, logger *slog.Logger) (*Keeper, error) 
 	}
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid fuel keeper config: %w", err)
+	}
+	if cfg.StreamLeafCap == 0 {
+		cfg.StreamLeafCap = DefaultStreamLeafCap
+	}
+	if cfg.StreamYieldMultiple == 0 {
+		cfg.StreamYieldMultiple = DefaultStreamYieldMultiple
 	}
 	return &Keeper{
 		wallet: walletAPI,
@@ -155,6 +197,47 @@ func (k *Keeper) TargetPoolSize() uint64 {
 	return k.cfg.TargetPoolSize
 }
 
+// SetStreamActive toggles fair-share minting. While active, rounds cap leaf
+// fan-outs at StreamLeafCap and every fan-out RPC is followed by a
+// StreamYieldMultiple×duration pause, bounding the keeper to roughly
+// 1/(1+multiple) of the shared serialized-wallet time. Minting never stops —
+// catch-up rounds stay back-to-back — it only slows to leave room for the
+// stream. Safe to call at any time; a round already in flight observes the
+// flag per fan-out.
+func (k *Keeper) SetStreamActive(active bool) {
+	if k.streamActive.Swap(active) != active {
+		k.logger.Info("fuel keeper stream fair-share mode changed", slog.Bool("streamActive", active))
+	}
+}
+
+// fanOut performs one fan-out RPC and, while a stream is active, pauses
+// afterward proportionally to how long the RPC held the shared wallet.
+func (k *Keeper) fanOut(ctx context.Context, cfg Config, shape wdk.ShapedChange) error {
+	start := time.Now()
+	_, err := k.wallet.FanOutFuel(ctx, shape, cfg.Originator)
+	k.yieldToStream(ctx, cfg, time.Since(start))
+	return err
+}
+
+// yieldToStream sleeps multiple×opTook (with a small floor) while a stream is
+// active so waiters on the serialized wallet run before the keeper's next RPC.
+func (k *Keeper) yieldToStream(ctx context.Context, cfg Config, opTook time.Duration) {
+	if !k.streamActive.Load() {
+		return
+	}
+	pause := opTook * time.Duration(cfg.StreamYieldMultiple) //nolint:gosec // multiple is a small config knob
+	if pause < minStreamYield {
+		pause = minStreamYield
+	}
+	if pause > maxStreamYield {
+		pause = maxStreamYield
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(pause):
+	}
+}
+
 // snapshot copies config under the read lock so rounds see a consistent view.
 func (k *Keeper) snapshot() Config {
 	k.mu.RLock()
@@ -162,22 +245,32 @@ func (k *Keeper) snapshot() Config {
 	return k.cfg
 }
 
-// Run executes rounds on the configured interval until ctx is canceled.
-// The first round runs immediately.
-func (k *Keeper) Run(ctx context.Context) {
-	interval := k.snapshot().Interval
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+// catchUpPause is a tiny yield between back-to-back catch-up rounds so the
+// process can observe ctx cancel and avoid a pure busy-spin when a round
+// no-ops (e.g. another RunOnce already in flight).
+const catchUpPause = 10 * time.Millisecond
 
+// Run executes top-up rounds until ctx is canceled. The first round runs
+// immediately. While inventory stays below the low-water mark AND rounds keep
+// making progress, rounds run back-to-back (only a short yield between them)
+// so catch-up is not limited by TopUp.Interval; the configured interval
+// applies when the pool is healthy and after unproductive or failed rounds.
+func (k *Keeper) Run(ctx context.Context) {
 	for {
-		if err := k.RunOnce(ctx); err != nil && ctx.Err() == nil {
+		catchUp, err := k.runOnce(ctx)
+		if err != nil && ctx.Err() == nil {
 			k.logger.ErrorContext(ctx, "fuel top-up round failed", logging.Error(err))
+		}
+
+		wait := k.snapshot().Interval
+		if catchUp {
+			wait = catchUpPause
 		}
 
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-time.After(wait):
 		}
 	}
 }
@@ -187,9 +280,24 @@ func (k *Keeper) Run(ctx context.Context) {
 // reserve is short) toward high water, capped at FanoutMaxTxsPerRound leaves
 // and by the chunks actually available. Overlapping rounds are skipped.
 func (k *Keeper) RunOnce(ctx context.Context) error {
+	_, err := k.runOnce(ctx)
+	return err
+}
+
+// runOnce is the shared implementation for Run / RunOnce.
+//
+// catchUp is true only when this round made progress (or was skipped because
+// another round is minting) and inventory is still below low water — the
+// outer loop then retries after catchUpPause instead of a full interval.
+// Rounds that errored or minted nothing (no reserve, no funds, server
+// rejecting the shape) return false so retries stay at the configured
+// interval; a 10ms retry cadence on a persistent failure would hammer the
+// shared wallet with measurement RPCs and flood the logs.
+func (k *Keeper) runOnce(ctx context.Context) (catchUp bool, err error) {
 	if !k.roundInFlight.CompareAndSwap(false, true) {
 		k.logger.DebugContext(ctx, "top-up round already in flight, skipping")
-		return nil
+		// Another round is minting; stay in catch-up mode so we retry soon.
+		return true, nil
 	}
 	defer k.roundInFlight.Store(false)
 
@@ -197,12 +305,12 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 
 	inventory, err := k.countBasketOutputs(ctx, cfg.PoolBasket, cfg.Originator)
 	if err != nil {
-		return fmt.Errorf("failed to measure fuel pool: %w", err)
+		return false, fmt.Errorf("failed to measure fuel pool: %w", err)
 	}
 
 	lowWater := cfg.TargetPoolSize * cfg.LowWaterPercent / 100
 	if inventory >= lowWater {
-		return nil
+		return false, nil
 	}
 
 	fillTarget := cfg.TargetPoolSize * cfg.HighWaterPercent / 100
@@ -211,17 +319,24 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 	if leaves > cfg.FanoutMaxTxsPerRound {
 		leaves = cfg.FanoutMaxTxsPerRound
 	}
+	// Fair-share mode: short rounds so inventory is re-measured often and the
+	// keeper reacts to target changes / stream stop quickly. Catch-up keeps
+	// rounds back-to-back, so the cap does not stall refill.
+	if k.streamActive.Load() && leaves > cfg.StreamLeafCap {
+		leaves = cfg.StreamLeafCap
+	}
 
 	k.logger.InfoContext(ctx, "fuel pool below low water, minting",
 		slog.Uint64("inventory", inventory),
 		slog.Uint64("targetPool", cfg.TargetPoolSize),
 		slog.Uint64("lowWater", lowWater),
 		slog.Uint64("deficit", deficit),
-		slog.Uint64("leafTxs", leaves))
+		slog.Uint64("leafTxs", leaves),
+		slog.Uint64("maxLeafTxsPerRound", cfg.FanoutMaxTxsPerRound))
 
 	chunks, err := k.ensureChunks(ctx, cfg, leaves)
 	if err != nil {
-		return err
+		return false, err
 	}
 	// Every leaf consumes one chunk; minting past the provisioned chunks
 	// would silently drain the default basket via the funding fallback.
@@ -231,23 +346,69 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 		leaves = chunks
 	}
 
-	minted := uint64(0)
-	for range leaves {
-		if ctx.Err() != nil {
-			return fmt.Errorf("top-up round interrupted: %w", ctx.Err())
-		}
-		if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
-			Count:    cfg.FanoutOutputsPerTx,
-			Satoshis: primitives.SatoshiValue(cfg.Denomination),
-			Basket:   primitives.StringUnder300(cfg.PoolBasket),
-		}, cfg.Originator); err != nil {
-			return fmt.Errorf("leaf fan-out failed after minting %d outputs: %w", minted, err)
-		}
-		minted += cfg.FanoutOutputsPerTx
+	minted, err := k.mintLeaves(ctx, cfg, leaves)
+	if err != nil {
+		return false, err
 	}
 
-	k.logger.InfoContext(ctx, "fuel top-up round complete", slog.Uint64("minted", minted))
-	return nil
+	k.logger.InfoContext(ctx, "fuel top-up round complete",
+		slog.Uint64("minted", minted),
+		slog.Uint64("inventoryBefore", inventory))
+
+	// Fast follow-up only when this round actually minted and more is needed;
+	// a zero-mint round (reserve and default funds exhausted) waits the full
+	// interval so the keeper idles gently until the operator deposits.
+	stillLow := minted > 0 && inventory+minted < lowWater
+	return stillLow, nil
+}
+
+// mintLeaves runs up to `leaves` leaf fan-outs with MintConcurrency-bounded
+// parallelism and returns how many fuel outputs were minted. While a stream is
+// active it stops issuing new leaves past StreamLeafCap (a stream starting
+// mid-round shortens even a big idle catch-up round) and each fan-out still
+// yields afterward (see fanOut), bounding the keeper's share of the shared
+// wallet. On error the started leaves finish and the first error is returned
+// with the partial mint count already reflected in the result.
+func (k *Keeper) mintLeaves(ctx context.Context, cfg Config, leaves uint64) (uint64, error) {
+	conc := cfg.MintConcurrency
+	if conc == 0 {
+		conc = 1
+	}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(int(conc)) //nolint:gosec // small config knob
+
+	var mintedLeaves atomic.Uint64
+	issued := uint64(0)
+	for range leaves {
+		if gctx.Err() != nil {
+			break
+		}
+		if k.streamActive.Load() && issued >= cfg.StreamLeafCap {
+			k.logger.InfoContext(ctx, "stream active, ending mint round at leaf cap",
+				slog.Uint64("issuedLeaves", issued))
+			break
+		}
+		issued++
+		g.Go(func() error {
+			if err := k.fanOut(gctx, cfg, wdk.ShapedChange{
+				Count:    cfg.FanoutOutputsPerTx,
+				Satoshis: primitives.SatoshiValue(cfg.Denomination),
+				Basket:   primitives.StringUnder300(cfg.PoolBasket),
+			}); err != nil {
+				return fmt.Errorf("leaf fan-out failed: %w", err)
+			}
+			mintedLeaves.Add(1)
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	minted := mintedLeaves.Load() * cfg.FanoutOutputsPerTx
+	if err != nil {
+		return minted, fmt.Errorf("mint round failed after %d outputs: %w", minted, err)
+	}
+	return minted, nil
 }
 
 // ensureChunks makes sure the reserve basket holds one claimable chunk per
@@ -270,12 +431,32 @@ func (k *Keeper) ensureChunks(ctx context.Context, cfg Config, leaves uint64) (u
 		if needed > cfg.FanoutOutputsPerTx {
 			needed = cfg.FanoutOutputsPerTx
 		}
-
-		if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
-			Count:    needed,
-			Satoshis: primitives.SatoshiValue(chunkValue),
-			Basket:   primitives.StringUnder300(cfg.ReserveBasket),
-		}, cfg.Originator); err != nil {
+		// The default basket may cover only part of the ask (a full ask is
+		// needed × chunkValue satoshis — e.g. 50 × 4000 = 200k). An
+		// all-or-nothing fan-out would then mint NOTHING while the stream
+		// drains the pool dry, so halve the ask until it funds. Bounded:
+		// ~log2(needed) failed attempts before giving up entirely.
+		for needed > 1 {
+			if err = k.fanOut(ctx, cfg, wdk.ShapedChange{
+				Count:    needed,
+				Satoshis: primitives.SatoshiValue(chunkValue),
+				Basket:   primitives.StringUnder300(cfg.ReserveBasket),
+			}); err == nil {
+				break
+			}
+			k.logger.InfoContext(ctx, "chunk fan-out did not fund, halving ask",
+				slog.Uint64("count", needed), logging.Error(err))
+			needed /= 2
+		}
+		if needed <= 1 {
+			err = k.fanOut(ctx, cfg, wdk.ShapedChange{
+				Count:    1,
+				Satoshis: primitives.SatoshiValue(chunkValue),
+				Basket:   primitives.StringUnder300(cfg.ReserveBasket),
+			})
+			needed = 1
+		}
+		if err != nil {
 			// Default-basket funds ran out (or another error): mint with what
 			// is provisioned so far rather than failing the whole round.
 			k.logger.WarnContext(ctx, "chunk fan-out failed, continuing with provisioned chunks",

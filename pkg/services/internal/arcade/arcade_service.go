@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -85,6 +86,11 @@ type Service struct {
 	// when no line is read for this long the connection is dropped and redialed.
 	// Defaults to readWatchdogTimeout; overridable in tests.
 	sseReadWatchdogTimeout time.Duration
+	// chainTipHeight, when wired via SetChainTipHeight, provides the tip used
+	// to compute confirmation depth in GetStatusForTxIDs. Atomic: it is set
+	// after service construction (the height source is built later in the
+	// services wiring) and read from request goroutines.
+	chainTipHeight atomic.Pointer[ChainTipHeightFunc]
 }
 
 // New creates a new arcade service.
