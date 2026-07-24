@@ -294,3 +294,69 @@ func TestStreamEventsContextCancelWhileConnected(t *testing.T) {
 		t.Fatal("StreamEvents did not return after context cancellation")
 	}
 }
+
+// Arcade docs/sse.md: MINED frames carry blockHash, blockHeight, and merklePath
+// (BRC-74 BUMP hex) so push-only clients can apply proofs without polling.
+func TestStreamEventsMinedFrameCarriesMerklePath(t *testing.T) {
+	const (
+		eventID     = "1745870512987654321"
+		blockHash   = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b1234"
+		blockHeight = uint32(870123)
+		// Opaque hex; client treats merklePath as a string until storage validates BUMP.
+		merklePathHex = "0100cafe"
+	)
+
+	// Frame shape from https://github.com/bsv-blockchain/arcade/blob/main/docs/sse.md
+	minedFrame := "id: " + eventID + "\n" +
+		"event: status\n" +
+		`data: {"txid":"` + testTxID + `","txStatus":"MINED","timestamp":"2026-04-28T18:21:52Z",` +
+		`"blockHash":"` + blockHash + `","blockHeight":` + "870123" + `,"merklePath":"` + merklePathHex + `"}` +
+		"\n\n"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !assert.True(t, ok) {
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, minedFrame)
+		flusher.Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	service := newService(t, defaultConfig(server.URL))
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	events := make(chan arcade.StatusEvent, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- service.StreamEvents(ctx, "", func(ev arcade.StatusEvent) error {
+			events <- ev
+			return nil
+		})
+	}()
+
+	select {
+	case ev := <-events:
+		assert.Equal(t, eventID, ev.EventID)
+		assert.Equal(t, testTxID, ev.TxID)
+		assert.Equal(t, arcade.StatusMined, ev.TxStatus)
+		assert.Equal(t, blockHash, ev.BlockHash)
+		assert.Equal(t, blockHeight, ev.BlockHeight)
+		assert.Equal(t, merklePathHex, ev.MerklePath)
+		assert.Equal(t, "2026-04-28T18:21:52Z", ev.Timestamp)
+	case <-time.After(sseTestTimeout):
+		t.Fatal("timed out waiting for MINED SSE frame")
+	}
+
+	cancel()
+	select {
+	case err := <-errCh:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(sseTestTimeout):
+		t.Fatal("StreamEvents did not return after cancel")
+	}
+}

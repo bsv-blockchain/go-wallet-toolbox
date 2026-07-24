@@ -17,15 +17,56 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// Broadcaster lifecycle statuses pushed by external event streams (e.g. the Arcade SSE stream).
+// Broadcaster lifecycle statuses pushed by external event streams (Arcade SSE).
+// Names follow github.com/bsv-blockchain/arcade models.Status / docs/sse.md.
+//
+// MINED and IMMUTABLE frames may include merklePath (BRC-74 BUMP hex) plus
+// blockHash/blockHeight so storage can complete the tx without polling. Catchup
+// may omit merklePath — resolveExternalMerklePath falls back to services.
 const (
 	externalTxStatusReceived            = "RECEIVED"
+	externalTxStatusSentToNetwork       = "SENT_TO_NETWORK"
+	externalTxStatusAcceptedByNetwork   = "ACCEPTED_BY_NETWORK"
 	externalTxStatusSeenOnNetwork       = "SEEN_ON_NETWORK"
-	externalTxStatusSeenOnMultipleNodes = "SEEN_ON_MULTIPLE_NODES"
-	externalTxStatusMined               = "MINED"
-	externalTxStatusImmutable           = "IMMUTABLE"
-	externalTxStatusRejected            = "REJECTED"
+	externalTxStatusSeenMultipleNodes   = "SEEN_MULTIPLE_NODES"    // canonical Arcade name
+	externalTxStatusSeenOnMultipleNodes = "SEEN_ON_MULTIPLE_NODES" // legacy docs alias
+	externalTxStatusStumpProcessing     = "STUMP_PROCESSING"
+	// ARC-only intermediates that some hosts still emit.
+	externalTxStatusAnnouncedToNetwork = "ANNOUNCED_TO_NETWORK"
+	externalTxStatusStored             = "STORED"
+	externalTxStatusMined              = "MINED"
+	externalTxStatusImmutable          = "IMMUTABLE"
+	externalTxStatusRejected           = "REJECTED"
+	externalTxStatusDoubleSpend        = "DOUBLE_SPEND_ATTEMPTED"
+	// PENDING_RETRY / UNKNOWN are intentionally not advanced (no network proof).
 )
+
+// isExternalBroadcastedStatus reports whether an external status is enough
+// evidence that the broadcaster accepted/propagated the tx (advance unsent/
+// sending → unmined and activate UserUTXO rows). Without these mappings, live
+// Arcade streams leave utxo_status="" and funding fails with "not enough funds".
+func isExternalBroadcastedStatus(status string) bool {
+	switch status {
+	case externalTxStatusReceived,
+		externalTxStatusSentToNetwork,
+		externalTxStatusAcceptedByNetwork,
+		externalTxStatusSeenOnNetwork,
+		externalTxStatusSeenMultipleNodes,
+		externalTxStatusSeenOnMultipleNodes,
+		externalTxStatusStumpProcessing,
+		externalTxStatusAnnouncedToNetwork,
+		externalTxStatusStored:
+		return true
+	default:
+		return false
+	}
+}
+
+// isExternalRejectedStatus reports terminal-ish rejection signals that need
+// network re-check before failing the wallet tx.
+func isExternalRejectedStatus(status string) bool {
+	return status == externalTxStatusRejected || status == externalTxStatusDoubleSpend
+}
 
 // externalBroadcastStatusHistoryNote is the "what" of the TxNote recorded for external status events.
 const externalBroadcastStatusHistoryNote = "externalBroadcastStatus"
@@ -35,12 +76,13 @@ const externalBroadcastStatusHistoryNote = "externalBroadcastStatus"
 // Safety rules (the external stream must never corrupt the wallet state):
 //   - an unknown txid or an already-terminal stored status is a no-op,
 //   - MINED/IMMUTABLE applies through the existing UpdateKnownTxAsMined flow, with the
-//     event-supplied merkle path validated against the chain tracker (or fetched from
-//     the services when the event carries none),
-//   - RECEIVED/SEEN_* only advances in-flight (unsent/sending) transactions to the same
-//     post-broadcast status broadcastTxs sets after a successful broadcast (unmined),
-//   - REJECTED is re-verified through the confirmDoubleSpends machinery before any
-//     terminal failure, preserving the false-double-spend guarantees.
+//     event-supplied merklePath (BUMP hex) validated against the chain tracker (or
+//     fetched from the services when the event carries none — catchup may omit path),
+//   - RECEIVED / SENT_TO_NETWORK / ACCEPTED_BY_NETWORK / SEEN_* / STUMP_PROCESSING
+//     advance in-flight (unsent/sending) transactions to the same post-broadcast
+//     status broadcastTxs sets after a successful broadcast (unmined),
+//   - REJECTED / DOUBLE_SPEND_ATTEMPTED is re-verified through confirmDoubleSpends
+//     before any terminal failure, preserving the false-double-spend guarantees.
 //
 // Returns the synchronized statuses for any tx whose stored state changed.
 func (p *process) ProcessExternalTxStatusUpdate(ctx context.Context, ev wdk.BroadcastStatusEvent) (txStatuses []wdk.TxSynchronizedStatus, resultErr error) {
@@ -73,12 +115,12 @@ func (p *process) ProcessExternalTxStatusUpdate(ctx context.Context, ev wdk.Broa
 		return nil, nil
 	}
 
-	switch ev.Status {
-	case externalTxStatusMined, externalTxStatusImmutable:
+	switch {
+	case ev.Status == externalTxStatusMined || ev.Status == externalTxStatusImmutable:
 		return p.applyExternalMined(ctx, &ev)
-	case externalTxStatusReceived, externalTxStatusSeenOnNetwork, externalTxStatusSeenOnMultipleNodes:
+	case isExternalBroadcastedStatus(ev.Status):
 		return p.advanceToBroadcastedFromExternalEvent(ctx, &ev, current)
-	case externalTxStatusRejected:
+	case isExternalRejectedStatus(ev.Status):
 		return p.applyExternalRejected(ctx, &ev, current)
 	default:
 		logger.WarnContext(ctx, "Ignoring external status event with an unsupported status")
