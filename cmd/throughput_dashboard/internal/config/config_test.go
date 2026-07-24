@@ -127,19 +127,23 @@ func TestDemoTargetPoolForTPS(t *testing.T) {
 	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(-5))
 }
 
-func TestDemoFeeModelTSTN(t *testing.T) {
+func TestDemoFeeModelTSTNMatchesArcadeFloor(t *testing.T) {
+	// Arcade DefaultMinFeePerKB is 100 sat/kb; wallet must match or posts get ARC 465.
 	fee := config.DemoFeeModel(defs.NetworkTSTN)
 	require.Equal(t, defs.SatPerKB, fee.Type)
-	require.Equal(t, int64(1), fee.Value)
+	require.Equal(t, int64(100), fee.Value)
 
-	// At 1 sat/kb derived denom would be 1, which fails denomination > floor;
-	// demo pins 2-sat fuel to match infra-config-docker-throughput-tstn.yaml.
+	// 200 B OP_RETURN shape → ceil(200/1000*100)=20 > MarginalFuelInputFee(15).
 	denom, err := config.DemoDenomination(defs.NetworkTSTN)
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), denom)
+	require.Equal(t, uint64(20), denom)
+
+	// Same as mainnet demo fee/denom (host floor, not "TSTN is 1 sat/kb").
+	mainDenom, err := config.DemoDenomination(defs.NetworkMainnet)
+	require.NoError(t, err)
+	require.Equal(t, mainDenom, denom)
 
 	tp := config.DemoThroughput()
-	tp.DenominationSatoshis = denom
 	require.NoError(t, (&defs.UTXOManagement{
 		Strategy:   defs.StrategyThroughput,
 		Throughput: tp,

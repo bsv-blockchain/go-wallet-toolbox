@@ -46,11 +46,11 @@
           <span id="stream-state" class="value state-pill state-stopped" aria-labelledby="lbl-state">stopped</span>
         </div>
         <div class="stat">
-          <span class="label" id="lbl-succeeded">Succeeded</span>
+          <span class="label" id="lbl-succeeded" title="createAction RPC returned OK (AcceptDelayedBroadcast — not yet network-accepted)">createAction OK</span>
           <span id="stat-succeeded" class="value value-good" aria-labelledby="lbl-succeeded">0</span>
         </div>
         <div class="stat">
-          <span class="label" id="lbl-failed">Failed</span>
+          <span class="label" id="lbl-failed" title="createAction RPC errors (funding, storage, etc.)">createAction fail</span>
           <span id="stat-failed" class="value value-bad" aria-labelledby="lbl-failed">0</span>
         </div>
         <div class="stat">
@@ -58,6 +58,28 @@
           <span id="stat-iteration" class="value" aria-labelledby="lbl-iteration">0</span>
         </div>
       </div>
+      <div class="row stats-row network-stats" aria-label="Network broadcast health">
+        <div class="stat">
+          <span class="label" id="lbl-net-accept" title="Share of decided stream txs that reached unproven/completed (postBeef accepted). Sample of newest labeled actions.">Network accept</span>
+          <span id="stat-net-accept" class="value value-good" aria-labelledby="lbl-net-accept">—</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-net-accepted" title="unproven + completed in sample">Net accepted</span>
+          <span id="stat-net-accepted" class="value" aria-labelledby="lbl-net-accepted">0</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-net-failed" title="Broadcast/network rejections (failed status) in sample">Net failed</span>
+          <span id="stat-net-failed" class="value value-bad" aria-labelledby="lbl-net-failed">0</span>
+        </div>
+        <div class="stat">
+          <span class="label" id="lbl-net-sending" title="Still sending / unprocessed — in flight or stuck awaiting Arcade">Sending</span>
+          <span id="stat-net-sending" class="value value-warn" aria-labelledby="lbl-net-sending">0</span>
+        </div>
+      </div>
+      <p id="network-hint" class="hint">
+        createAction OK ≠ network accept: delayed broadcast stores txs as <code>sending</code>, then Arcade/ARC posts BEEF.
+        Network accept is sampled from stream-labeled action statuses (<code>unproven</code>/<code>completed</code> vs <code>failed</code>).
+      </p>
       <fieldset class="controls" aria-label="Stream controls">
         <legend class="sr-only">Stream controls</legend>
         <label for="tps">TPS
@@ -103,9 +125,9 @@
     </section>
 
     <section class="card chart-card" aria-labelledby="tps-chart-heading">
-      <h2 id="tps-chart-heading">Transactions per second</h2>
+      <h2 id="tps-chart-heading">createAction rate (not network accept)</h2>
       <div class="chart-wrap">
-        <canvas id="tps-chart" height="140" aria-label="Line chart of succeeded and failed transactions per second"></canvas>
+        <canvas id="tps-chart" height="140" aria-label="Line chart of createAction OK and fail per second"></canvas>
         <p id="tps-chart-fallback" class="chart-fallback" hidden>Chart.js unavailable — numeric gauges above still update.</p>
       </div>
     </section>

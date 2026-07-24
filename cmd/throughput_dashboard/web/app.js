@@ -20,6 +20,10 @@ const els = {
   succeeded: document.getElementById("stat-succeeded"),
   failed: document.getElementById("stat-failed"),
   iteration: document.getElementById("stat-iteration"),
+  netAccept: document.getElementById("stat-net-accept"),
+  netAccepted: document.getElementById("stat-net-accepted"),
+  netFailed: document.getElementById("stat-net-failed"),
+  netSending: document.getElementById("stat-net-sending"),
   tps: document.getElementById("tps"),
   workersDisplay: document.getElementById("workers-display"),
   btnStart: document.getElementById("btn-start"),
@@ -103,7 +107,7 @@ if (chartsEnabled) {
         labels: [],
         datasets: [
           {
-            label: "succeeded/s",
+            label: "createAction OK/s",
             data: [],
             borderColor: "#3dd6c6",
             backgroundColor: "rgba(61, 214, 198, 0.12)",
@@ -113,7 +117,7 @@ if (chartsEnabled) {
             borderWidth: 2,
           },
           {
-            label: "failed/s",
+            label: "createAction fail/s",
             data: [],
             borderColor: "#ff5c7a",
             backgroundColor: "rgba(255, 92, 122, 0.08)",
@@ -211,6 +215,7 @@ function setBusy(btn, busy, idleLabel, busyLabel) {
 
 function tickKey(tick) {
   if (!tick) return "";
+  const net = tick.network || {};
   return [
     tick.timestamp,
     tick.tps_succeeded,
@@ -221,7 +226,38 @@ function tickKey(tick) {
     tick.stream?.failed,
     tick.stream?.iteration,
     tick.stream?.running,
+    net.accept_rate,
+    net.accepted,
+    net.failed,
+    net.sending,
+    net.sampled,
   ].join("|");
+}
+
+function fmtAcceptRate(rate) {
+  if (rate == null || rate < 0 || Number.isNaN(Number(rate))) return "—";
+  return `${(Number(rate) * 100).toFixed(1)}%`;
+}
+
+function applyNetworkHealth(net) {
+  if (!els.netAccept) return;
+  const n = net || {};
+  els.netAccept.textContent = fmtAcceptRate(n.accept_rate);
+  els.netAccepted.textContent = fmt(n.accepted ?? 0);
+  els.netFailed.textContent = fmt(n.failed ?? 0);
+  els.netSending.textContent = fmt(n.sending ?? 0);
+
+  // Color accept rate by health when decided outcomes exist.
+  els.netAccept.classList.remove("value-good", "value-bad", "value-warn");
+  if (n.accept_rate == null || n.accept_rate < 0) {
+    // no decided sample yet
+  } else if (n.accept_rate >= 0.95) {
+    els.netAccept.classList.add("value-good");
+  } else if (n.accept_rate >= 0.5) {
+    els.netAccept.classList.add("value-warn");
+  } else {
+    els.netAccept.classList.add("value-bad");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +279,7 @@ function applyTick(tick, { chart = true } = {}) {
   els.succeeded.textContent = fmt(stream.succeeded ?? 0);
   els.failed.textContent = fmt(stream.failed ?? 0);
   els.iteration.textContent = fmt(stream.iteration ?? 0);
+  applyNetworkHealth(tick.network);
 
   if (!streamBusy) {
     els.btnStart.disabled = running;

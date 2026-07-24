@@ -153,6 +153,7 @@ func TestControllerCreateActionArgs(t *testing.T) {
 		require.NotNilf(t, a.Options.AcceptDelayedBroadcast, "call %d", i)
 		require.Truef(t, *a.Options.AcceptDelayedBroadcast, "call %d: AcceptDelayedBroadcast", i)
 
+		require.Equalf(t, []string{stream.ActionLabel}, a.Labels, "call %d: stream label", i)
 		require.Equalf(t, "demo-origin", origins[i], "call %d: originator", i)
 	}
 

@@ -3,16 +3,15 @@
 # =============================================================================
 # Loaded by cmd/infra_throughput as infra-config-throughput.yaml (cwd / volume).
 #
-# Locked demo profile (must match dashboard config.DemoThroughput() for tstn):
+# Locked demo profile (must match dashboard config.DemoThroughput() / DemoFeeModel):
 #   bsv_network: tstn
 #   utxo_management.strategy: throughput
-#   fee_model: sat/kb value 1   (tstn network policy — 100× cheaper than mainnet demo)
+#   fee_model: sat/kb value 100  (must match Arcade DefaultMinFeePerKB — 1 sat/kb
+#                               was rejected by GoBDK as insufficient-fee / ARC 465)
 #   expected_tx_size_bytes: 200
 #   expected_output_satoshis: 0
-#   denomination_satoshis: 2    (explicit: at 1 sat/kb, derived ceil(200/1000)=1
-#                               equals MarginalFuelInputFee(148B)=1 and fails
-#                               denomination > floor; 2 sats is the minimum valid fuel)
-#   target_tps: 1000            (pool sizing; stream default TPS is lower)
+#   denomination_satoshis: 0    → derive ceil(200/1000*100)=20 (> marginal input fee 15)
+#   target_tps: 100             (pool sizing; UI TPS resizes the live FuelKeeper target)
 #
 # Private endpoints are NOT in this file. Supply at runtime:
 #   TSTN_ARCADE_URL          (required) Arcade / ARC base
@@ -123,10 +122,11 @@ change_basket:
   minimum_desired_utxo_value: 1000
   number_of_desired_utxos: 32
 
-# --- Fee Model (tstn: 1 sat/kb) ---
+# --- Fee Model (match Arcade DefaultMinFeePerKB = 100 sat/kb) ---
+# Private TSTN Arcade (v0.10.x) rejects lower fees with ARC 465 "Fee too low".
 fee_model:
   type: sat/kb
-  value: 1
+  value: 100
 
 # --- UTXO management (throughput) — same shape as live-test OP_RETURN profile ---
 utxo_management:
@@ -134,21 +134,24 @@ utxo_management:
   throughput:
     expected_tx_size_bytes: 200
     expected_output_satoshis: 0
-    denomination_satoshis: 2
+    # 0 → derive: ceil(200/1000*100)=20 sats; must exceed MarginalFuelInputFee (15).
+    denomination_satoshis: 0
     target_tps: 100
     expected_confirmation_seconds: 300
     pool_headroom_factor: 1.5
-    target_pool_size: 500
+    # 0 → derive from target_tps × confirmation × headroom; dashboard also resizes
+    # the client FuelKeeper target from the UI TPS at stream start.
+    target_pool_size: 0
     low_water_percent: 60
     high_water_percent: 100
-    # prefer_mined skips UTXOs still in "sending". On this demo host Arcade SSE
-    # is 404 and proofs lag, so freshly minted fuel would never fund the stream.
-    # "any" allows mined → unproven → sending so delayed-broadcast fuel is usable.
+    # "any" allows mined → unproven → sending so delayed-broadcast fuel is usable
+    # before proofs land (prefer_mined alone can stall the stream).
     spend_policy: any
     pool_basket: fuel
     reserve_basket: reserve
     fanout_outputs_per_tx: 100
-    fanout_max_txs_per_round: 12000
+    # Cap mint pressure per keeper round (demo-friendly; not the production 12k).
+    fanout_max_txs_per_round: 50
     fanout_tree_depth: 2
     consolidation_inputs_per_tx: 1000
     top_up:

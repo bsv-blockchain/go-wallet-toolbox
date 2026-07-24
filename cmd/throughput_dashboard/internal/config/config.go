@@ -86,23 +86,19 @@ func DemoThroughput() defs.Throughput {
 }
 
 // DemoFeeModel is the fee rate the demo dashboard assumes for fuel denomination.
-// Mainnet/test/ttn demos use the toolbox default (100 sat/kb). TSTN network policy
-// is 1 sat/kb; at that rate we pin denomination_satoshis to 2 (see
-// infra-config-docker-throughput-tstn.yaml) so fuel exceeds the 1-sat input floor.
+// All demo networks use the toolbox default (100 sat/kb) so wallet fees match
+// Arcade's DefaultMinFeePerKB. TSTN previously used 1 sat/kb, which Arcade
+// rejected with ARC 465 "Fee too low" / insufficient-fee (see
+// infra-config-docker-throughput-tstn.yaml).
 func DemoFeeModel(network defs.BSVNetwork) defs.FeeModel {
-	if network == defs.NetworkTSTN {
-		return defs.FeeModel{Type: defs.SatPerKB, Value: 1}
-	}
+	_ = network
 	return defs.DefaultFeeModel()
 }
 
 // DemoDenomination resolves fuel UTXO size for the demo profile on the given network.
+// At 100 sat/kb with the 200 B OP_RETURN shape this is 20 sats (derived).
 func DemoDenomination(network defs.BSVNetwork) (uint64, error) {
 	tp := DemoThroughput()
-	if network == defs.NetworkTSTN {
-		// Must match infra-config-docker-throughput-tstn.yaml denomination_satoshis.
-		tp.DenominationSatoshis = 2
-	}
 	return tp.Denomination(DemoFeeModel(network), defs.DefaultCommission())
 }
 

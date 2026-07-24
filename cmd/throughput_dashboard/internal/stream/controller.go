@@ -42,6 +42,11 @@ type Options struct {
 const (
 	MaxTPS     = 100_000
 	MaxWorkers = 512
+
+	// ActionLabel is attached to every stream createAction so the metrics
+	// sampler can ListActions for network-accept health separately from UI
+	// createAction success (delayed broadcast returns before Arcade/ARC).
+	ActionLabel = "throughput-dashboard-stream"
 )
 
 // WorkersForTPS chooses a worker pool that can sustain tps if each createAction
@@ -284,6 +289,7 @@ func (c *Controller) runOne(ctx context.Context, originator string) {
 
 	args := sdk.CreateActionArgs{
 		Description: fmt.Sprintf("throughput dashboard stream #%d", iter),
+		Labels:      []string{ActionLabel},
 		Outputs: []sdk.CreateActionOutput{
 			{
 				LockingScript:     locking,

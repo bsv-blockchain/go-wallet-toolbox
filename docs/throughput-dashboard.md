@@ -230,6 +230,11 @@ docker compose \
 There is no WhatsOnChain on `tstn`. Browser funding wallets should use the **testnet**
 address family (tstn is testnet-based). UI badge should show **TSTN**.
 
+**Fee alignment:** private TSTN Arcade (GoBDK) uses **100 sat/kb** (`DefaultMinFeePerKB`).
+The demo wallet and `infra-config-docker-throughput-tstn.yaml` must match that floor
+(derived fuel denomination **20 sats** for 200 B OP_RETURN). Using 1 sat/kb / 2-sat fuel
+is rejected with ARC 465 `Fee too low` / `insufficient-fee` even though createAction succeeds.
+
 Validate TSTN interpolation without starting:
 
 ```bash

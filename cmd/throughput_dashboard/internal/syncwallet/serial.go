@@ -19,6 +19,7 @@ import (
 type Wallet interface {
 	Balance(ctx context.Context) (uint64, error)
 	ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error)
+	ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error)
 	CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error)
 	FanOutFuel(ctx context.Context, shape wdk.ShapedChange, originator string) (*sdk.CreateActionResult, error)
 	InternalizeAction(ctx context.Context, args sdk.InternalizeActionArgs, originator string) (*sdk.InternalizeActionResult, error)
@@ -49,6 +50,12 @@ func (s *Serial) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.w.ListOutputs(ctx, args, originator)
+}
+
+func (s *Serial) ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.ListActions(ctx, args, originator)
 }
 
 func (s *Serial) CreateAction(ctx context.Context, args sdk.CreateActionArgs, originator string) (*sdk.CreateActionResult, error) {

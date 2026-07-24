@@ -65,6 +65,10 @@ func (f *fakeWalletAPI) ListOutputs(_ context.Context, args sdk.ListOutputsArgs,
 	return &sdk.ListOutputsResult{TotalOutputs: total}, nil
 }
 
+func (f *fakeWalletAPI) ListActions(context.Context, sdk.ListActionsArgs, string) (*sdk.ListActionsResult, error) {
+	return &sdk.ListActionsResult{}, nil
+}
+
 // fakeInternalizer satisfies funding.InternalizeActioner.
 type fakeInternalizer struct {
 	mu   sync.Mutex

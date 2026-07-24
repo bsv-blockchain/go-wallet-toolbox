@@ -14,6 +14,17 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// networkSampleLimit is the max number of newest stream-labeled actions whose
+// statuses are counted for network accept health. Storage caps ListActions at 10k.
+const networkSampleLimit uint32 = 1000
+
+// Action statuses present in storage but not yet on sdk.ActionStatus constants.
+// Mirrors wallet mapping temporary constants (failed / aborted).
+const (
+	actionStatusFailed  sdk.ActionStatus = "failed"
+	actionStatusAborted sdk.ActionStatus = "aborted"
+)
+
 // Event is a dashboard SSE-friendly event.
 type Event struct {
 	Type      string         `json:"type"`
@@ -21,28 +32,56 @@ type Event struct {
 	Payload   map[string]any `json:"payload"`
 }
 
+// NetworkHealth is a best-effort sample of stream createAction *network*
+// outcomes via ListActions on the stream label.
+//
+// createAction with AcceptDelayedBroadcast succeeds when the action is stored
+// as "sending"; Arcade/ARC broadcast happens asynchronously. UI createAction
+// success therefore overstates network acceptance when postBeef fails.
+//
+// Counts below are from the newest up-to-networkSampleLimit stream actions.
+// AcceptRate is accepted / (accepted + failed) among decided outcomes only
+// (sending/aborted/other excluded from the denominator). -1 means no decided
+// outcomes in the sample yet.
+type NetworkHealth struct {
+	Total      uint64  `json:"total"`
+	Sampled    uint64  `json:"sampled"`
+	Unproven   uint64  `json:"unproven"`
+	Completed  uint64  `json:"completed"`
+	Sending    uint64  `json:"sending"`
+	Failed     uint64  `json:"failed"`
+	Aborted    uint64  `json:"aborted"`
+	Other      uint64  `json:"other"`
+	Accepted   uint64  `json:"accepted"` // unproven + completed
+	Decided    uint64  `json:"decided"`  // accepted + failed
+	AcceptRate float64 `json:"accept_rate"`
+	Label      string  `json:"label"`
+}
+
 // Tick is a periodic sample of stream + fuel gauges.
 type Tick struct {
-	Timestamp      string       `json:"timestamp"`
-	Stream         stream.Stats `json:"stream"`
-	TPSSucceeded   uint64       `json:"tps_succeeded"`
-	TPSFailed      uint64       `json:"tps_failed"`
-	TPSAttempted   uint64       `json:"tps_attempted"`
-	DefaultSats    uint64       `json:"default_sats"`
-	FuelCount      uint64       `json:"fuel_count"`
-	ReserveCount   uint64       `json:"reserve_count"`
-	FuelRunwaySec  float64      `json:"fuel_runway_seconds"`
-	TargetTPS      uint64       `json:"target_tps"`
-	Denomination   uint64       `json:"denomination"`
-	LowWater       uint64       `json:"low_water"`
-	HighWater      uint64       `json:"high_water"`
-	TargetPoolSize uint64       `json:"target_pool_size"`
+	Timestamp      string        `json:"timestamp"`
+	Stream         stream.Stats  `json:"stream"`
+	TPSSucceeded   uint64        `json:"tps_succeeded"`
+	TPSFailed      uint64        `json:"tps_failed"`
+	TPSAttempted   uint64        `json:"tps_attempted"`
+	DefaultSats    uint64        `json:"default_sats"`
+	FuelCount      uint64        `json:"fuel_count"`
+	ReserveCount   uint64        `json:"reserve_count"`
+	FuelRunwaySec  float64       `json:"fuel_runway_seconds"`
+	TargetTPS      uint64        `json:"target_tps"`
+	Denomination   uint64        `json:"denomination"`
+	LowWater       uint64        `json:"low_water"`
+	HighWater      uint64        `json:"high_water"`
+	TargetPoolSize uint64        `json:"target_pool_size"`
+	Network        NetworkHealth `json:"network"`
 }
 
 // WalletAPI is the wallet surface used by the sampler.
 type WalletAPI interface {
 	Balance(ctx context.Context) (uint64, error)
 	ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, originator string) (*sdk.ListOutputsResult, error)
+	ListActions(ctx context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error)
 }
 
 // Sampler polls balances and stream counters and records top-up inventory deltas.
@@ -233,6 +272,13 @@ func (s *Sampler) sample(ctx context.Context) {
 		s.logger.Warn("reserve count sample failed", "error", err)
 	}
 
+	network, err := s.sampleNetworkHealth(ctx, callTimeout)
+	if err != nil {
+		s.logger.Warn("network health sample failed", "error", err)
+		// Keep zero NetworkHealth with label so UI can still distinguish missing data.
+		network = NetworkHealth{Label: stream.ActionLabel, AcceptRate: -1}
+	}
+
 	// Runway and related "time at rate" gauges use the stream's configured TPS
 	// (what the UI will run / is running), not a static FuelKeeper target_tps.
 	// Fall back to the last SetTargetPool / config TPS when the controller reports 0.
@@ -267,6 +313,7 @@ func (s *Sampler) sample(ctx context.Context) {
 		LowWater:       lowWater,
 		HighWater:      highWater,
 		TargetPoolSize: targetPool,
+		Network:        network,
 	}
 
 	// Detect top-up activity via inventory increases.
@@ -326,6 +373,84 @@ func (s *Sampler) basketCount(ctx context.Context, basket string) (uint64, error
 		return 0, err
 	}
 	return uint64(result.TotalOutputs), nil
+}
+
+// sampleNetworkHealth lists the newest stream-labeled actions and buckets by status.
+// Storage ListActions orders by id ASC, so offset near TotalActions yields newest.
+func (s *Sampler) sampleNetworkHealth(ctx context.Context, timeout time.Duration) (NetworkHealth, error) {
+	cctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Probe total with limit 1 (status counts need a second page for newest).
+	probe, err := s.wallet.ListActions(cctx, sdk.ListActionsArgs{
+		Labels: []string{stream.ActionLabel},
+		Limit:  to.Ptr(uint32(1)),
+	}, s.originator)
+	if err != nil {
+		return NetworkHealth{}, err
+	}
+
+	h := NetworkHealth{
+		Total:      uint64(probe.TotalActions),
+		Label:      stream.ActionLabel,
+		AcceptRate: -1,
+	}
+	if probe.TotalActions == 0 {
+		return h, nil
+	}
+
+	limit := networkSampleLimit
+	if uint64(probe.TotalActions) < uint64(limit) {
+		limit = probe.TotalActions
+	}
+	var offset uint32
+	if probe.TotalActions > limit {
+		offset = probe.TotalActions - limit
+	}
+
+	page, err := s.wallet.ListActions(cctx, sdk.ListActionsArgs{
+		Labels: []string{stream.ActionLabel},
+		Limit:  to.Ptr(limit),
+		Offset: to.Ptr(offset),
+	}, s.originator)
+	if err != nil {
+		return NetworkHealth{}, err
+	}
+
+	return summarizeNetworkActions(uint64(probe.TotalActions), page.Actions), nil
+}
+
+// summarizeNetworkActions buckets action statuses into NetworkHealth.
+// AcceptRate is -1 when no broadcast-decided outcomes exist yet.
+func summarizeNetworkActions(total uint64, actions []sdk.Action) NetworkHealth {
+	h := NetworkHealth{
+		Total:      total,
+		Sampled:    uint64(len(actions)),
+		Label:      stream.ActionLabel,
+		AcceptRate: -1,
+	}
+	for _, a := range actions {
+		switch a.Status {
+		case sdk.ActionStatusUnproven:
+			h.Unproven++
+		case sdk.ActionStatusCompleted:
+			h.Completed++
+		case sdk.ActionStatusSending, sdk.ActionStatusUnprocessed:
+			h.Sending++
+		case actionStatusFailed:
+			h.Failed++
+		case actionStatusAborted:
+			h.Aborted++
+		default:
+			h.Other++
+		}
+	}
+	h.Accepted = h.Unproven + h.Completed
+	h.Decided = h.Accepted + h.Failed
+	if h.Decided > 0 {
+		h.AcceptRate = float64(h.Accepted) / float64(h.Decided)
+	}
+	return h
 }
 
 func (s *Sampler) withTimeout(ctx context.Context, d time.Duration, fn func(context.Context) (uint64, error)) (uint64, error) {

@@ -78,11 +78,9 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("resolve denomination: %w", err)
 	}
-	// Keep FuelKeeper / server throughput profile aligned with network fee policy
-	// (tstn uses explicit 2-sat fuel; others derive from fee model).
-	if network == defs.NetworkTSTN {
-		throughput.DenominationSatoshis = denom
-	}
+	// Pin resolved denomination on the throughput profile so FuelKeeper and
+	// gauges match the server fee model (100 sat/kb → 20-sat fuel for 200 B demos).
+	throughput.DenominationSatoshis = denom
 	// Size the fuel inventory target from the dashboard TPS (env default, then
 	// resized again whenever the UI starts a stream at a different TPS).
 	targetPool := config.DemoTargetPoolForTPS(cfg.TPS)
