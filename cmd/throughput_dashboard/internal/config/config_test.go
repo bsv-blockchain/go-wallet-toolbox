@@ -31,7 +31,7 @@ func TestConfigFromEnvMainnetDefaults(t *testing.T) {
 	require.Equal(t, string(defs.NetworkMainnet), cfg.Network)
 	require.Equal(t, "127.0.0.1:8200", cfg.HTTPAddr)
 	require.Equal(t, 10, cfg.TPS)
-	require.Equal(t, 8, cfg.Workers)
+	require.Equal(t, 0, cfg.Workers) // 0 = auto from TPS
 	require.Equal(t, 1, cfg.SampleSeconds)
 	require.Equal(t, "throughput-dashboard.local", cfg.Originator)
 }
@@ -102,15 +102,46 @@ func TestDemoThroughputMatchesLiveTestShape(t *testing.T) {
 	require.Equal(t, uint64(200), tp.ExpectedTxSizeBytes)
 	require.Equal(t, uint64(0), tp.ExpectedOutputSatoshis)
 	require.Equal(t, uint64(10), tp.TargetTPS)
+	// Static demo profile still pins TargetPoolSize=500; live dashboard uses
+	// DemoTargetPoolForTPS so the keeper tracks the UI TPS instead.
 	require.Equal(t, uint64(500), tp.TargetPool())
 
-	// DefaultFeeModel is 100 sat/kb; DefaultCommission disabled →
-	// ceil(200/1000 * 100) + 0 = 20 sats (matches OP_RETURN demo shape).
-	fee := defs.DefaultFeeModel()
+	// Mainnet demo: 100 sat/kb → ceil(200/1000 * 100) = 20 sats.
+	fee := config.DemoFeeModel(defs.NetworkMainnet)
 	require.Equal(t, defs.SatPerKB, fee.Type)
 	require.Equal(t, int64(100), fee.Value)
 
-	denom, err := tp.Denomination(fee, defs.DefaultCommission())
+	denom, err := config.DemoDenomination(defs.NetworkMainnet)
 	require.NoError(t, err)
 	require.Equal(t, uint64(20), denom)
+}
+
+func TestDemoTargetPoolForTPS(t *testing.T) {
+	// target_tps × expected_confirmation_seconds × pool_headroom_factor
+	// DemoThroughput inherits 300s × 1.5 headroom from DefaultUTXOManagement.
+	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(10))
+	require.Equal(t, uint64(45_000), config.DemoTargetPoolForTPS(100))
+	require.Equal(t, uint64(450), config.DemoTargetPoolForTPS(1))
+	// Non-positive falls back to 10 TPS.
+	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(0))
+	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(-5))
+}
+
+func TestDemoFeeModelTSTN(t *testing.T) {
+	fee := config.DemoFeeModel(defs.NetworkTSTN)
+	require.Equal(t, defs.SatPerKB, fee.Type)
+	require.Equal(t, int64(1), fee.Value)
+
+	// At 1 sat/kb derived denom would be 1, which fails denomination > floor;
+	// demo pins 2-sat fuel to match infra-config-docker-throughput-tstn.yaml.
+	denom, err := config.DemoDenomination(defs.NetworkTSTN)
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), denom)
+
+	tp := config.DemoThroughput()
+	tp.DenominationSatoshis = denom
+	require.NoError(t, (&defs.UTXOManagement{
+		Strategy:   defs.StrategyThroughput,
+		Throughput: tp,
+	}).Validate(fee, defs.DefaultCommission()))
 }

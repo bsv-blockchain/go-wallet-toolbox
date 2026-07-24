@@ -7,11 +7,16 @@ package defs
 //
 // Summary of the policy:
 //
-//	network  ARC (merkle)         Arcade (broadcast)   GorillaPool  WhatsOnChain  ChainTracks
-//	main     arc.taal.com         arcade-v2-us-1        yes          yes           off (WoC serves headers)
-//	test     arc-test.taal.com    off                  no           yes           off
-//	ttn      arcade-v2-ttn-us-1   arcade-v2-ttn-us-1   no           yes           on (arcade host /chaintracks/v1)
-//	tstn     $TSTN_ARCADE_URL     $TSTN_ARCADE_URL     no           no            on ($TSTN_CHAINTRACKS_URL)
+//	network  Arcade (broadcast; SSE proofs preferred)  ARC (poll failover)  GorillaPool  WhatsOnChain  ChainTracks
+//	main     arcade-v2-us-1                            arc.taal.com         yes          yes           off (WoC serves headers)
+//	test     off                                       arc-test.taal.com    no           yes           off
+//	ttn      arcade-v2-ttn-us-1                        arcade-v2-ttn-us-1   no           yes           on (arcade host /chaintracks)
+//	tstn     $TSTN_ARCADE_URL                          $TSTN_ARCADE_URL     no           no            on ($TSTN_CHAINTRACKS_URL or arcade/chaintracks)
+//
+// Proof acquisition when Arcade is enabled:
+//   preferred — SSE /events push (monitor); no MerklePath polling required when healthy
+//   fallback  — MerklePath poll order Arcade → ARC → WhatsOnChain → Bitails (if enabled)
+// When Arcade is disabled (e.g. public testnet defaults): poll ARC → WhatsOnChain → Bitails.
 //
 // The ChainTracks RemoteURL is populated for every network (derived from the Arcade host)
 // even when disabled, so enabling it never points at a stale localhost default.

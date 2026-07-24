@@ -166,10 +166,23 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	// Arcade is the sole default broadcast path; the other broadcasters act as
 	// failovers behind a circuit breaker.
+	//
+	// Proof acquisition preference when Arcade is enabled:
+	//  1. Preferred: SSE /events push (monitor BroadcastStatusEvents) — no polling.
+	//  2. Fallback: MerklePath poll queue, with Arcade GET /tx/{txid} first so
+	//     status sync / check_for_proofs still works if the SSE client dies.
+	//     Then classic ARC → WhatsOnChain → Bitails.
 	var arcadeService *arcade.Service
 	var router *broadcastRouter
 	if config.Arcade.Enabled {
 		arcadeService = arcade.New(logger, options.RestyClientFactory.New(), config.Arcade)
+		// Fallback poll order only: first among pull providers, not the preferred path.
+		predefined = append([]Named[Implementation]{{
+			Name: arcade.ServiceName,
+			Item: Implementation{
+				MerklePath: arcadeService.MerklePath,
+			},
+		}}, predefined...)
 		breaker := circuitbreaker.New(logger, circuitbreaker.Config{
 			FailureThreshold: config.Arcade.CircuitBreaker.FailureThreshold,
 			ProbeInterval:    time.Duration(config.Arcade.CircuitBreaker.HealthProbeIntervalSeconds) * time.Second, //nolint:gosec // G115: safe; probe intervals are small values validated by config
@@ -451,6 +464,8 @@ func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
 
 // BroadcastStatusEvents streams transaction lifecycle status events pushed by the
 // primary broadcaster (Arcade SSE stream), invoking onEvent sequentially per event.
+// This is the preferred way to learn mined status and merkle proofs when Arcade is
+// enabled; MerklePath polling is only a fallback if this stream is unavailable.
 // It blocks until ctx is canceled (reconnecting automatically in between) and
 // returns an error when Arcade is disabled in the configuration.
 func (s *WalletServices) BroadcastStatusEvents(ctx context.Context, lastEventID string, onEvent func(wdk.BroadcastStatusEvent) error) error {

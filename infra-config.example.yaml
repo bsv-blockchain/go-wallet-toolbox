@@ -164,7 +164,7 @@ wallet_services:
     mode: remote
     p2p_network: ""
     p2p_storage_path: ""
-    remote_url: https://arcade-v2-us-1.bsvblockchain.tech/chaintracks/v1
+    remote_url: https://arcade-v2-us-1.bsvblockchain.tech/chaintracks
     storage_path: ""
   exchangerates_api_key: 123456
   fiat_exchange_rates:

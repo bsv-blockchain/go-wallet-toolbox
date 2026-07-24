@@ -106,6 +106,29 @@ func TestRunOnce_ChunksReserveFirstWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestSetTargetPoolSize_UsedOnNextRound(t *testing.T) {
+	fake := &fakeWallet{poolTotal: 700, reserveTotal: 20} // above low water at target 1000 (600)
+	keeper, err := fuelkeeper.New(fake, keeperConfig(), logging.NewTestLogger(t))
+	require.NoError(t, err)
+
+	require.NoError(t, keeper.RunOnce(t.Context()))
+	assert.Empty(t, fake.fanOuts, "healthy at target 1000")
+
+	// Raise target so 700 is below the new low water (60% of 2000 = 1200).
+	require.NoError(t, keeper.SetTargetPoolSize(2000))
+	require.Equal(t, uint64(2000), keeper.TargetPoolSize())
+
+	require.NoError(t, keeper.RunOnce(t.Context()))
+	require.NotEmpty(t, fake.fanOuts, "should mint after target raised past inventory")
+}
+
+func TestSetTargetPoolSize_RejectsZero(t *testing.T) {
+	keeper, err := fuelkeeper.New(&fakeWallet{}, keeperConfig(), logging.NewTestLogger(t))
+	require.NoError(t, err)
+	require.Error(t, keeper.SetTargetPoolSize(0))
+	require.Equal(t, uint64(1000), keeper.TargetPoolSize())
+}
+
 func TestNew_RejectsInvalidConfig(t *testing.T) {
 	mutations := map[string]func(*fuelkeeper.Config){
 		"zero denomination":   func(c *fuelkeeper.Config) { c.Denomination = 0 },

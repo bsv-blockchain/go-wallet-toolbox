@@ -3,8 +3,10 @@
 const MAX_POINTS = 60;
 const MAX_TOPUPS = 50;
 const POLL_MS = 5000;
+// Pin to a known-good @bsv/sdk that includes multi-network wallet support.
+// Fallback to unpinned latest if the pin is unavailable from the CDN.
 const SDK_URLS = [
-  "https://esm.sh/@bsv/sdk@1.4.20",
+  "https://esm.sh/@bsv/sdk@2.1.9",
   "https://esm.sh/@bsv/sdk",
 ];
 
@@ -19,7 +21,7 @@ const els = {
   failed: document.getElementById("stat-failed"),
   iteration: document.getElementById("stat-iteration"),
   tps: document.getElementById("tps"),
-  workers: document.getElementById("workers"),
+  workersDisplay: document.getElementById("workers-display"),
   btnStart: document.getElementById("btn-start"),
   btnStop: document.getElementById("btn-stop"),
   balDefault: document.getElementById("bal-default"),
@@ -50,6 +52,11 @@ let lastTickKey = "";
 let chartsEnabled = typeof window.Chart === "function";
 const seenTopups = new Set();
 let streamBusy = false;
+/** Last fuel inventory sample — used to recompute runway when the TPS field changes. */
+let lastFuelCount = null;
+let lastLowWater = null;
+let lastHighWater = null;
+let lastTargetPool = null;
 
 // ---------------------------------------------------------------------------
 // Charts (optional — page remains usable if Chart.js CDN is blocked)
@@ -243,20 +250,31 @@ function applyTick(tick, { chart = true } = {}) {
     els.btnStop.disabled = !running;
     els.btnStop.dataset.forceDisabled = !running ? "1" : "0";
     els.tps.disabled = running;
-    els.workers.disabled = running;
   }
 
-  // Reflect live configured rate only when stream reports values.
-  if (stream.tps) els.tps.value = stream.tps;
-  if (stream.workers) els.workers.value = stream.workers;
+  // Only mirror server TPS while the stream is running (input disabled then).
+  // When stopped, leave the draft TPS alone so edits survive graph ticks.
+  if (running && stream.tps) {
+    els.tps.value = stream.tps;
+  }
+  // Workers are always auto-derived from TPS (server-side); show the live value
+  // when running, otherwise the preview for the current TPS field.
+  if (running && stream.workers) {
+    setWorkersDisplay(stream.workers, true);
+  } else {
+    setWorkersDisplay(workersForTPS(uiTargetTPS(tick)), false);
+  }
 
   els.balDefault.textContent = fmt(tick.default_sats);
   els.balFuel.textContent = fmt(tick.fuel_count);
   els.balReserve.textContent = fmt(tick.reserve_count);
-  els.balRunway.textContent =
-    tick.fuel_runway_seconds != null ? Number(tick.fuel_runway_seconds).toFixed(1) : "—";
+  lastFuelCount = tick.fuel_count ?? null;
+  lastLowWater = tick.low_water ?? null;
+  lastHighWater = tick.high_water ?? null;
+  lastTargetPool = tick.target_pool_size ?? null;
+  updateRunwayDisplays(tick);
+
   els.metaDenom.textContent = tick.denomination ?? "—";
-  els.metaWater.textContent = `${tick.low_water ?? "—"} / ${tick.high_water ?? "—"} (target ${tick.target_pool_size ?? "—"})`;
 
   if (chart && !isDup) {
     const label =
@@ -327,21 +345,43 @@ async function readJSON(res) {
   }
 }
 
+// Dashboard networks: main | test | ttn | tstn.
+// Browser wallets report mainnet | testnet; ttn/tstn are testnet-based.
+const NETWORK_LABELS = {
+  main: "MAINNET",
+  test: "TESTNET",
+  ttn: "TTN",
+  tstn: "TSTN",
+};
+
+function applyNetworkBadge(network, mainnet) {
+  const key = String(network || (mainnet ? "main" : "test")).toLowerCase();
+  const label = NETWORK_LABELS[key] || key.toUpperCase();
+  els.networkBadge.textContent = label;
+  if (key === "main" || mainnet) {
+    els.networkBadge.className = "badge badge-warn";
+    els.mainnetBanner.style.display = "";
+  } else {
+    els.networkBadge.className = "badge badge-ok";
+    els.mainnetBanner.style.display = "none";
+  }
+}
+
+/** Map dashboard network (main/test/ttn/tstn) to WalletClient getNetwork() value. */
+function walletNetworkFor(dashboardNetwork) {
+  const n = String(dashboardNetwork || "").toLowerCase();
+  if (n === "main" || n === "mainnet") return "mainnet";
+  // test, ttn, tstn all use testnet address parameters in the wallet.
+  return "testnet";
+}
+
 async function refreshStatus({ chart = false } = {}) {
   const res = await fetch("/api/status");
   const data = await readJSON(res);
   if (!res.ok) throw new Error(data.error || `status ${res.status}`);
 
   els.metaServer.textContent = data.server_url || "—";
-  if (data.mainnet) {
-    els.networkBadge.textContent = "MAINNET";
-    els.networkBadge.className = "badge badge-warn";
-    els.mainnetBanner.style.display = "";
-  } else {
-    els.networkBadge.textContent = String(data.network || "test").toUpperCase();
-    els.networkBadge.className = "badge badge-ok";
-    els.mainnetBanner.style.display = "none";
-  }
+  applyNetworkBadge(data.network, data.mainnet);
 
   if (data.tick) applyTick(data.tick, { chart });
 
@@ -541,8 +581,13 @@ async function loadWalletClient() {
   for (const url of SDK_URLS) {
     try {
       const mod = await import(/* @vite-ignore */ url);
-      if (mod?.WalletClient) return mod.WalletClient;
-      if (mod?.default?.WalletClient) return mod.default.WalletClient;
+      // Named export (mod.WalletClient) is the primary path in @bsv/sdk ≥2.x.
+      if (typeof mod?.WalletClient === "function") return mod.WalletClient;
+      if (typeof mod?.default?.WalletClient === "function") return mod.default.WalletClient;
+      // Some CDN interop shapes surface the class as the default export.
+      if (typeof mod?.default === "function" && mod.default.name === "WalletClient") {
+        return mod.default;
+      }
       lastErr = new Error(`WalletClient export missing from ${url}`);
     } catch (err) {
       lastErr = err;
@@ -551,6 +596,26 @@ async function loadWalletClient() {
   throw new Error(
     `Could not load @bsv/sdk WalletClient (CDN blocked or offline). ${lastErr?.message || lastErr || ""}`.trim()
   );
+}
+
+/** Soft-check that the browser wallet is on the same chain family as the dashboard. */
+async function assertWalletNetwork(client, dashboardNetwork) {
+  if (typeof client.getNetwork !== "function") return;
+  try {
+    const res = await client.getNetwork({});
+    const walletNet = String(res?.network || "").toLowerCase();
+    if (!walletNet) return;
+    const expected = walletNetworkFor(dashboardNetwork);
+    if (walletNet !== expected) {
+      throw new Error(
+        `Browser wallet is on ${walletNet}, but this dashboard is ${dashboardNetwork || "unknown"} ` +
+          `(expects wallet ${expected}). Switch the wallet network and try again.`
+      );
+    }
+  } catch (err) {
+    // Only rethrow explicit network mismatches; getNetwork failures are non-fatal.
+    if (err?.message && /Browser wallet is on/.test(err.message)) throw err;
+  }
 }
 
 async function postInternalize(body) {
@@ -568,32 +633,104 @@ async function postInternalize(body) {
 // Stream controls
 // ---------------------------------------------------------------------------
 
+// Must match stream.WorkersForTPS / MaxWorkers in the Go controller.
+const MAX_WORKERS = 512;
+
 function parsePositiveInt(input, fallback, { min = 1, max = 1e9 } = {}) {
   const n = Number(input);
   if (!Number.isFinite(n) || n < min) return fallback;
   return Math.min(max, Math.floor(n));
 }
 
+function workersForTPS(tps) {
+  const n = Number(tps);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(MAX_WORKERS, Math.floor(n));
+}
+
+function setWorkersDisplay(workers, running) {
+  if (!els.workersDisplay) return;
+  els.workersDisplay.textContent = running ? String(workers) : `auto (${workers})`;
+}
+
+/** TPS used for runway gauges: live stream rate when running, else the UI field. */
+function uiTargetTPS(tick) {
+  const stream = tick?.stream || {};
+  if (stream.running && stream.tps) {
+    return parsePositiveInt(stream.tps, 10, { min: 1, max: 10000 });
+  }
+  return parsePositiveInt(els.tps?.value, tick?.target_tps || 10, { min: 1, max: 10000 });
+}
+
+function runwaySeconds(count, tps) {
+  const c = Number(count);
+  const t = Number(tps);
+  if (!Number.isFinite(c) || !Number.isFinite(t) || t <= 0) return null;
+  return c / t;
+}
+
+function formatRunway(sec) {
+  if (sec == null || !Number.isFinite(sec)) return "—";
+  return sec.toFixed(1);
+}
+
+/** Recompute fuel runway and water-mark times from the UI TPS target. */
+function updateRunwayDisplays(tick) {
+  const tps = uiTargetTPS(tick);
+  const fuel = tick?.fuel_count ?? lastFuelCount;
+  const low = tick?.low_water ?? lastLowWater;
+  const high = tick?.high_water ?? lastHighWater;
+  const pool = tick?.target_pool_size ?? lastTargetPool;
+
+  els.balRunway.textContent = formatRunway(runwaySeconds(fuel, tps));
+
+  if (els.metaWater) {
+    const lowS = formatRunway(runwaySeconds(low, tps));
+    const highS = formatRunway(runwaySeconds(high, tps));
+    const poolS = formatRunway(runwaySeconds(pool, tps));
+    els.metaWater.textContent =
+      `${low ?? "—"} / ${high ?? "—"} UTXOs` +
+      ` (~${lowS}s / ~${highS}s at ${tps} TPS)` +
+      ` · target ${pool ?? "—"} (~${poolS}s)`;
+  }
+}
+
+els.tps?.addEventListener("input", () => {
+  const tps = parsePositiveInt(els.tps.value, 10, { min: 1, max: 10000 });
+  setWorkersDisplay(workersForTPS(tps), false);
+  // Refresh runway against the draft TPS without waiting for the next server tick.
+  updateRunwayDisplays({
+    fuel_count: lastFuelCount,
+    low_water: lastLowWater,
+    high_water: lastHighWater,
+    target_pool_size: lastTargetPool,
+    target_tps: tps,
+    stream: { running: false },
+  });
+});
+
 els.btnStart.addEventListener("click", async () => {
   const tps = parsePositiveInt(els.tps.value, 10, { min: 1, max: 10000 });
-  const workers = parsePositiveInt(els.workers.value, 8, { min: 1, max: 256 });
   els.tps.value = tps;
-  els.workers.value = workers;
+  const workers = workersForTPS(tps);
+  setWorkersDisplay(workers, false);
 
   streamBusy = true;
   setBusy(els.btnStart, true, "Start stream", "Starting…");
   els.btnStop.disabled = true;
-  setStatus(els.streamStatus, "info", `Starting stream at ${tps} TPS · ${workers} workers…`);
+  setStatus(els.streamStatus, "info", `Starting stream at ${tps} TPS · ${workers} workers (auto)…`);
 
   try {
     const res = await fetch("/api/stream/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tps, workers }),
+      // Omit workers so the server derives WorkersForTPS(tps).
+      body: JSON.stringify({ tps }),
     });
     const data = await readJSON(res);
     if (!res.ok) throw new Error(data.error || "failed to start");
-    setStatus(els.streamStatus, "ok", "Stream running.");
+    const liveWorkers = data.stats?.workers ?? workers;
+    setStatus(els.streamStatus, "ok", `Stream running · ${tps} TPS · ${liveWorkers} workers.`);
     await refreshStatus({ chart: false });
   } catch (err) {
     setStatus(els.streamStatus, "err", err?.message || String(err));
@@ -668,6 +805,7 @@ els.btnFund.addEventListener("click", async () => {
 
     const WalletClient = await loadWalletClient();
     const client = new WalletClient();
+    await assertWalletNetwork(client, fundingInfo?.network);
 
     setStatus(els.fundStatus, "info", "Creating payment action in browser wallet…");
     const result = await client.createAction({

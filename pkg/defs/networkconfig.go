@@ -14,8 +14,9 @@ import (
 //
 //	TSTN_ARCADE_URL       Arcade broadcaster / ARC endpoint base. Also the fallback host for
 //	                      ChainTracks when TSTN_CHAINTRACKS_URL is unset
-//	                      (${TSTN_ARCADE_URL}/chaintracks/v1, mirroring the ttn layout).
-//	TSTN_CHAINTRACKS_URL  ChainTracks service URL.
+//	                      (${TSTN_ARCADE_URL}/chaintracks). The go-chaintracks remote client
+//	                      appends /v2/... paths to this base.
+//	TSTN_CHAINTRACKS_URL  ChainTracks service base URL (without /v2 suffix).
 //
 // tstn runs only Arcade (broadcast + merkle proofs) and ChainTracks (headers); there is no
 // WhatsOnChain / block-explorer service for tstn, so no WhatsOnChain endpoint is configured and
@@ -39,9 +40,12 @@ func TstnArcadeURL() string {
 	return readEnv(EnvTstnArcadeURL)
 }
 
-// TstnChaintracksURL returns the ChainTracks service URL for tstn. It falls back to
-// ${TSTN_ARCADE_URL}/chaintracks/v1 when TSTN_CHAINTRACKS_URL is unset (mirroring the ttn
+// TstnChaintracksURL returns the ChainTracks service base URL for tstn. It falls back to
+// ${TSTN_ARCADE_URL}/chaintracks when TSTN_CHAINTRACKS_URL is unset (mirroring the ttn
 // layout), and returns an error when neither variable is configured.
+//
+// The go-chaintracks HTTP client treats this as a base and requests /v2/tip,
+// /v2/header/height/{n}, etc. under it — so do not include a trailing /v1 or /v2.
 func TstnChaintracksURL() (string, error) {
 	if explicit := readEnv(EnvTstnChaintracksURL); explicit != "" {
 		return explicit, nil
@@ -55,8 +59,9 @@ func TstnChaintracksURL() (string, error) {
 	)
 }
 
-// chaintracksURLFromArcade derives the ChainTracks endpoint from an Arcade base URL by
-// appending the /chaintracks/v1 path (the layout used by the public arcade deployments).
+// chaintracksURLFromArcade derives the ChainTracks base URL from an Arcade host by
+// appending /chaintracks. Public arcade deployments expose the go-chaintracks v2 API
+// under {arcade}/chaintracks/v2/...
 func chaintracksURLFromArcade(arcadeURL string) string {
-	return strings.TrimRight(arcadeURL, "/") + "/chaintracks/v1"
+	return strings.TrimRight(arcadeURL, "/") + "/chaintracks"
 }

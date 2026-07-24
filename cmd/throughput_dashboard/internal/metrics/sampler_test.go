@@ -94,7 +94,13 @@ func discardLogger() *slog.Logger {
 func newTestSampler(t *testing.T, wallet WalletAPI, ctrl *stream.Controller, targetTPS uint64) *Sampler {
 	t.Helper()
 	if ctrl == nil {
-		ctrl = stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1, Originator: "test"}, discardLogger())
+		// Stream TPS drives runway; align controller TPS with the sampler config
+		// so runway tests remain predictable unless a custom ctrl is passed.
+		tps := int(targetTPS)
+		if tps <= 0 {
+			tps = 1
+		}
+		ctrl = stream.NewController(&fakeActionCreator{}, stream.Options{TPS: tps, Workers: 1, Originator: "test"}, discardLogger())
 	}
 	// long interval; tests drive sample() directly
 	return NewSampler(wallet, ctrl, Config{
@@ -156,12 +162,54 @@ func TestSample_TickFieldsAndRunway(t *testing.T) {
 	assert.Equal(t, []string{"test-originator", "test-originator"}, wallet.originators)
 }
 
-func TestSample_RunwayZeroWhenTargetTPSZero(t *testing.T) {
-	wallet := &fakeWallet{fuelTotal: 500}
-	s := newTestSampler(t, wallet, nil, 0)
+func TestSample_RunwayZeroWhenNoFuel(t *testing.T) {
+	wallet := &fakeWallet{fuelTotal: 0}
+	s := newTestSampler(t, wallet, nil, 10)
 
 	s.sample(context.Background())
 	assert.InDelta(t, 0, s.LastTick().FuelRunwaySec, 0.001)
+}
+
+func TestSample_RunwayUsesStreamConfiguredTPS(t *testing.T) {
+	// Sampler config still says 10 TPS (FuelKeeper demo), but the stream controller
+	// is set to 100 — runway must follow the stream/UI target.
+	ctrl := stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 100, Workers: 1, Originator: "test"}, discardLogger())
+	wallet := &fakeWallet{fuelTotal: 250}
+	s := NewSampler(wallet, ctrl, Config{
+		Originator: "test-originator", Interval: time.Hour,
+		TargetTPS: 10, Denomination: 2, TargetPool: 500,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
+
+	s.sample(context.Background())
+	tick := s.LastTick()
+	assert.Equal(t, uint64(100), tick.TargetTPS)
+	assert.InDelta(t, 2.5, tick.FuelRunwaySec, 1e-9) // 250 / 100, not 250 / 10
+}
+
+func TestSetTargetPool_UpdatesGauges(t *testing.T) {
+	s := newTestSampler(t, &fakeWallet{fuelTotal: 100}, nil, 10)
+	require.Equal(t, uint64(1000), s.TargetPoolSize())
+
+	s.SetTargetPool(4500, 10)
+	require.Equal(t, uint64(4500), s.TargetPoolSize())
+
+	s.sample(context.Background())
+	tick := s.LastTick()
+	assert.Equal(t, uint64(4500), tick.TargetPoolSize)
+	assert.Equal(t, uint64(2700), tick.LowWater)  // 60% of 4500
+	assert.Equal(t, uint64(4500), tick.HighWater) // 100%
+
+	// tps=0 leaves previous display TPS; pool still updates.
+	s.SetTargetPool(9000, 0)
+	require.Equal(t, uint64(9000), s.TargetPoolSize())
+	s.sample(context.Background())
+	assert.Equal(t, uint64(9000), s.LastTick().TargetPoolSize)
+
+	// pool=0 is a no-op.
+	s.SetTargetPool(0, 50)
+	require.Equal(t, uint64(9000), s.TargetPoolSize())
 }
 
 func TestSample_EmitsTickEvent(t *testing.T) {

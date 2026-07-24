@@ -112,10 +112,26 @@ func testPriv(t *testing.T) *ec.PrivateKey {
 	return priv
 }
 
+type fakeFuelPool struct {
+	size uint64
+	err  error
+}
+
+func (f *fakeFuelPool) SetTargetPoolSize(n uint64) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.size = n
+	return nil
+}
+
+func (f *fakeFuelPool) TargetPoolSize() uint64 { return f.size }
+
 type testEnv struct {
 	handler http.Handler
 	ctrl    *stream.Controller
 	sampler *metrics.Sampler
+	fuel    *fakeFuelPool
 	wallet  *fakeInternalizer
 	cancel  context.CancelFunc
 }
@@ -142,10 +158,12 @@ func newTestEnv(t *testing.T) *testEnv {
 		Logger: discardLogger(),
 	})
 
+	fuel := &fakeFuelPool{size: 1000}
 	internalizer := &fakeInternalizer{}
 	deps := api.Deps{
 		Ctrl:       ctrl,
 		Sampler:    sampler,
+		Fuel:       fuel,
 		Wallet:     internalizer,
 		Priv:       testPriv(t),
 		Network:    defs.NetworkMainnet,
@@ -163,6 +181,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		handler: srv.Handler(),
 		ctrl:    ctrl,
 		sampler: sampler,
+		fuel:    fuel,
 		wallet:  internalizer,
 		cancel:  cancel,
 	}
@@ -303,9 +322,55 @@ func TestStreamStart_EmptyBodyUsesDefaults(t *testing.T) {
 	body := decodeMap(t, rec)
 	stats := body["stats"].(map[string]any)
 	assert.Equal(t, true, stats["running"])
-	// Defaults from NewController in newTestEnv.
+	// TPS from NewController defaults; workers re-derived from that TPS (Workers=0 in body).
 	assert.InDelta(t, 10, stats["tps"], 0.001)
-	assert.InDelta(t, 2, stats["workers"], 0.001)
+	assert.InDelta(t, float64(stream.WorkersForTPS(10)), stats["workers"], 0.001)
+
+	env.ctrl.Stop()
+}
+
+func TestStreamStart_SizesFuelTargetPoolFromTPS(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doJSON(t, env.handler, http.MethodPost, "/api/stream/start", map[string]any{
+		"tps":     100,
+		"workers": 8,
+	})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	body := decodeMap(t, rec)
+	assert.Equal(t, true, body["ok"])
+
+	// DemoTargetPoolForTPS(100) = 100 × 300 × 1.5 = 45_000
+	const wantPool = float64(45_000)
+	assert.InDelta(t, wantPool, body["target_pool_size"], 0.001)
+	require.Equal(t, uint64(45_000), env.fuel.size)
+	require.Equal(t, uint64(45_000), env.sampler.TargetPoolSize())
+
+	env.ctrl.Stop()
+
+	// Lower TPS shrinks the target on the next start.
+	rec2 := doJSON(t, env.handler, http.MethodPost, "/api/stream/start", map[string]any{
+		"tps": 10,
+	})
+	require.Equal(t, http.StatusOK, rec2.Code)
+	body2 := decodeMap(t, rec2)
+	assert.InDelta(t, float64(4_500), body2["target_pool_size"], 0.001)
+	require.Equal(t, uint64(4_500), env.fuel.size)
+	require.Equal(t, uint64(4_500), env.sampler.TargetPoolSize())
+
+	env.ctrl.Stop()
+}
+
+func TestStreamStart_OmittingWorkersDerivesFromTPS(t *testing.T) {
+	env := newTestEnv(t)
+
+	rec := doJSON(t, env.handler, http.MethodPost, "/api/stream/start", map[string]any{
+		"tps": 25,
+	})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	stats := decodeMap(t, rec)["stats"].(map[string]any)
+	assert.InDelta(t, 25, stats["tps"], 0.001)
+	assert.InDelta(t, 25, stats["workers"], 0.001)
 
 	env.ctrl.Stop()
 }

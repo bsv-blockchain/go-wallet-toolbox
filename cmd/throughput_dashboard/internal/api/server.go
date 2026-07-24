@@ -12,6 +12,7 @@ import (
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/funding"
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/stream"
@@ -20,10 +21,19 @@ import (
 
 const headerContentType = "Content-Type"
 
+// FuelPool is the optional FuelKeeper surface resized when the stream starts
+// so inventory targets track the UI TPS setting.
+type FuelPool interface {
+	SetTargetPoolSize(n uint64) error
+	TargetPoolSize() uint64
+}
+
 // Deps wires the HTTP server.
 type Deps struct {
 	Ctrl       *stream.Controller
 	Sampler    *metrics.Sampler
+	// Fuel is optional; when set, stream start resizes the target pool from TPS.
+	Fuel       FuelPool
 	Wallet     funding.InternalizeActioner
 	Priv       *ec.PrivateKey
 	Network    defs.BSVNetwork
@@ -106,7 +116,31 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stats": s.deps.Ctrl.Stats()})
+
+	stats := s.deps.Ctrl.Stats()
+	// Resize FuelKeeper inventory target from the effective stream TPS so the
+	// pool scales with the UI setting (not a fixed demo TargetPoolSize).
+	targetPool := config.DemoTargetPoolForTPS(stats.TPS)
+	if s.deps.Fuel != nil {
+		if err := s.deps.Fuel.SetTargetPoolSize(targetPool); err != nil {
+			s.deps.Logger.Warn("fuel keeper target pool update failed", "error", err, "target_pool", targetPool)
+		}
+	}
+	if s.deps.Sampler != nil {
+		s.deps.Sampler.SetTargetPool(targetPool, uint64(stats.TPS)) //nolint:gosec // TPS is clamped by stream
+	}
+	s.deps.Logger.Info(
+		"stream started; fuel target pool sized from TPS",
+		"tps", stats.TPS,
+		"workers", stats.Workers,
+		"target_pool", targetPool,
+	)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":               true,
+		"stats":            stats,
+		"target_pool_size": targetPool,
+	})
 }
 
 func (s *Server) handleStreamStop(w http.ResponseWriter, r *http.Request) {

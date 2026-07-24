@@ -1,0 +1,56 @@
+# =============================================================================
+# TSTN override for the throughput demo dashboard (TEMPLATE — safe to commit)
+# =============================================================================
+#
+# Private Arcade/ChainTracks hosts must NOT live in this example. Copy to a
+# gitignored local override and pair with a gitignored env file:
+#
+#   cp docker-compose.throughput-dashboard.tstn.override.yaml.example \
+#      docker-compose.throughput-dashboard.tstn.override.yaml
+#   cp .env.tstn.example .env.tstn
+#   # edit .env.tstn — set PRIVATE_KEY + TSTN_ARCADE_URL (and optional chaintracks)
+#
+#   docker compose \
+#     -f docker-compose.throughput-dashboard.yaml \
+#     -f docker-compose.throughput-dashboard.tstn.override.yaml \
+#     --env-file .env.tstn \
+#     up --build
+#
+# UI:            http://127.0.0.1:8200  (badge: TSTN)
+# Storage host:  http://127.0.0.1:8101
+# Postgres host: 127.0.0.1:5433
+#
+# Prefer a fresh DB volume when switching from mainnet:
+#   docker compose -f docker-compose.throughput-dashboard.yaml \
+#     -f docker-compose.throughput-dashboard.tstn.override.yaml \
+#     --env-file .env.tstn down -v
+# =============================================================================
+
+services:
+  infra:
+    volumes:
+      # Replace the mainnet throughput yaml mount from the base compose file.
+      - ./infra-config-docker-throughput-tstn.yaml:/app/infra-config-throughput.yaml:ro
+    environment:
+      # Network (also set in the mounted yaml; env wins if both present)
+      - INFRA_BSV_NETWORK=tstn
+      # Private endpoints — required for Arcade broadcast / merkle + ChainTracks headers
+      - TSTN_ARCADE_URL=${TSTN_ARCADE_URL:?set TSTN_ARCADE_URL in .env.tstn}
+      - TSTN_CHAINTRACKS_URL=${TSTN_CHAINTRACKS_URL:-}
+      # Explicit disable of mainnet-only services (also reconciled for tstn)
+      - INFRA_WALLET_SERVICES_WHATS_ON_CHAIN_ENABLED=false
+
+  dashboard:
+    environment:
+      - SERVER_URL=http://infra:8100
+      - BSV_NETWORK=tstn
+      - PRIVATE_KEY=${PRIVATE_KEY:?set PRIVATE_KEY in .env.tstn}
+      - HTTP_ADDR=0.0.0.0:8200
+      - TPS=${TPS:-10}
+      # 0 = auto from TPS; positive value overrides
+      - WORKERS=${WORKERS:-0}
+      - SAMPLE_SECONDS=${SAMPLE_SECONDS:-1}
+      - ORIGINATOR=${ORIGINATOR:-throughput-dashboard.local}
+      # Needed for internalize-by-txid (GetBEEF) against private Arcade
+      - TSTN_ARCADE_URL=${TSTN_ARCADE_URL:?set TSTN_ARCADE_URL in .env.tstn}
+      - TSTN_CHAINTRACKS_URL=${TSTN_CHAINTRACKS_URL:-}

@@ -25,7 +25,9 @@ type BroadcastEventStreamer interface {
 
 // handleBroadcastEvents consumes the Arcade SSE stream and persists a replay
 // cursor after every event so the stream can be resumed after a restart.
-// It must be started as a goroutine from Daemon.Start.
+// Preferred proof/status path when Arcade is enabled: events push mined status
+// and merkle paths so check_for_proofs / MerklePath polling are only a fallback
+// if the stream dies or lags. It must be started as a goroutine from Daemon.Start.
 func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEventStreamer) {
 	d.logger.InfoContext(ctx, "Starting broadcast event handler")
 

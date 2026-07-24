@@ -5,6 +5,11 @@
 #   # export INFRA_WALLET_SERVICES_ARC_TOKEN=...
 #   docker compose -f docker-compose.throughput-dashboard.yaml up --build
 #
+# For private TSTN (uncommitted endpoints), copy the override template:
+#   docker-compose.throughput-dashboard.tstn.override.yaml.example
+#   .env.tstn.example
+# See docs/throughput-dashboard.md § "TSTN compose override".
+#
 # UI:            http://127.0.0.1:8200
 # Storage host:  http://127.0.0.1:8101
 # Postgres host: 127.0.0.1:5433
@@ -62,7 +67,8 @@ services:
       - PRIVATE_KEY=${PRIVATE_KEY:?set PRIVATE_KEY for dashboard}
       - HTTP_ADDR=0.0.0.0:8200
       - TPS=${TPS:-10}
-      - WORKERS=${WORKERS:-8}
+      # 0 = auto-derive from TPS (stream.WorkersForTPS); set >0 to override
+      - WORKERS=${WORKERS:-0}
       - SAMPLE_SECONDS=${SAMPLE_SECONDS:-1}
       - ORIGINATOR=${ORIGINATOR:-throughput-dashboard.local}
     restart: unless-stopped

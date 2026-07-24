@@ -52,13 +52,17 @@ type Sampler struct {
 	originator   string
 	logger       *slog.Logger
 	interval     time.Duration
-	targetTPS    uint64
 	denomination uint64
-	targetPool   uint64
-	lowWater     uint64
-	highWater    uint64
 
+	// Fuel-pool gauges (target + water marks) are mutable: stream start
+	// resizes them from the UI TPS via SetTargetPool.
 	mu            sync.RWMutex
+	targetTPS     uint64
+	targetPool    uint64
+	lowWaterPct   uint64
+	highWaterPct  uint64
+	lowWater      uint64
+	highWater     uint64
 	lastTick      Tick
 	events        []Event
 	maxEvents     int
@@ -95,22 +99,58 @@ func NewSampler(wallet WalletAPI, ctrl *stream.Controller, cfg Config) *Sampler 
 	if interval <= 0 {
 		interval = time.Second
 	}
-	low := cfg.TargetPool * cfg.LowWaterPercent / 100
-	high := cfg.TargetPool * cfg.HighWaterPercent / 100
-	return &Sampler{
+	lowPct := cfg.LowWaterPercent
+	if lowPct == 0 {
+		lowPct = 60
+	}
+	highPct := cfg.HighWaterPercent
+	if highPct == 0 {
+		highPct = 100
+	}
+	s := &Sampler{
 		wallet:       wallet,
 		ctrl:         ctrl,
 		originator:   cfg.Originator,
 		logger:       logger,
 		interval:     interval,
-		targetTPS:    cfg.TargetTPS,
 		denomination: cfg.Denomination,
+		targetTPS:    cfg.TargetTPS,
 		targetPool:   cfg.TargetPool,
-		lowWater:     low,
-		highWater:    high,
+		lowWaterPct:  lowPct,
+		highWaterPct: highPct,
 		maxEvents:    200,
 		subscribers:  make(map[chan Event]struct{}),
 	}
+	s.recomputeWaterMarksLocked()
+	return s
+}
+
+// SetTargetPool updates the fuel inventory target and optional display TPS used
+// when the stream controller reports 0. Safe to call while Run is active.
+// pool must be > 0; tps may be 0 to leave the previous display TPS unchanged.
+func (s *Sampler) SetTargetPool(pool uint64, tps uint64) {
+	if pool == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.targetPool = pool
+	if tps > 0 {
+		s.targetTPS = tps
+	}
+	s.recomputeWaterMarksLocked()
+}
+
+// TargetPoolSize returns the current inventory target shown on gauges.
+func (s *Sampler) TargetPoolSize() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.targetPool
+}
+
+func (s *Sampler) recomputeWaterMarksLocked() {
+	s.lowWater = s.targetPool * s.lowWaterPct / 100
+	s.highWater = s.targetPool * s.highWaterPct / 100
 }
 
 // Run samples until ctx is cancelled.
@@ -193,9 +233,23 @@ func (s *Sampler) sample(ctx context.Context) {
 		s.logger.Warn("reserve count sample failed", "error", err)
 	}
 
+	// Runway and related "time at rate" gauges use the stream's configured TPS
+	// (what the UI will run / is running), not a static FuelKeeper target_tps.
+	// Fall back to the last SetTargetPool / config TPS when the controller reports 0.
+	s.mu.RLock()
+	fallbackTPS := s.targetTPS
+	lowWater := s.lowWater
+	highWater := s.highWater
+	targetPool := s.targetPool
+	s.mu.RUnlock()
+
+	gaugeTPS := uint64(stats.TPS)
+	if gaugeTPS == 0 {
+		gaugeTPS = fallbackTPS
+	}
 	var runway float64
-	if s.targetTPS > 0 {
-		runway = float64(fuelCount) / float64(s.targetTPS)
+	if gaugeTPS > 0 {
+		runway = float64(fuelCount) / float64(gaugeTPS)
 	}
 
 	tick := Tick{
@@ -208,11 +262,11 @@ func (s *Sampler) sample(ctx context.Context) {
 		FuelCount:      fuelCount,
 		ReserveCount:   reserveCount,
 		FuelRunwaySec:  runway,
-		TargetTPS:      s.targetTPS,
+		TargetTPS:      gaugeTPS,
 		Denomination:   s.denomination,
-		LowWater:       s.lowWater,
-		HighWater:      s.highWater,
-		TargetPoolSize: s.targetPool,
+		LowWater:       lowWater,
+		HighWater:      highWater,
+		TargetPoolSize: targetPool,
 	}
 
 	// Detect top-up activity via inventory increases.

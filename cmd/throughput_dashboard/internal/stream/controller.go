@@ -44,6 +44,21 @@ const (
 	MaxWorkers = 512
 )
 
+// WorkersForTPS chooses a worker pool that can sustain tps if each createAction
+// takes on the order of one second end-to-end (storage RPC + wallet). The
+// producer rate-limits at tps; workers are the concurrent in-flight budget.
+// When workers < tps and latency is ~1s, the jobs channel backs up and achieved
+// TPS falls. Result is clamped to [1, MaxWorkers].
+func WorkersForTPS(tps int) int {
+	if tps <= 0 {
+		return 1
+	}
+	if tps > MaxWorkers {
+		return MaxWorkers
+	}
+	return tps
+}
+
 // Controller is a start/stop controllable rate-limited createAction stream.
 type Controller struct {
 	wallet ActionCreator
@@ -65,6 +80,7 @@ type Controller struct {
 }
 
 // NewController creates a stream controller. Default options apply until Start overrides them.
+// When defaults.Workers is <= 0, workers are derived from TPS via WorkersForTPS.
 func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) *Controller {
 	if logger == nil {
 		logger = slog.Default()
@@ -73,7 +89,7 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 		defaults.TPS = 10
 	}
 	if defaults.Workers <= 0 {
-		defaults.Workers = 8
+		defaults.Workers = WorkersForTPS(defaults.TPS)
 	}
 	if defaults.Originator == "" {
 		defaults.Originator = "throughput-dashboard.local"
@@ -89,6 +105,9 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 
 // Start begins the event stream. Returns an error if a stream is already running.
 //
+// When opts.Workers is <= 0, the worker pool size is derived from the effective
+// TPS (WorkersForTPS). Explicit Workers > 0 still override (API/tests).
+//
 // parent, when canceled, stops scheduling new events (same as Stop) but does not
 // abort createActions already in flight. Stop always waits for those to finish.
 func (c *Controller) Start(parent context.Context, opts Options) error {
@@ -102,6 +121,8 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	}
 	if opts.Workers > 0 {
 		c.workers = opts.Workers
+	} else {
+		c.workers = WorkersForTPS(c.tps)
 	}
 	if opts.Originator != "" {
 		c.originator = opts.Originator

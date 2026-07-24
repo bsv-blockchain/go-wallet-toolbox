@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-resty/resty/v2"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -347,6 +350,112 @@ func TestQueryTx(t *testing.T) {
 		assert.Nil(t, res)
 		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
 	})
+}
+
+func TestMerklePath(t *testing.T) {
+	t.Run("returns empty result when arcade knows the tx but has no proof yet", func(t *testing.T) {
+		// given:
+		txInfo := arcade.TXInfo{
+			TxID:      testTxID,
+			TxStatus:  arcade.StatusSeenOnNetwork,
+			Timestamp: "2026-06-10T12:00:00Z",
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/tx/"+testTxID, r.URL.Path)
+			writeJSON(t, w, http.StatusOK, txInfo)
+		}))
+		defer server.Close()
+		service := newService(t, defaultConfig(server.URL))
+
+		// when:
+		res, err := service.MerklePath(t.Context(), testTxID)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, arcade.ServiceName, res.Name)
+		assert.Nil(t, res.MerklePath)
+		assert.Nil(t, res.BlockHeader)
+		require.Len(t, res.Notes, 1)
+		assert.Equal(t, "getMerklePathNotFound", res.Notes[0].What)
+	})
+
+	t.Run("returns error when arcade does not know the tx so queue can fail over", func(t *testing.T) {
+		// given:
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(t, w, http.StatusNotFound, map[string]string{"error": "transaction not found"})
+		}))
+		defer server.Close()
+		service := newService(t, defaultConfig(server.URL))
+
+		// when:
+		res, err := service.MerklePath(t.Context(), testTxID)
+
+		// then:
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
+	})
+
+	t.Run("returns merkle path when arcade has mined the tx", func(t *testing.T) {
+		// given: a minimal single-node merkle path (the leaf is the txid itself)
+		// Built the same way as ARC fixtures: path with the tx as the only element.
+		tx := mustParseTestTxID(t)
+		merklePath := sdk.MerklePath{
+			BlockHeight: 800_000,
+			Path: [][]*sdk.PathElement{{
+				{
+					Offset: 0,
+					Hash:   tx,
+					Txid:   to.Ptr(true),
+				},
+			}},
+		}
+		merklePathHex := merklePath.Hex()
+		txIDCopy := testTxID
+		merkleRoot, err := merklePath.ComputeRootHex(&txIDCopy)
+		require.NoError(t, err)
+		blockHash := "000000000000000001a7aa3999410ca53fb645851531ec0a7a5cb9ce2d4ae313"
+
+		txInfo := arcade.TXInfo{
+			TxID:        testTxID,
+			TxStatus:    arcade.StatusMined,
+			Timestamp:   "2026-06-10T12:00:00Z",
+			BlockHash:   blockHash,
+			BlockHeight: 800_000,
+			MerklePath:  merklePathHex,
+		}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(t, w, http.StatusOK, txInfo)
+		}))
+		defer server.Close()
+		service := newService(t, defaultConfig(server.URL))
+
+		// when:
+		res, err := service.MerklePath(t.Context(), testTxID)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, arcade.ServiceName, res.Name)
+		require.NotNil(t, res.MerklePath)
+		assert.Equal(t, merklePath, *res.MerklePath)
+		require.NotNil(t, res.BlockHeader)
+		assert.Equal(t, wdk.MerklePathBlockHeader{
+			Height:     800_000,
+			Hash:       blockHash,
+			MerkleRoot: merkleRoot,
+		}, *res.BlockHeader)
+		require.Len(t, res.Notes, 1)
+		assert.Equal(t, "getMerklePathSuccess", res.Notes[0].What)
+	})
+}
+
+func mustParseTestTxID(t testing.TB) *chainhash.Hash {
+	t.Helper()
+	h, err := chainhash.NewHashFromHex(testTxID)
+	require.NoError(t, err)
+	return h
 }
 
 func TestHealthy(t *testing.T) {

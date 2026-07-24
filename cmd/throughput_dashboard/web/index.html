@@ -61,16 +61,18 @@
       <fieldset class="controls" aria-label="Stream controls">
         <legend class="sr-only">Stream controls</legend>
         <label for="tps">TPS
-          <input type="number" id="tps" min="1" max="10000" step="1" value="10" inputmode="numeric" aria-describedby="stream-hint" />
+          <input type="number" id="tps" min="1" max="10000" step="1" value="10" inputmode="numeric" aria-describedby="stream-hint workers-hint" />
         </label>
-        <label for="workers">Workers
-          <input type="number" id="workers" min="1" max="256" step="1" value="8" inputmode="numeric" />
-        </label>
+        <div class="stat workers-stat">
+          <span class="label" id="lbl-workers">Workers</span>
+          <span id="workers-display" class="value value-muted" aria-labelledby="lbl-workers" title="Derived from TPS (one concurrent slot per TPS, capped at 512)">auto (10)</span>
+        </div>
         <button type="button" id="btn-start" class="primary">Start stream</button>
         <button type="button" id="btn-stop" class="danger" disabled>Stop stream</button>
       </fieldset>
       <output id="stream-status" class="status" aria-live="polite"></output>
       <p id="stream-hint" class="hint">Each action embeds OP_RETURN <code>sha256(iteration ‖ RFC3339Nano timestamp)</code>.</p>
+      <p id="workers-hint" class="hint">Workers are chosen automatically from TPS (≈1 in-flight createAction per TPS unit, max 512).</p>
     </section>
 
     <section class="card" aria-labelledby="balances-heading">
@@ -89,8 +91,8 @@
           <span id="bal-reserve" class="value" aria-labelledby="lbl-reserve">—</span>
         </div>
         <div class="stat">
-          <span class="label" id="lbl-runway">Fuel runway (s)</span>
-          <span id="bal-runway" class="value" aria-labelledby="lbl-runway">—</span>
+          <span class="label" id="lbl-runway">Fuel runway (s @ TPS)</span>
+          <span id="bal-runway" class="value" aria-labelledby="lbl-runway" title="fuel UTXOs ÷ target TPS from the control above">—</span>
         </div>
       </div>
       <div class="row meta" aria-label="Pool configuration">

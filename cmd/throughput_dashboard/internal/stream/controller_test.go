@@ -199,8 +199,26 @@ func TestControllerDefaults(t *testing.T) {
 	ctrl := stream.NewController(&fakeWallet{}, stream.Options{}, nil)
 	stats := ctrl.Stats()
 	require.Equal(t, 10, stats.TPS)
-	require.Equal(t, 8, stats.Workers)
+	require.Equal(t, stream.WorkersForTPS(10), stats.Workers)
 	require.False(t, stats.Running)
+}
+
+func TestWorkersForTPS(t *testing.T) {
+	require.Equal(t, 1, stream.WorkersForTPS(0))
+	require.Equal(t, 1, stream.WorkersForTPS(-5))
+	require.Equal(t, 1, stream.WorkersForTPS(1))
+	require.Equal(t, 25, stream.WorkersForTPS(25))
+	require.Equal(t, stream.MaxWorkers, stream.WorkersForTPS(stream.MaxWorkers+100))
+}
+
+func TestControllerStartDerivesWorkersFromTPS(t *testing.T) {
+	ctrl := stream.NewController(&fakeWallet{}, stream.Options{TPS: 10, Workers: 2}, nil)
+	// Workers=0 → derive from TPS=40
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 40}))
+	stats := ctrl.Stats()
+	require.Equal(t, 40, stats.TPS)
+	require.Equal(t, 40, stats.Workers)
+	ctrl.Stop()
 }
 
 func TestControllerRejectsExcessiveWorkers(t *testing.T) {

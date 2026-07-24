@@ -74,21 +74,30 @@ func run(logger *slog.Logger) error {
 	defer wallet.Close()
 
 	throughput := config.DemoThroughput()
-	denom, err := throughput.Denomination(defs.DefaultFeeModel(), defs.DefaultCommission())
+	denom, err := config.DemoDenomination(network)
 	if err != nil {
 		return fmt.Errorf("resolve denomination: %w", err)
 	}
-	targetPool := throughput.TargetPool()
+	// Keep FuelKeeper / server throughput profile aligned with network fee policy
+	// (tstn uses explicit 2-sat fuel; others derive from fee model).
+	if network == defs.NetworkTSTN {
+		throughput.DenominationSatoshis = denom
+	}
+	// Size the fuel inventory target from the dashboard TPS (env default, then
+	// resized again whenever the UI starts a stream at a different TPS).
+	targetPool := config.DemoTargetPoolForTPS(cfg.TPS)
+	fkCfg := fuelkeeper.FromThroughput(throughput, denom)
+	fkCfg.TargetPoolSize = targetPool
 	logger.Info(
 		"throughput profile",
 		"denomination_satoshis", denom,
-		"target_tps", throughput.TargetTPS,
+		"target_tps", cfg.TPS,
 		"target_pool", targetPool,
 		"low_water_percent", throughput.LowWaterPercent,
 		"high_water_percent", throughput.HighWaterPercent,
 	)
 
-	keeper, err := fuelkeeper.New(wallet, fuelkeeper.FromThroughput(throughput, denom), logger)
+	keeper, err := fuelkeeper.New(wallet, fkCfg, logger)
 	if err != nil {
 		return fmt.Errorf("create fuel keeper: %w", err)
 	}
@@ -103,7 +112,7 @@ func run(logger *slog.Logger) error {
 	sampler := metrics.NewSampler(wallet, ctrl, metrics.Config{
 		Originator:       cfg.Originator,
 		Interval:         time.Duration(cfg.SampleSeconds) * time.Second,
-		TargetTPS:        throughput.TargetTPS,
+		TargetTPS:        uint64(cfg.TPS), //nolint:gosec // env TPS is validated > 0
 		Denomination:     denom,
 		TargetPool:       targetPool,
 		LowWaterPercent:  throughput.LowWaterPercent,
@@ -127,6 +136,7 @@ func run(logger *slog.Logger) error {
 	srv := api.New(api.Deps{
 		Ctrl:       ctrl,
 		Sampler:    sampler,
+		Fuel:       keeper,
 		Wallet:     wallet,
 		Priv:       priv,
 		Network:    network,

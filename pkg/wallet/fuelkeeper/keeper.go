@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -106,8 +107,10 @@ func (c *Config) validate() error {
 // Keeper runs the top-up loop.
 type Keeper struct {
 	wallet WalletAPI
-	cfg    Config
 	logger *slog.Logger
+
+	mu  sync.RWMutex
+	cfg Config
 
 	// roundInFlight guards against overlapping rounds (e.g. RunOnce called
 	// while Run's ticker round is still minting): both would measure the same
@@ -131,10 +134,39 @@ func New(walletAPI WalletAPI, cfg Config, logger *slog.Logger) (*Keeper, error) 
 	}, nil
 }
 
+// SetTargetPoolSize updates the inventory target used for low/high water
+// minting. Safe to call while Run is active; the next round observes the new
+// value. n must be > 0.
+func (k *Keeper) SetTargetPoolSize(n uint64) error {
+	if n == 0 {
+		return fmt.Errorf("target pool size must be greater than 0")
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.cfg.TargetPoolSize = n
+	k.logger.Info("fuel keeper target pool updated", slog.Uint64("targetPoolSize", n))
+	return nil
+}
+
+// TargetPoolSize returns the current inventory target.
+func (k *Keeper) TargetPoolSize() uint64 {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	return k.cfg.TargetPoolSize
+}
+
+// snapshot copies config under the read lock so rounds see a consistent view.
+func (k *Keeper) snapshot() Config {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	return k.cfg
+}
+
 // Run executes rounds on the configured interval until ctx is canceled.
 // The first round runs immediately.
 func (k *Keeper) Run(ctx context.Context) {
-	ticker := time.NewTicker(k.cfg.Interval)
+	interval := k.snapshot().Interval
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -161,30 +193,33 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 	}
 	defer k.roundInFlight.Store(false)
 
-	inventory, err := k.countBasketOutputs(ctx, k.cfg.PoolBasket)
+	cfg := k.snapshot()
+
+	inventory, err := k.countBasketOutputs(ctx, cfg.PoolBasket, cfg.Originator)
 	if err != nil {
 		return fmt.Errorf("failed to measure fuel pool: %w", err)
 	}
 
-	lowWater := k.cfg.TargetPoolSize * k.cfg.LowWaterPercent / 100
+	lowWater := cfg.TargetPoolSize * cfg.LowWaterPercent / 100
 	if inventory >= lowWater {
 		return nil
 	}
 
-	fillTarget := k.cfg.TargetPoolSize * k.cfg.HighWaterPercent / 100
+	fillTarget := cfg.TargetPoolSize * cfg.HighWaterPercent / 100
 	deficit := fillTarget - inventory
-	leaves := (deficit + k.cfg.FanoutOutputsPerTx - 1) / k.cfg.FanoutOutputsPerTx
-	if leaves > k.cfg.FanoutMaxTxsPerRound {
-		leaves = k.cfg.FanoutMaxTxsPerRound
+	leaves := (deficit + cfg.FanoutOutputsPerTx - 1) / cfg.FanoutOutputsPerTx
+	if leaves > cfg.FanoutMaxTxsPerRound {
+		leaves = cfg.FanoutMaxTxsPerRound
 	}
 
 	k.logger.InfoContext(ctx, "fuel pool below low water, minting",
 		slog.Uint64("inventory", inventory),
+		slog.Uint64("targetPool", cfg.TargetPoolSize),
 		slog.Uint64("lowWater", lowWater),
 		slog.Uint64("deficit", deficit),
 		slog.Uint64("leafTxs", leaves))
 
-	chunks, err := k.ensureChunks(ctx, leaves)
+	chunks, err := k.ensureChunks(ctx, cfg, leaves)
 	if err != nil {
 		return err
 	}
@@ -202,13 +237,13 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 			return fmt.Errorf("top-up round interrupted: %w", ctx.Err())
 		}
 		if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
-			Count:    k.cfg.FanoutOutputsPerTx,
-			Satoshis: primitives.SatoshiValue(k.cfg.Denomination),
-			Basket:   primitives.StringUnder300(k.cfg.PoolBasket),
-		}, k.cfg.Originator); err != nil {
+			Count:    cfg.FanoutOutputsPerTx,
+			Satoshis: primitives.SatoshiValue(cfg.Denomination),
+			Basket:   primitives.StringUnder300(cfg.PoolBasket),
+		}, cfg.Originator); err != nil {
 			return fmt.Errorf("leaf fan-out failed after minting %d outputs: %w", minted, err)
 		}
-		minted += k.cfg.FanoutOutputsPerTx
+		minted += cfg.FanoutOutputsPerTx
 	}
 
 	k.logger.InfoContext(ctx, "fuel top-up round complete", slog.Uint64("minted", minted))
@@ -219,28 +254,28 @@ func (k *Keeper) RunOnce(ctx context.Context) error {
 // pending leaf fan-out, splitting default-basket funds into chunks when it
 // does not (tree fan-out, interior layer). It returns the number of chunks
 // available after provisioning — the caller must not mint more leaves.
-func (k *Keeper) ensureChunks(ctx context.Context, leaves uint64) (uint64, error) {
-	chunks, err := k.countBasketOutputs(ctx, k.cfg.ReserveBasket)
+func (k *Keeper) ensureChunks(ctx context.Context, cfg Config, leaves uint64) (uint64, error) {
+	chunks, err := k.countBasketOutputs(ctx, cfg.ReserveBasket, cfg.Originator)
 	if err != nil {
 		return 0, fmt.Errorf("failed to measure reserve: %w", err)
 	}
 
-	chunkValue := k.cfg.FanoutOutputsPerTx*k.cfg.Denomination + k.cfg.ChunkFeeHeadroom
+	chunkValue := cfg.FanoutOutputsPerTx*cfg.Denomination + cfg.ChunkFeeHeadroom
 	for chunks < leaves {
 		if ctx.Err() != nil {
 			return chunks, fmt.Errorf("chunk provisioning interrupted: %w", ctx.Err())
 		}
 
 		needed := leaves - chunks
-		if needed > k.cfg.FanoutOutputsPerTx {
-			needed = k.cfg.FanoutOutputsPerTx
+		if needed > cfg.FanoutOutputsPerTx {
+			needed = cfg.FanoutOutputsPerTx
 		}
 
 		if _, err = k.wallet.FanOutFuel(ctx, wdk.ShapedChange{
 			Count:    needed,
 			Satoshis: primitives.SatoshiValue(chunkValue),
-			Basket:   primitives.StringUnder300(k.cfg.ReserveBasket),
-		}, k.cfg.Originator); err != nil {
+			Basket:   primitives.StringUnder300(cfg.ReserveBasket),
+		}, cfg.Originator); err != nil {
 			// Default-basket funds ran out (or another error): mint with what
 			// is provisioned so far rather than failing the whole round.
 			k.logger.WarnContext(ctx, "chunk fan-out failed, continuing with provisioned chunks",
@@ -252,11 +287,11 @@ func (k *Keeper) ensureChunks(ctx context.Context, leaves uint64) (uint64, error
 	return chunks, nil
 }
 
-func (k *Keeper) countBasketOutputs(ctx context.Context, basket string) (uint64, error) {
+func (k *Keeper) countBasketOutputs(ctx context.Context, basket, originator string) (uint64, error) {
 	result, err := k.wallet.ListOutputs(ctx, sdk.ListOutputsArgs{
 		Basket: basket,
 		Limit:  to.Ptr(uint32(1)),
-	}, k.cfg.Originator)
+	}, originator)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list %q outputs: %w", basket, err)
 	}

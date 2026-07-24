@@ -228,6 +228,7 @@ output.conn {
 .value-good { color: var(--good); }
 .value-bad { color: var(--danger); }
 .value-warn { color: var(--warn); }
+.value-muted { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .state-pill {
   display: inline-flex;

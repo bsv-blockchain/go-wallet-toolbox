@@ -396,7 +396,7 @@ func TestServiceDefaultsReconciledForTTN(t *testing.T) {
 	require.Equal(t, defs.ArcadeTTNURL, infraSrv.Config.Services.Arcade.URL)
 	require.False(t, infraSrv.Config.Services.ArcGorillaPoolConfig.Enabled)
 	require.True(t, infraSrv.Config.Services.ChaintracksClient.Enabled)
-	require.Equal(t, "https://arcade-v2-ttn-us-1.bsvblockchain.tech/chaintracks/v1", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
+	require.Equal(t, "https://arcade-v2-ttn-us-1.bsvblockchain.tech/chaintracks", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
 }
 
 func TestServiceDefaultsReconciledForTSTN(t *testing.T) {
@@ -415,7 +415,7 @@ func TestServiceDefaultsReconciledForTSTN(t *testing.T) {
 	require.True(t, infraSrv.Config.Services.Arcade.Enabled)
 	require.False(t, infraSrv.Config.Services.WhatsOnChain.Enabled, "tstn has no WhatsOnChain service")
 	require.True(t, infraSrv.Config.Services.ChaintracksClient.Enabled)
-	require.Equal(t, "https://arcade.private.tstn/chaintracks/v1", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
+	require.Equal(t, "https://arcade.private.tstn/chaintracks", infraSrv.Config.Services.ChaintracksClient.RemoteURL)
 }
 
 func TestTSTNWithoutEnvFailsValidation(t *testing.T) {
