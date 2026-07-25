@@ -14,12 +14,22 @@ import (
 
 const (
 	// BackgroundBroadcasterWorkerCount defines the number of workers that will process broadcast items.
-	BackgroundBroadcasterWorkerCount = 10
+	//
+	// This is the ceiling on network acceptance for delayed broadcast, and
+	// therefore on any throughput that depends on outputs becoming spendable:
+	// an output is only marked spendable once its transaction is accepted by
+	// the network (see actions.updateSingleTx). At ~300ms per post, 10 workers
+	// capped acceptance at ~33 tx/s while createAction ran an order of
+	// magnitude faster — the queue overflowed, overflowed transactions fell
+	// back to the 5-minute send_waiting cron, and fail_abandoned then aborted
+	// them, permanently stranding their outputs.
+	BackgroundBroadcasterWorkerCount = 128
 
 	// BackgroundBroadcasterChannelSize defines the buffer size for the broadcast channel.
-	// The average broadcast time in tests is 300ms, so for 10 workers, 1000 elements should be processed in 30sec
-	// This is chosen as a trade-off between memory usage and throughput; it can be tuned based on expected workload.
-	BackgroundBroadcasterChannelSize = 1000
+	// Sized to absorb several seconds of high-rate createAction bursts; Add()
+	// drops to the cron fallback once full, which is far slower and risks the
+	// abandon sweep, so prefer a generous buffer (each item is a small struct).
+	BackgroundBroadcasterChannelSize = 50_000
 )
 
 type broadcaster interface {

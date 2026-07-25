@@ -59,6 +59,8 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8101:8100"
+      # pprof (throughput profiling)
+      - "127.0.0.1:6060:6060"
     volumes:
       - ./infra-config-docker-throughput-mainnet.yaml:/app/infra-config-throughput.yaml:ro
     environment:

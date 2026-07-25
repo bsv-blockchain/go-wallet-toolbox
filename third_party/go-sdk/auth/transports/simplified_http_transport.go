@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/auth"
 	"github.com/bsv-blockchain/go-sdk/auth/authpayload"
@@ -40,7 +41,19 @@ func NewSimplifiedHTTPTransport(options *SimplifiedHTTPTransportOptions) (*Simpl
 	}
 	client := options.Client
 	if client == nil {
-		client = &http.Client{}
+		// A default client with no timeout lets a single unresponsive server
+		// hold a request goroutine (and whatever slot/loop issued it) forever.
+		// The default transport also pools only 2 idle connections per host, so
+		// concurrent callers dial (and discard) a TCP connection per request;
+		// size the pool for concurrent use instead.
+		transport := &http.Transport{}
+		if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport = dt.Clone()
+		}
+		transport.MaxIdleConns = 512
+		transport.MaxIdleConnsPerHost = 128
+		transport.IdleConnTimeout = 90 * time.Second
+		client = &http.Client{Timeout: 45 * time.Second, Transport: transport}
 	}
 	return &SimplifiedHTTPTransport{
 		baseUrl: options.BaseURL,

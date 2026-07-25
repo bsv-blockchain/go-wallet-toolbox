@@ -19,6 +19,12 @@ type GetBEEFOptions struct {
 	KnownTxIDsSet       map[string]struct{}
 	TrustSelf           wallet.TrustSelf
 	MinProofLevel       int
+	// DirectSourcesOnly stops the build at the subject transactions' immediate
+	// parents, merged as raw transactions without merkle proofs or deeper
+	// ancestry. Sufficient for script verification and EF construction (both
+	// only need each input's source output), and skips the dominant costs of a
+	// full build: per-ancestor BUMP root validation and recursive DB walks.
+	DirectSourcesOnly bool
 }
 
 type GetBEEFOption = func(*GetBEEFOptions)
@@ -55,6 +61,14 @@ func WithKnownTxIDs(knownTxIDs ...string) GetBEEFOption {
 func WithTrustSelf(trust wallet.TrustSelf) GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.TrustSelf = trust
+	}
+}
+
+// WithDirectSourcesOnly builds only the subject transactions plus their
+// immediate parents (raw, proof-less). See GetBEEFOptions.DirectSourcesOnly.
+func WithDirectSourcesOnly() GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.DirectSourcesOnly = true
 	}
 }
 

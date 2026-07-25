@@ -33,6 +33,32 @@ func HydrateBEEF(beef *transaction.Beef) error {
 	return nil
 }
 
+// HydrateBEEFSubjects attaches SourceTransaction to each input of the listed
+// transactions only, without recursing into the parents' own inputs. Use with
+// direct-sources-only BEEFs (entity.WithDirectSourcesOnly) where grandparents
+// are intentionally absent: script verification and EF construction need only
+// the direct source outputs.
+func HydrateBEEFSubjects(beef *transaction.Beef, txIDs []string) error {
+	for _, txID := range txIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return fmt.Errorf("could not find subject transaction %s in beef", txID)
+		}
+		for _, input := range tx.Inputs {
+			if input.SourceTXID == nil || input.SourceTransaction != nil {
+				continue
+			}
+			src, ok := beef.Transactions[*input.SourceTXID]
+			if !ok || src.Transaction == nil {
+				return fmt.Errorf("failed to hydrate input %s of tx %s: could not find transaction %s in beef",
+					input.SourceTXID.String(), txID, input.SourceTXID.String())
+			}
+			input.SourceTransaction = src.Transaction
+		}
+	}
+	return nil
+}
+
 func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, depth int) error {
 	txID := input.SourceTXID.String()
 	if depth > 100 {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"net/http"
+	_ "net/http/pprof" //nolint:gosec // bound to a private port; throughput demo profiling
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +12,12 @@ import (
 )
 
 func main() {
+	// Profiling endpoint for throughput investigations (demo binary only).
+	// Reachable from the host via a compose port mapping when needed.
+	go func() {
+		_ = http.ListenAndServe(":6060", nil) //nolint:gosec // demo profiling listener
+	}()
+
 	server, err := infra.NewServer(
 		context.Background(),
 		infra.WithConfigFile("infra-config-throughput.yaml"),

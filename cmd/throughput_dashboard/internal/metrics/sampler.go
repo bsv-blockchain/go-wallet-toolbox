@@ -110,6 +110,7 @@ type Sampler struct {
 	prevFailed    uint64
 	prevFuel      uint64
 	prevReserve   uint64
+	prevSampleAt  time.Time
 	havePrev      bool
 
 	subscribersMu sync.Mutex
@@ -249,6 +250,19 @@ func (s *Sampler) sample(ctx context.Context) {
 	s.prevAttempted = stats.Attempted
 	s.prevSucceeded = stats.Succeeded
 	s.prevFailed = stats.Failed
+
+	// Normalize deltas to per-second rates when the tick is late: under load
+	// the sampler's own storage RPCs stretch the interval past its nominal 1s,
+	// and raw deltas then overstate the rate (a 5s-late tick showed 5× the
+	// true TPS). On-schedule ticks keep raw deltas.
+	if !s.prevSampleAt.IsZero() {
+		if elapsed := now.Sub(s.prevSampleAt).Seconds(); elapsed > 1.5 {
+			dAtt = uint64(float64(dAtt) / elapsed)
+			dSucc = uint64(float64(dSucc) / elapsed)
+			dFail = uint64(float64(dFail) / elapsed)
+		}
+	}
+	s.prevSampleAt = now
 
 	// Bound each storage call so a hung RPC cannot freeze ticks forever.
 	const callTimeout = 15 * time.Second

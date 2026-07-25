@@ -43,6 +43,22 @@ var ErrUTXOContention = fmt.Errorf("storage layer: %w", wdk.ErrUTXOContention)
 // errors.Is(err, wdk.ErrUTXOContention) keep working unchanged.
 var ErrProvidedInputConflict = fmt.Errorf("provided input already spent: %w", ErrUTXOContention)
 
+// StaleUTXOIndexError reports outputs that the UserUTXO index still advertises
+// as fundable even though they are already spent. It wraps ErrUTXOContention —
+// and deliberately NOT ErrProvidedInputConflict — so funding retries: the retry
+// can only succeed once the listed rows are dropped from the index, which the
+// caller must do outside the transaction that produced this error (that
+// transaction rolls back).
+type StaleUTXOIndexError struct {
+	OutputIDs []uint
+}
+
+func (e *StaleUTXOIndexError) Error() string {
+	return fmt.Sprintf("stale fundable index rows for already-spent outputs %v: %v", e.OutputIDs, ErrUTXOContention)
+}
+
+func (e *StaleUTXOIndexError) Unwrap() error { return ErrUTXOContention }
+
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
@@ -262,9 +278,35 @@ func (txs *Transactions) markReservedOutputsAsNotSpendable(tx *gorm.DB, spending
 		return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", result.Error)
 	}
 	if result.RowsAffected != int64(len(outputIDs)) {
+		// Some selected output was already spent. When the UserUTXO index still
+		// lists it as fundable, that index row is provably wrong — and because
+		// selection is deterministic (lowest satoshis, then lowest output id),
+		// every subsequent attempt picks the same dead row and fails the same
+		// way, permanently. Report the stale rows so the caller can drop them
+		// (outside this doomed transaction) and retry with fresh inventory.
+		if stale := txs.staleIndexedOutputs(tx, userID, outputIDs); len(stale) > 0 {
+			return &StaleUTXOIndexError{OutputIDs: stale}
+		}
 		return fmt.Errorf("%w: claiming provided inputs: expected %d, got %d", ErrProvidedInputConflict, len(outputIDs), result.RowsAffected)
 	}
 	return nil
+}
+
+// staleIndexedOutputs returns the given outputs that are already spent yet still
+// present in the UserUTXO (fundable) index.
+func (txs *Transactions) staleIndexedOutputs(tx *gorm.DB, userID int, outputIDs []uint) []uint {
+	var stale []uint
+	err := tx.Model(&models.UserUTXO{}).
+		Joins("JOIN bsv_outputs ON bsv_outputs.id = bsv_user_utxos.output_id").
+		Where("bsv_user_utxos.user_id = ?", userID).
+		Where("bsv_user_utxos.output_id IN ?", outputIDs).
+		Where("bsv_outputs.spent_by IS NOT NULL").
+		Pluck("bsv_user_utxos.output_id", &stale).Error
+	if err != nil {
+		// Best-effort detection: on failure fall back to the permanent error.
+		return nil
+	}
+	return stale
 }
 
 func (txs *Transactions) FindTransactionByUserIDAndTxID(ctx context.Context, userID int, txID string) (*pkgentity.Transaction, error) {

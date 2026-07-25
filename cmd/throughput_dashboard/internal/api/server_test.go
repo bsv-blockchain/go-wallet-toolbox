@@ -445,11 +445,11 @@ func TestStreamStart_SizesFuelTargetPoolFromTPS(t *testing.T) {
 	body := decodeMap(t, rec)
 	assert.Equal(t, true, body["ok"])
 
-	// DemoTargetPoolForTPS(100) = 100 × 300 × 1.5 = 45_000
-	const wantPool = float64(45_000)
+	// DemoTargetPoolForTPS(100) = 100 × DemoRefillHorizonSeconds(15) × 1.5 = 2_250
+	const wantPool = float64(2_250)
 	assert.InDelta(t, wantPool, body["target_pool_size"], 0.001)
-	require.Equal(t, uint64(45_000), env.fuel.size)
-	require.Equal(t, uint64(45_000), env.sampler.TargetPoolSize())
+	require.Equal(t, uint64(2_250), env.fuel.size)
+	require.Equal(t, uint64(2_250), env.sampler.TargetPoolSize())
 
 	env.ctrl.Stop()
 
@@ -459,9 +459,9 @@ func TestStreamStart_SizesFuelTargetPoolFromTPS(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, rec2.Code)
 	body2 := decodeMap(t, rec2)
-	assert.InDelta(t, float64(4_500), body2["target_pool_size"], 0.001)
-	require.Equal(t, uint64(4_500), env.fuel.size)
-	require.Equal(t, uint64(4_500), env.sampler.TargetPoolSize())
+	assert.InDelta(t, float64(225), body2["target_pool_size"], 0.001)
+	require.Equal(t, uint64(225), env.fuel.size)
+	require.Equal(t, uint64(225), env.sampler.TargetPoolSize())
 
 	env.ctrl.Stop()
 }

@@ -80,6 +80,36 @@ func TestRetryOnContention_DoesNotRetryProvidedInputConflict(t *testing.T) {
 	require.Equal(t, 1, calls, "provided-input conflict is permanent and must not be retried")
 }
 
+// TestRetryOnContention_RetriesStaleUTXOIndex pins the distinction that keeps funding alive:
+// a stale fundable-index row (a UserUTXO row advertising an already-spent output) reports
+// contention, but unlike a provided-input conflict it MUST be retried. Selection is
+// deterministic, so the caller drops the stale rows between attempts and the retry then picks
+// live inventory; treating it as permanent stalled funding forever against a full basket.
+func TestRetryOnContention_RetriesStaleUTXOIndex(t *testing.T) {
+	withShrunkFundingBackoff(t)
+
+	staleErr := &repo.StaleUTXOIndexError{OutputIDs: []uint{7, 9}}
+	require.ErrorIs(t, staleErr, wdk.ErrUTXOContention, "must match the public contention sentinel")
+	require.NotErrorIs(t, staleErr, repo.ErrProvidedInputConflict, "must not be classified as a permanent conflict")
+
+	var calls int
+	err := retryOnContention(t.Context(), logging.NewTestLogger(t), randomizer.NewTestRandomizer(), func() error {
+		calls++
+		if calls == 1 {
+			return fmt.Errorf("attempt %d: %w", calls, staleErr)
+		}
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, calls, "stale index rows are healed between attempts, so the retry must happen")
+
+	// The healing caller needs the offending rows, so they must survive wrapping.
+	var recovered *repo.StaleUTXOIndexError
+	require.ErrorAs(t, fmt.Errorf("wrapped: %w", staleErr), &recovered)
+	require.Equal(t, []uint{7, 9}, recovered.OutputIDs)
+}
+
 // TestRetryOnContention_NonContentionErrorDoesNotRetry covers case (c): an error that does not
 // wrap wdk.ErrUTXOContention must not be retried at all.
 func TestRetryOnContention_NonContentionErrorDoesNotRetry(t *testing.T) {

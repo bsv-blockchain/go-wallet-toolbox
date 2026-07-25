@@ -27,10 +27,11 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// DefaultMaxInFlight is the slot count used when New receives n <= 0. The
-// local infra stack sustained 16 concurrent RPCs cleanly in probes (~1100
-// cheap RPCs/s); 32 concurrent connections produced connection EOFs.
-const DefaultMaxInFlight = 16
+// DefaultMaxInFlight is the slot count used when New receives n <= 0.
+// 32 measured as the throughput sweet spot on the local stack (~460
+// createActions/s): 16 leaves the server idle, while 64 collapses into DB
+// lock contention (~270/s real). Tune per stack via WALLET_MAX_IN_FLIGHT.
+const DefaultMaxInFlight = 32
 
 // closeWait bounds how long Close waits to drain in-flight RPCs before
 // closing the underlying wallet anyway: shutdown must stay inside docker's

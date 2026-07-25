@@ -472,7 +472,15 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
+	// Direct sources only: this BEEF feeds script verification and EF
+	// construction, both of which need just each input's source output. A full
+	// ancestry build re-validated every ancestor BUMP root per transaction —
+	// at high TPS that was the single largest CPU cost in the storage server
+	// (shared fuel parents re-validated for every spend).
+	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs),
+		entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
+		entity.WithDirectSourcesOnly(),
+	)
 	if err != nil {
 		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
@@ -483,8 +491,10 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	// hydrate txs in beef
-	if err = txutils.HydrateBEEF(beef); err != nil {
+	// Hydrate only the subject txs' direct inputs: the direct-sources-only
+	// BEEF deliberately omits grandparents, and neither script verification
+	// nor EF construction needs them.
+	if err = txutils.HydrateBEEFSubjects(beef, readyToSendTxIDs); err != nil {
 		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
@@ -669,6 +679,15 @@ func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string
 			} else {
 				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
 			}
+		}
+
+		// Make this tx's change/fuel outputs claimable NOW at the "sending"
+		// tier. Waiting for network acceptance to flip them spendable starves
+		// the fuel pool at high request rates, because the acceptance pipeline
+		// runs orders of magnitude slower than creation. Only spend policies
+		// that accept unconfirmed funds will select them.
+		if err = p.utxoRepo.MakeChangeSpendableAndIndexByTxID(ctx, txID); err != nil {
+			return nil, fmt.Errorf("failed to make outputs spendable for delayed txID %s: %w", txID, err)
 		}
 
 		sendWithResults = append(sendWithResults, wdk.SendWithResult{

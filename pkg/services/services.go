@@ -677,8 +677,11 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}}, nil
 	}
 
-	// hydrate txs in beef
-	if err := txutils.HydrateBEEF(beef); err != nil {
+	// Hydrate only the subject txs' direct inputs — EF conversion needs each
+	// input's source output, nothing deeper. The broadcast path may carry a
+	// direct-sources-only BEEF (own-wallet spends; see WithDirectSourcesOnly)
+	// where grandparents are intentionally absent.
+	if err := txutils.HydrateBEEFSubjects(beef, txIDs); err != nil {
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 

@@ -144,9 +144,11 @@ func (s *Server) handleStreamStart(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Kick an immediate top-up round so a large TPS jump does not wait
 			// for the idle keeper interval (catch-up continues in FuelKeeper.Run).
-			// The round aborts on process shutdown (Done), not on request end.
+			// Bounded: the round holds the keeper's round-in-flight bit, so a
+			// wedged RPC here would otherwise disable minting permanently. It
+			// also aborts on process shutdown (Done), not on request end.
 			go func() {
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
 				go func() {
 					select {

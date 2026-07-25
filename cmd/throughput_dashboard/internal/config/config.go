@@ -134,22 +134,35 @@ func DemoDenomination(network defs.BSVNetwork) (uint64, error) {
 	return tp.Denomination(DemoFeeModel(network), defs.DefaultCommission())
 }
 
+// DemoRefillHorizonSeconds is how much burn the fuel pool must cover: the time
+// from minting a fuel UTXO to it becoming spendable. The server marks outputs
+// spendable on NETWORK ACCEPTANCE (not on mining), and the demo's spend policy
+// accepts unproven/sending fuel, so that is a few seconds of broadcast latency
+// — not the 300s mined-confirmation horizon that defs.Throughput assumes.
+//
+// Sizing on 300s made the target 20× larger than needed (1000 TPS → 450_000
+// UTXOs → 13.5M satoshis standing at 30 sats each, more than the demo wallet
+// holds). The keeper could then never reach low water, so it stayed in
+// permanent catch-up, competing with the stream for the whole run instead of
+// filling once and idling.
+const DemoRefillHorizonSeconds = 15
+
 // DemoTargetPoolForTPS sizes the FuelKeeper inventory target from a stream TPS
-// setting: target_tps × expected_confirmation_seconds × pool_headroom_factor
-// (same identity as defs.Throughput.TargetPool with TargetPoolSize left unset).
+// setting: target_tps × DemoRefillHorizonSeconds × pool_headroom_factor.
 //
-// Example with DefaultUTXOManagement confirmation/headroom (300s × 1.5):
+// Examples (15s horizon, 1.5 headroom):
 //
-//	10 TPS    → 4_500 fuel UTXOs
-//	100 TPS   → 45_000 fuel UTXOs
-//	1000 TPS  → 450_000 fuel UTXOs
+//	10 TPS    → 225 fuel UTXOs
+//	100 TPS   → 2_250 fuel UTXOs
+//	1000 TPS  → 22_500 fuel UTXOs (675k satoshis at 30 sats — affordable)
 func DemoTargetPoolForTPS(tps int) uint64 {
 	if tps <= 0 {
 		tps = 10
 	}
 	tp := DemoThroughput()
 	tp.TargetTPS = uint64(tps)
-	tp.TargetPoolSize = 0 // force derivation from TPS × confirmation × headroom
+	tp.TargetPoolSize = 0 // force derivation from TPS × horizon × headroom
+	tp.ExpectedConfirmationSeconds = DemoRefillHorizonSeconds
 	return tp.TargetPool()
 }
 

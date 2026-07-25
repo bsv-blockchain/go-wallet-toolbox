@@ -92,7 +92,11 @@ func run(logger *slog.Logger) error {
 	// high TPS is ~1 fuel per action, so refill needs several leaf fan-outs
 	// (100 outputs each) per second. Parallel leaves + a light yield keep the
 	// keeper near mint≈burn without starving stream slots.
-	fkCfg.MintConcurrency = 6
+	// Concurrent leaves fund from the same reserve basket and can select the
+	// same chunk. That collision is retryable contention (the loser picks
+	// another chunk on its next attempt), so parallel minting is safe and
+	// multiplies mint rate — which is what bounds sustainable stream TPS.
+	fkCfg.MintConcurrency = 4
 	fkCfg.StreamLeafCap = 50
 	fkCfg.StreamYieldMultiple = 1
 	logger.Info(

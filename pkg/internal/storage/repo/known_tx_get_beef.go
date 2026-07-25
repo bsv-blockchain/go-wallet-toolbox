@@ -136,6 +136,20 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
 
+	// DirectSourcesOnly: parents are terminal — merge the raw tx alone. No
+	// merkle proof (skips BUMP root validation, the hot spot at high TPS), no
+	// input-beef merge, no deeper recursion. Script verification and EF
+	// construction only need the parent's outputs.
+	if options.DirectSourcesOnly && depth >= 1 {
+		if model.RawTx == nil {
+			return fmt.Errorf("raw tx is nil in transaction %s", txID)
+		}
+		if _, err := mergeToBeef.MergeRawTx(model.RawTx, nil); err != nil {
+			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, err)
+		}
+		return nil
+	}
+
 	ignoreMerkleProof := options.MinProofLevel > 0 && depth < options.MinProofLevel // If enabled, we intentionally skip attaching the merkle proof at this depth
 	if model.HasMerklePath() && !ignoreMerkleProof {
 		var merklePath *transaction.MerklePath

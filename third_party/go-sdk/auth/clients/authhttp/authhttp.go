@@ -30,6 +30,12 @@ import (
 
 const (
 	PaymentVersion = "1.0"
+
+	// responseWaitTimeout is the hard backstop for a single Fetch: if the
+	// response listener never fires (lost response under overload), the call
+	// fails instead of blocking a long-lived-context caller forever. Kept
+	// above ToPeer's internal 30s handshake timeout.
+	responseWaitTimeout = 60 * time.Second
 )
 
 // SimplifiedFetchRequestOptions represents configuration options for HTTP requests.
@@ -220,10 +226,12 @@ func (a *AuthFetch) Fetch(ctx context.Context, urlStr string, config *Simplified
 	}
 
 	// Create response channel
+	// Buffered so the request goroutine can always deliver its result and
+	// exit even when the waiter below has already given up (timeout/cancel).
 	responseChan := make(chan struct {
 		resp *http.Response
 		err  error
-	})
+	}, 1)
 
 	go func() {
 		baseURL := fmt.Sprintf("%s://%s", req.URL.Scheme, req.URL.Host)
@@ -505,7 +513,13 @@ func (a *AuthFetch) Fetch(ctx context.Context, urlStr string, config *Simplified
 		}
 	}()
 
-	// Wait for the response or context cancellation
+	// Wait for the response, context cancellation, or the response deadline.
+	// The deadline is a hard backstop: if a response is lost (transport hiccup,
+	// server dropping a request under overload) the callback never fires, and
+	// without it a caller with a long-lived context would block forever —
+	// wedging whatever loop issued the request.
+	responseTimeout := time.NewTimer(responseWaitTimeout)
+	defer responseTimeout.Stop()
 	select {
 	case result := <-responseChan:
 		if result.err != nil {
@@ -521,6 +535,8 @@ func (a *AuthFetch) Fetch(ctx context.Context, urlStr string, config *Simplified
 		return result.resp, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-responseTimeout.C:
+		return nil, fmt.Errorf("timed out waiting for auth fetch response after %s", responseWaitTimeout)
 	}
 }
 

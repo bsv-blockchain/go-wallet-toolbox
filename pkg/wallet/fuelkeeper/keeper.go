@@ -86,6 +86,11 @@ const (
 	// under load; an uncapped multiple of it would collapse the keeper's share
 	// toward zero and let the pool drain mid-stream.
 	maxStreamYield = 3 * time.Second
+
+	// Per-leaf retry for reserve-chunk selection collisions between concurrent
+	// leaves (see mintLeaves).
+	mintLeafAttempts     = 4
+	mintLeafRetryBackoff = 30 * time.Millisecond
 )
 
 // FromThroughput derives the keeper configuration from the server-side
@@ -391,15 +396,34 @@ func (k *Keeper) mintLeaves(ctx context.Context, cfg Config, leaves uint64) (uin
 		}
 		issued++
 		g.Go(func() error {
-			if err := k.fanOut(gctx, cfg, wdk.ShapedChange{
+			shape := wdk.ShapedChange{
 				Count:    cfg.FanoutOutputsPerTx,
 				Satoshis: primitives.SatoshiValue(cfg.Denomination),
 				Basket:   primitives.StringUnder300(cfg.PoolBasket),
-			}); err != nil {
-				return fmt.Errorf("leaf fan-out failed: %w", err)
 			}
-			mintedLeaves.Add(1)
-			return nil
+			// Concurrent leaves fund from the same reserve basket and can pick
+			// the same chunk; storage reports that as a (deliberately
+			// non-retryable) provided-input conflict, which would otherwise
+			// fail most of a round. Retry here — a different chunk is chosen on
+			// the next attempt — with a short stagger to spread the selection.
+			var err error
+			for attempt := range mintLeafAttempts {
+				if attempt > 0 {
+					select {
+					case <-gctx.Done():
+						return nil
+					case <-time.After(time.Duration(attempt) * mintLeafRetryBackoff):
+					}
+				}
+				if err = k.fanOut(gctx, cfg, shape); err == nil {
+					mintedLeaves.Add(1)
+					return nil
+				}
+				if gctx.Err() != nil {
+					return nil
+				}
+			}
+			return fmt.Errorf("leaf fan-out failed after %d attempts: %w", mintLeafAttempts, err)
 		})
 	}
 

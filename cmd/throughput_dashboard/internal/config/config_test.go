@@ -121,14 +121,15 @@ func TestDemoThroughputMatchesLiveTestShape(t *testing.T) {
 }
 
 func TestDemoTargetPoolForTPS(t *testing.T) {
-	// target_tps × expected_confirmation_seconds × pool_headroom_factor
-	// DemoThroughput inherits 300s × 1.5 headroom from DefaultUTXOManagement.
-	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(10))
-	require.Equal(t, uint64(45_000), config.DemoTargetPoolForTPS(100))
-	require.Equal(t, uint64(450), config.DemoTargetPoolForTPS(1))
+	// target_tps × DemoRefillHorizonSeconds × pool_headroom_factor
+	// 15s refill horizon × 1.5 headroom (fuel is spendable on network accept,
+	// not on mining — see DemoRefillHorizonSeconds).
+	require.Equal(t, uint64(225), config.DemoTargetPoolForTPS(10))
+	require.Equal(t, uint64(2_250), config.DemoTargetPoolForTPS(100))
+	require.Equal(t, uint64(22_500), config.DemoTargetPoolForTPS(1000))
 	// Non-positive falls back to 10 TPS.
-	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(0))
-	require.Equal(t, uint64(4_500), config.DemoTargetPoolForTPS(-5))
+	require.Equal(t, uint64(225), config.DemoTargetPoolForTPS(0))
+	require.Equal(t, uint64(225), config.DemoTargetPoolForTPS(-5))
 }
 
 func TestDemoFeeModelTSTNMatchesArcadeFloor(t *testing.T) {
