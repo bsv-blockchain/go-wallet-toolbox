@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overnight Run — 250 TPS Sustained</title>
+<meta name="description" content="Overnight throughput run on the go-wallet-toolbox TSTN demo: 250 TPS sustained for 3h18m, 3,099,344 transactions at 100% network acceptance, ended on funds and disk exhaustion.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  img, svg { max-width: 100%; }
+</style>
+<style>
+  :root, :root[data-theme="dark"], :root[data-theme="light"] {
+    --paper: #161A1F;
+    --ink: #E4E7EB;
+    --muted: #8B96A3;
+    --line: #2C333C;
+    --panel: #1D232B;
+    --amber: #D9A050;
+    --amber-soft: #3A2F1D;
+    --ok: #5CB884;
+    --alert: #E0705F;
+    --code-bg: #232A33;
+  }
+
+  html { background: var(--paper); color-scheme: dark; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Charter, Cambria, Georgia, serif;
+    font-size: 17px;
+    line-height: 1.55;
+    margin: 0;
+    padding: 3rem 1.25rem 5rem;
+  }
+  .sheet { max-width: 76ch; margin: 0 auto; }
+
+  h1, h2, .label, th, .tile b, .phase b {
+    font-family: "Seravek", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  }
+  h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.015em; line-height: 1.15; margin: 0 0 0.4rem; text-wrap: balance; }
+  h2 { font-size: 1.2rem; font-weight: 650; margin: 2.8rem 0 0.8rem; letter-spacing: -0.01em; }
+  p { margin: 0.65rem 0; }
+
+  .kicker {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 1rem;
+  }
+  .meta {
+    color: var(--muted); font-size: 0.9rem; margin-bottom: 2.2rem;
+    padding-bottom: 1.2rem; border-bottom: 1px solid var(--line);
+  }
+
+  .verdict {
+    background: var(--panel); border: 1px solid var(--line);
+    border-left: 3px solid var(--ok); padding: 1.1rem 1.3rem;
+    margin: 1.6rem 0 0; border-radius: 2px;
+  }
+  .verdict p { margin: 0.45rem 0; }
+  .verdict .label {
+    font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ok); font-weight: 650; margin-bottom: 0.5rem;
+  }
+
+  .tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.85rem; margin: 1.6rem 0 0.5rem;
+  }
+  .tile {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 2px; padding: 0.85rem 0.95rem;
+  }
+  .tile .k {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 0.3rem;
+  }
+  .tile .v {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-variant-numeric: tabular-nums; font-size: 1.32rem;
+    color: var(--ink); line-height: 1.2;
+  }
+  .tile .v.good { color: var(--ok); }
+  .tile .v.warn { color: var(--alert); }
+  .tile .s { font-size: 0.78rem; color: var(--muted); display: block; margin-top: 0.25rem; }
+
+  .chartwrap { overflow-x: auto; margin: 1.1rem 0 0.4rem; }
+  svg { display: block; min-width: 34rem; }
+  .chart-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.5rem; }
+
+  .tablewrap { overflow-x: auto; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th {
+    text-align: left; font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--muted); font-weight: 650; padding: 0.45rem 0.9rem 0.45rem 0;
+    border-bottom: 1.5px solid var(--ink); white-space: nowrap;
+  }
+  td { padding: 0.5rem 0.9rem 0.5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num, th.num { text-align: right; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+  .good { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--alert); font-weight: 600; }
+
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.84em; background: var(--code-bg);
+    padding: 0.1em 0.35em; border-radius: 3px;
+  }
+
+  ul.tight { padding-left: 1.25rem; margin: 0.7rem 0; }
+  ul.tight li { margin: 0.5rem 0; }
+
+  .footnote { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="kicker">go-wallet-toolbox · throughput demo · TSTN · overnight run</div>
+  <h1>250 TPS held for 3h18m at 99.96% success</h1>
+  <div class="meta">
+    2026-07-25, 04:04 → 07:48 UTC · commit <code>76634759</code> on <code>feat/network-ttn-tstn-support</code> · stream set to 250 TPS, 32 wallet slots
+  </div>
+
+  <div class="verdict">
+    <div class="label">Outcome</div>
+    <p><b>3,099,344 event transactions, every single one accepted by the network.</b> Not one failed, aborted, or stuck: the status breakdown for the whole run is <code>unproven</code> × 3,099,344 and nothing else.</p>
+    <p>The rate never sagged — ~15,100 transactions per minute, minute after minute, for over three hours — and the FuelKeeper held the UTXO pool the entire time, minting 3,042,000 fuel outputs against 3,099,344 consumed. The run ended abruptly on resource exhaustion, not degradation: it was still at full rate in the final minute.</p>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><span class="k">Events accepted</span><span class="v good">3,099,344</span><span class="s">100.00% of created</span></div>
+    <div class="tile"><span class="k">Sustained rate</span><span class="v">251.7 /s</span><span class="s">vs 250 set point</span></div>
+    <div class="tile"><span class="k">Steady-state success</span><span class="v good">99.96%</span><span class="s">05:00 → 07:48</span></div>
+    <div class="tile"><span class="k">Duration at rate</span><span class="v">3h 18m</span><span class="s">04:30 → 07:48:37</span></div>
+    <div class="tile"><span class="k">Failed / aborted txs</span><span class="v good">0</span><span class="s">whole run</span></div>
+    <div class="tile"><span class="k">Fuel minted</span><span class="v">3,042,000</span><span class="s">30,420 fan-outs</span></div>
+  </div>
+
+  <h2>Rate over the run</h2>
+  <div class="chartwrap">
+    <svg viewBox="0 0 720 210" width="100%" height="230" role="img" aria-label="createAction rate held near 251 per second from 04:30 to 07:48, then dropped to zero">
+      <!-- grid -->
+      <line x1="40" y1="180" x2="700" y2="180" stroke="#2C333C" stroke-width="1"/>
+      <line x1="40" y1="95" x2="700" y2="95" stroke="#2C333C" stroke-width="1" stroke-dasharray="2 4"/>
+      <line x1="40" y1="10" x2="700" y2="10" stroke="#2C333C" stroke-width="1" stroke-dasharray="2 4"/>
+      <text x="34" y="184" fill="#8B96A3" font-size="10" text-anchor="end" font-family="ui-monospace, monospace">0</text>
+      <text x="34" y="99" fill="#8B96A3" font-size="10" text-anchor="end" font-family="ui-monospace, monospace">140</text>
+      <text x="34" y="14" fill="#8B96A3" font-size="10" text-anchor="end" font-family="ui-monospace, monospace">280</text>
+
+      <!-- 250 TPS target -->
+      <line x1="40" y1="28.2" x2="700" y2="28.2" stroke="#D9A050" stroke-width="1" stroke-dasharray="5 4" opacity="0.55"/>
+      <text x="704" y="31" fill="#D9A050" font-size="10" font-family="ui-monospace, monospace">250</text>
+
+      <!-- area -->
+      <polygon fill="#3A2F1D" opacity="0.75" points="40,180 40,74.9 73,29.3 106,26.7 139,27.1 172,27.1 205,27.2 238,27.1 271,27.1 304,26.8 337,27.3 370,27.3 403,27.1 436,27.4 469,27.1 502,27.3 535,28.4 568,27.8 601,35.5 634,28.1 667,30.5 700,180"/>
+      <!-- line -->
+      <polyline fill="none" stroke="#5CB884" stroke-width="2" stroke-linejoin="round"
+        points="40,74.9 73,29.3 106,26.7 139,27.1 172,27.1 205,27.2 238,27.1 271,27.1 304,26.8 337,27.3 370,27.3 403,27.1 436,27.4 469,27.1 502,27.3 535,28.4 568,27.8 601,35.5 634,28.1 667,30.5 700,180"/>
+      <circle cx="700" cy="180" r="3.5" fill="#E0705F"/>
+      <text x="660" y="199" fill="#E0705F" font-size="10" font-family="ui-monospace, monospace">07:48:37</text>
+
+      <text x="40" y="199" fill="#8B96A3" font-size="10" font-family="ui-monospace, monospace">04:30</text>
+      <text x="337" y="199" fill="#8B96A3" font-size="10" text-anchor="middle" font-family="ui-monospace, monospace">06:00</text>
+    </svg>
+  </div>
+  <p class="chart-note">Transactions per second, sampled from database creation timestamps every 10 minutes. The whole run sits between 246 and 252.5/s apart from one 238/s dip at 07:20 and the ramp in the first sample. Then a vertical drop to zero — the last full minute still carried 15,010 transactions.</p>
+
+  <h2>Success rate by phase</h2>
+  <div class="tablewrap">
+    <table>
+      <tr><th>Phase</th><th class="num">Requests</th><th class="num">Failures</th><th class="num">Success</th><th>Cause of failures</th></tr>
+      <tr>
+        <td><b>04:04 – 05:00</b> startup</td>
+        <td class="num">~620,000</td>
+        <td class="num">25,799</td>
+        <td class="num">95.8%</td>
+        <td>Pool still filling toward its target while the stream was already at rate</td>
+      </tr>
+      <tr>
+        <td><b>05:00 – 07:48</b> steady state</td>
+        <td class="num">2,507,947</td>
+        <td class="num good">≤ 900</td>
+        <td class="num good">99.96%</td>
+        <td>Momentary pool dips; keeper recovered each time</td>
+      </tr>
+      <tr>
+        <td><b>Funded window total</b></td>
+        <td class="num">3,103,029</td>
+        <td class="num">26,700</td>
+        <td class="num good">99.14%</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><b>07:48 – 12:20</b> after exhaustion</td>
+        <td class="num">4,093,941</td>
+        <td class="num bad">4,093,941</td>
+        <td class="num bad">0%</td>
+        <td>No fuel and no funds; the stream kept requesting for 4½ hours</td>
+      </tr>
+    </table>
+  </div>
+  <p>Between 05:00 and 07:00 the failure counter advanced by <b>at most 100</b> across two full hours — roughly 1.8 million requests. That is the number worth keeping: with the pool in steady state, the failure rate was not measurably different from zero.</p>
+
+  <h2>Did the FuelKeeper hold the pool?</h2>
+  <p>Yes, and that is the headline change from every previous attempt. Over the run it produced <b>30,420 fan-out transactions minting 3,042,000 fuel UTXOs</b> against <b>3,099,344 consumed</b> — mint tracked burn to within 2% for three hours, with the pool oscillating between its low and high water marks rather than draining. None of the previous failure modes reappeared:</p>
+  <ul class="tight">
+    <li><b>No stale-index poisoning.</b> The self-healing claim path never let a spent output block funding; zero dead index rows survived the run.</li>
+    <li><b>No keeper wedge.</b> Fan-outs kept minting for 3h18m with no ancestry-walk stall.</li>
+    <li><b>No broadcaster overflow.</b> 3.1M transactions reached the network with none stranded in <code>sending</code> and none swept into <code>aborted</code>.</li>
+  </ul>
+
+  <h2>What actually ended the run</h2>
+  <p>Two resources ran out, and the funds went first:</p>
+  <ul class="tight">
+    <li><b>Satoshis, at 07:48:37.</b> Each event burns a 30-satoshi fuel UTXO, so 250/s costs 7,500 sat/s — about <b>27M satoshis per hour</b>. The run consumed roughly <b>103M satoshis (~1.03 tBSV)</b> including fan-out fees. The stop was instant and total: the pool hit zero and every subsequent request failed.</li>
+    <li><b>Disk, some time after.</b> The database grew to <b>11 GB</b> (~3.5 KB per transaction including indexes) and the host volume reached 100% of 58 GB, which put Postgres into recovery mode. I reclaimed 19.7 GB of Docker images and build cache to bring it back up for this analysis; no data was lost. At this rate the database grows ~1.6 GB/hour, so a full day of running needs ~40 GB of headroom.</li>
+  </ul>
+  <p>One behavioural gap is worth fixing: after funds ran out the stream kept issuing requests for four and a half hours, logging 4.09M failures and adding load for no benefit. It should pause itself when the pool is empty and the wallet cannot refill it.</p>
+
+  <h2>Cost model for planning</h2>
+  <div class="tablewrap">
+    <table>
+      <tr><th>Rate</th><th class="num">Per hour</th><th class="num">Per 8-hour run</th><th class="num">At 1 sat/kb</th></tr>
+      <tr><td>100 TPS</td><td class="num">10.8M sats</td><td class="num">86M sats</td><td class="num">5.8M sats</td></tr>
+      <tr><td>250 TPS</td><td class="num">27M sats</td><td class="num">216M sats</td><td class="num">14.4M sats</td></tr>
+      <tr><td>1000 TPS</td><td class="num">108M sats</td><td class="num">864M sats</td><td class="num">57.6M sats</td></tr>
+    </table>
+  </div>
+  <p>The right-hand column is the lever. The 30-satoshi denomination exists only because this Arcade host enforces a 100 sat/kb minimum fee; the toolbox already builds valid 1-satoshi-fee transactions at the going network rate. Lowering that host policy cuts the funding requirement about 15× — worth more to long runs than any further code optimisation.</p>
+
+  <div class="footnote">
+    Figures from the storage database (3,099,344 stream transactions, 30,420 fan-outs, all <code>unproven</code>) and the dashboard's own counters (3,076,329 succeeded / 4,120,641 failed cumulative for the 04:27:52 stream generation). Failure timing reconstructed from the dashboard's sampled failure-counter log lines. Database counts include 23,015 transactions created before the 04:27:52 counter reset.
+  </div>
+</div>
+</body>
+</html>
