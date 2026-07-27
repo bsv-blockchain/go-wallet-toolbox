@@ -91,7 +91,8 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("build opreturn locking script: %w", err)
 	}
 
-	logger.Info("starting load",
+	logger.Info(
+		"starting load",
 		"tps", cfg.TPS,
 		"workers", cfg.Workers,
 		"duration_seconds", cfg.DurationSeconds,
@@ -99,7 +100,8 @@ func run(logger *slog.Logger) error {
 		"server_url", cfg.ServerURL,
 	)
 	stats := RunLoad(ctx, operatorWallet, cfg, locking)
-	logger.Info("load complete",
+	logger.Info(
+		"load complete",
 		"attempted", stats.Attempted,
 		"succeeded", stats.Succeeded,
 		"failed", stats.Failed,

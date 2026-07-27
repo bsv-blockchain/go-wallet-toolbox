@@ -106,7 +106,8 @@ func newBroadcastRouter(
 // a final error result for the primary is returned instead.
 func (r *broadcastRouter) broadcast(ctx context.Context, efHex string, rawTx []byte, txID string) []*wdk.PostFromBEEFServiceResult {
 	if !r.breaker.Allow() {
-		r.logger.WarnContext(ctx, "primary broadcaster circuit is open, failing over",
+		r.logger.WarnContext(
+			ctx, "primary broadcaster circuit is open, failing over",
 			slog.String("txID", txID),
 			slog.String("service", r.primary.name),
 		)
@@ -153,7 +154,8 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 		// the caller went away mid-broadcast: not a service failure, so it must
 		// not count against the circuit breaker. With a dead context the
 		// failovers cannot succeed either, so stop here.
-		r.logger.InfoContext(ctx, "primary broadcast canceled by the caller",
+		r.logger.InfoContext(
+			ctx, "primary broadcast canceled by the caller",
 			slog.String("txID", txID),
 			slog.String("service", r.primary.name),
 			slog.String("error", err.Error()),
@@ -163,7 +165,8 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 
 	// transport failure (or repeated backpressure): count it and fail over
 	r.breaker.RecordFailure()
-	r.logger.WarnContext(ctx, "primary broadcaster failed, failing over",
+	r.logger.WarnContext(
+		ctx, "primary broadcaster failed, failing over",
 		slog.String("txID", txID),
 		slog.String("service", r.primary.name),
 		slog.String("error", err.Error()),
@@ -175,7 +178,8 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 // It returns a context-wrapped error when the caller is canceled during the wait.
 func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex string, rawTx []byte, txID string, bp *arcade.BackpressureError) (*wdk.PostedTxID, error) {
 	wait := min(bp.RetryAfter, r.maxBackpressureWait)
-	r.logger.InfoContext(ctx, "primary broadcaster applied backpressure, retrying once",
+	r.logger.InfoContext(
+		ctx, "primary broadcaster applied backpressure, retrying once",
 		slog.String("txID", txID),
 		slog.Duration("wait", wait),
 	)
@@ -200,7 +204,8 @@ func (r *broadcastRouter) runFailovers(ctx context.Context, efHex string, rawTx 
 		if err == nil {
 			return append(partialResults, targetResult(target.name, posted))
 		}
-		r.logger.WarnContext(ctx, "failover broadcaster failed",
+		r.logger.WarnContext(
+			ctx, "failover broadcaster failed",
 			slog.String("txID", txID),
 			slog.String("service", target.name),
 			slog.String("error", err.Error()),

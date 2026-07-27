@@ -161,7 +161,8 @@ func startProgressLogger(
 				return
 			case <-ticker.C:
 				cur := counters.attempted.Load()
-				slog.Info("loadgen progress",
+				slog.Info(
+					"loadgen progress",
 					"attempted", cur,
 					"succeeded", counters.succeeded.Load(),
 					"failed", counters.failed.Load(),

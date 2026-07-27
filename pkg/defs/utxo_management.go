@@ -294,7 +294,8 @@ func (t *Throughput) validateTopUpCapacity() error {
 	if mintCapacity < required {
 		return fmt.Errorf(
 			"sustained-throughput identity violated: fanout_outputs_per_tx × fanout_max_txs_per_round = %.0f must be >= target_tps × top_up.interval_seconds × %.1f = %.0f",
-			mintCapacity, fanoutRecoveryMargin, required)
+			mintCapacity, fanoutRecoveryMargin, required,
+		)
 	}
 	return nil
 }

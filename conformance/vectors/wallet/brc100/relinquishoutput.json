@@ -1,56 +1,58 @@
 {
     "$schema": "../../../schema/vector.schema.json",
-    "id": "wallet.brc100.relinquishoutput",
-    "name": "BRC-100 relinquishoutput",
     "brc": [
         "BRC-100"
     ],
-    "version": "2.0.1",
-    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
+    "id": "wallet.brc100.relinquishoutput",
+    "name": "BRC-100 relinquishoutput",
     "parity_class": "required",
+    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
     "vectors": [
         {
-            "id": "wallet.brc100.relinquishoutput.1",
             "description": "relinquishOutput from default basket",
+            "expected": {
+                "relinquished": true
+            },
+            "id": "wallet.brc100.relinquishoutput.1",
             "input": {
                 "args": {
                     "basket": "default",
                     "output": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.0"
                 }
             },
-            "expected": {
-                "relinquished": true
-            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput",
                 "happy-path"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.2",
             "description": "relinquishOutput from tokens basket",
+            "expected": {
+                "relinquished": true
+            },
+            "id": "wallet.brc100.relinquishoutput.2",
             "input": {
                 "args": {
                     "basket": "tokens",
                     "output": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.1"
                 }
             },
-            "expected": {
-                "relinquished": true
-            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.3",
             "description": "relinquishOutput with originator",
+            "expected": {
+                "relinquished": true
+            },
+            "id": "wallet.brc100.relinquishoutput.3",
             "input": {
                 "args": {
                     "basket": "payments",
@@ -58,29 +60,26 @@
                 },
                 "originator": "app.example.com"
             },
-            "expected": {
-                "relinquished": true
-            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput",
                 "originator"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.4",
             "description": "relinquishOutput output not in basket",
+            "expected": {
+                "code": "ERR_OUTPUT_NOT_FOUND",
+                "error": true
+            },
+            "id": "wallet.brc100.relinquishoutput.4",
             "input": {
                 "args": {
                     "basket": "default",
                     "output": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.0"
                 }
-            },
-            "expected": {
-                "error": true,
-                "code": "ERR_OUTPUT_NOT_FOUND"
             },
             "tags": [
                 "brc-100",
@@ -89,16 +88,16 @@
             ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.5",
             "description": "relinquishOutput invalid outpoint format",
+            "expected": {
+                "error": true
+            },
+            "id": "wallet.brc100.relinquishoutput.5",
             "input": {
                 "args": {
                     "basket": "default",
                     "output": "invalid-outpoint"
                 }
-            },
-            "expected": {
-                "error": true
             },
             "tags": [
                 "brc-100",
@@ -108,63 +107,64 @@
             ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.6",
             "description": "relinquishOutput result shape: { relinquished: true }",
-            "input": {
-                "args": {
-                    "basket": "default",
-                    "output": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.0"
-                },
-                "_schema_note": "success always returns { relinquished: true }"
-            },
             "expected": {
                 "relinquished": true
             },
+            "id": "wallet.brc100.relinquishoutput.6",
+            "input": {
+                "_schema_note": "success always returns { relinquished: true }",
+                "args": {
+                    "basket": "default",
+                    "output": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.0"
+                }
+            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput",
                 "schema"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.7",
             "description": "relinquishOutput invoices basket",
+            "expected": {
+                "relinquished": true
+            },
+            "id": "wallet.brc100.relinquishoutput.7",
             "input": {
                 "args": {
                     "basket": "invoices",
                     "output": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.0"
                 }
             },
-            "expected": {
-                "relinquished": true
-            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         },
         {
-            "id": "wallet.brc100.relinquishoutput.8",
             "description": "relinquishOutput output index 1",
+            "expected": {
+                "relinquished": true
+            },
+            "id": "wallet.brc100.relinquishoutput.8",
             "input": {
                 "args": {
                     "basket": "default",
                     "output": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.1"
                 }
             },
-            "expected": {
-                "relinquished": true
-            },
+            "parity_class": "intended",
+            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs.",
             "tags": [
                 "brc-100",
                 "relinquishOutput"
-            ],
-            "parity_class": "intended",
-            "skip_reason": "Requires pre-existing output in wallet storage. Fresh wallet has no outputs."
+            ]
         }
-    ]
+    ],
+    "version": "2.0.1"
 }

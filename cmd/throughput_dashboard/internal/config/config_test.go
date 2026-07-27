@@ -3,9 +3,10 @@ package config_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/cmd/throughput_dashboard/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConfigFromEnvRequiresPrivateKey(t *testing.T) {

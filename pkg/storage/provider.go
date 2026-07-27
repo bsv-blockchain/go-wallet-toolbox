@@ -510,7 +510,8 @@ func (p *Provider) seedBaskets() []wdk.BasketConfiguration {
 		desired = int64(targetPool)
 	}
 
-	return append(baskets,
+	return append(
+		baskets,
 		wdk.BasketConfiguration{
 			Name:                    primitives.StringUnder300(throughput.PoolBasket),
 			NumberOfDesiredUTXOs:    desired,
@@ -773,7 +774,8 @@ func (p *Provider) ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.Li
 // GetBalance returns total spendable satoshis in the given basket for the authenticated user.
 // Empty basket defaults to BasketNameForChange ("default").
 func (p *Provider) GetBalance(ctx context.Context, auth wdk.AuthID, basket string) (balance uint64, err error) {
-	ctx, span := tracing.StartTracing(ctx, "StorageProvider-GetBalance",
+	ctx, span := tracing.StartTracing(
+		ctx, "StorageProvider-GetBalance",
 		attribute.String("basket", basket),
 	)
 	defer func() {
