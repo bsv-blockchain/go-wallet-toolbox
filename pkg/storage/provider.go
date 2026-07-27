@@ -1260,9 +1260,12 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	if len(txIDs) == 0 {
+		// No signed transaction, but a locally-terminal one (aborted before it was
+		// ever signed) still has to be reported - see localOnlyTerminalTxs.
+		localOnly := localOnlyTerminalTxs(userTxs, nil, args)
 		return &wdk.ListTransactionsResult{
-			TotalTransactions: 0,
-			Transactions:      []wdk.CurrentTxStatus{},
+			TotalTransactions: primitives.PositiveInteger(uint64(len(localOnly))),
+			Transactions:      localOnly,
 		}, nil
 	}
 
@@ -1285,6 +1288,7 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	}
 
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
+	reported := make(map[string]struct{}, len(knownTxs))
 	for _, ktx := range knownTxs {
 		status := ktx.Status.ToStandardizedStatus()
 		switch txStatusMap[ktx.TxID] { //nolint:exhaustive // only Failed/Aborted override the KnownTx-derived status; all other TxStatus values keep it
@@ -1322,12 +1326,78 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 		}
 
 		transactions = append(transactions, txUpdate)
+
+		reported[ktx.TxID] = struct{}{}
 	}
+
+	// A transaction aborted before it was ever signed has no KnownTx row at all, so
+	// the query above cannot see it. Append those separately; otherwise an aborted
+	// action is indistinguishable from one that never existed.
+	localOnly := localOnlyTerminalTxs(userTxs, reported, args)
+	transactions = append(transactions, localOnly...)
+	totalCount += uint64(len(localOnly))
 
 	return &wdk.ListTransactionsResult{
 		TotalTransactions: primitives.PositiveInteger(totalCount),
 		Transactions:      transactions,
 	}, nil
+}
+
+// localOnlyTerminalTxs reports the user transactions that reached a terminal local
+// status without leaving a KnownTx row behind.
+//
+// ListTransactions is driven by KnownTx, which only gains a row once a transaction is
+// signed and spent. AbortAction, the fail_abandoned sweep and a canceled ProcessAction
+// can all mark a Transaction 'aborted' before that ever happens, and the same is true of
+// 'failed'. Such a transaction would otherwise be missing from the result entirely -
+// which callers using ListTransactions for idempotency cannot distinguish from a
+// transaction that was never created, even though the two demand opposite responses:
+// an aborted action has had its inputs released and is safe to rebuild and retry.
+//
+// Only terminal statuses are surfaced. In-flight local states (unsigned, nosend) are
+// deliberately left out so the reported set stays the transactions the caller can act
+// on. When args.Status is set the caller is filtering on a ProvenTxReqStatus, which by
+// definition no KnownTx-less transaction can satisfy, so nothing is added.
+//
+// TxID is empty for a transaction aborted before signing, since none was ever assigned;
+// callers match those on Reference.
+func localOnlyTerminalTxs(userTxs []*entity.Transaction, reported map[string]struct{}, args wdk.ListTransactionsArgs) []wdk.CurrentTxStatus {
+	if args.Status != nil {
+		return nil
+	}
+
+	localOnly := make([]wdk.CurrentTxStatus, 0)
+	for _, tx := range userTxs {
+		// Mirrors the override applied to the KnownTx-backed rows above rather than
+		// TxStatus.ToStandardizedStatus(), which maps 'failed' to InvalidTx. Both halves
+		// of a single result set must label the same local status the same way.
+		var status wdk.StandardizedTxStatus
+		switch tx.Status { //nolint:exhaustive // only the terminal local statuses are reported here
+		case wdk.TxStatusAborted:
+			status = wdk.TxUpdateStatusAborted
+		case wdk.TxStatusFailed:
+			status = wdk.TxUpdateStatusFailed
+		default:
+			continue
+		}
+
+		txID := ""
+		if tx.TxID != nil {
+			if _, ok := reported[*tx.TxID]; ok {
+				continue
+			}
+			txID = *tx.TxID
+		}
+
+		localOnly = append(localOnly, wdk.CurrentTxStatus{
+			TxID:      txID,
+			Status:    status,
+			Reference: tx.Reference,
+			Labels:    tx.Labels,
+		})
+	}
+
+	return localOnly
 }
 
 // ProcessNewTip updates the last checked block and runs transaction synchronization.
