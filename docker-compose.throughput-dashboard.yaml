@@ -5,6 +5,11 @@
 #   # export INFRA_WALLET_SERVICES_ARC_TOKEN=...
 #   docker compose -f docker-compose.throughput-dashboard.yaml up --build
 #
+# For private TSTN (uncommitted endpoints), copy the override template:
+#   docker-compose.throughput-dashboard.tstn.override.yaml.example
+#   .env.tstn.example
+# See docs/throughput-dashboard.md § "TSTN compose override".
+#
 # UI:            http://127.0.0.1:8200
 # Storage host:  http://127.0.0.1:8101
 # Postgres host: 127.0.0.1:5433
@@ -15,6 +20,22 @@
 services:
   db:
     image: postgres:17-alpine
+    # The throughput demo is write-bound on WAL flushes at high createAction
+    # rates. synchronous_commit=off returns from COMMIT without waiting for the
+    # WAL flush, which removes that wait while keeping fsync ordering intact: a
+    # crash can lose the last fraction of a second of transactions, but cannot
+    # corrupt the database. fsync=off / full_page_writes=off would be faster
+    # still and are deliberately NOT set — they drop the ordering guarantees
+    # crash recovery relies on, so an OS or power failure can leave the
+    # database unrecoverable.
+    command:
+      - postgres
+      - -c
+      - synchronous_commit=off
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - shared_buffers=512MB
     volumes:
       - db-data-throughput-dashboard:/var/lib/postgresql/data:Z
     environment:
@@ -39,6 +60,8 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8101:8100"
+      # pprof (throughput profiling)
+      - "127.0.0.1:6060:6060"
     volumes:
       - ./infra-config-docker-throughput-mainnet.yaml:/app/infra-config-throughput.yaml:ro
     environment:
@@ -62,8 +85,11 @@ services:
       - PRIVATE_KEY=${PRIVATE_KEY:?set PRIVATE_KEY for dashboard}
       - HTTP_ADDR=0.0.0.0:8200
       - TPS=${TPS:-10}
-      - WORKERS=${WORKERS:-8}
+      # 0 = auto-derive from TPS (stream.WorkersForTPS); set >0 to override
+      - WORKERS=${WORKERS:-0}
       - SAMPLE_SECONDS=${SAMPLE_SECONDS:-1}
+      # 0 = syncwallet.DefaultMaxInFlight; bounds concurrent storage RPCs
+      - WALLET_MAX_IN_FLIGHT=${WALLET_MAX_IN_FLIGHT:-0}
       - ORIGINATOR=${ORIGINATOR:-throughput-dashboard.local}
     restart: unless-stopped
 

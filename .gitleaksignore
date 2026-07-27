@@ -159,3 +159,41 @@ infra-config-docker-throughput-mainnet.yaml:generic-api-key:31
 # Exact fingerprint from Gitleaks PR #966 review comment
 4758c36718411130aedbf63edfd9901855d321da:infra-config-docker-throughput-mainnet.yaml:generic-api-key:21
 
+# infra-config-docker-throughput-tstn.yaml — same local Docker dev key as
+# infra-config-docker.yaml (not a production secret; false positive).
+infra-config-docker-throughput-tstn.yaml:generic-api-key:34
+# Exact fingerprint from Gitleaks PR #969 review comment
+4a8bf73a13fa8cd93a811a5be04727489010d333:infra-config-docker-throughput-tstn.yaml:generic-api-key:34
+
+# third_party/go-sdk — a vendored go-sdk checkout carried on this branch while
+# waiting on the upstream auth-concurrency fix, since replaced by the tagged
+# v1.3.2 release and deleted from the tree. The findings are upstream's own
+# public test vectors and documentation examples, not our secrets, and remain
+# reachable only through this branch's history.
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/auth/peer_test.go:generic-api-key:30
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/auth/peer_test.go:generic-api-key:31
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/auth/transports/simplified_http_transport_test.go:generic-api-key:69
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/auth/transports/transports_extra_test.go:generic-api-key:170
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/doc.go:generic-api-key:74
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/doc.go:generic-api-key:76
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:417
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:443
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:486
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:511
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:551
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:577
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:621
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:647
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:716
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:834
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:933
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/compat/bip32/hd_key_test.go:generic-api-key:1049
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/identity/client_test.go:generic-api-key:180
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/identity/client_test.go:generic-api-key:266
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/transaction/template/p2pkh/p2pkh_compat_test.go:generic-api-key:20
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/transaction/transaction_test.go:generic-api-key:226
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/proto_wallet_brc_test.go:generic-api-key:20
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/proto_wallet_brc_test.go:generic-api-key:58
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/proto_wallet_brc_test.go:generic-api-key:99
+a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/testcertificates/test_certificates_manager.go:generic-api-key:20
+

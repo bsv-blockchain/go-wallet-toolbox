@@ -59,9 +59,27 @@ func NewRestyClientFactoryWithBase(base *resty.Client) *RestyClientFactory {
 	return &RestyClientFactory{base: base}
 }
 
+// pooledTransport clones http.DefaultTransport with a connection pool sized for
+// concurrent service traffic. DefaultTransport keeps only 2 idle connections per
+// host (DefaultMaxIdleConnsPerHost), so anything past 2 concurrent requests to
+// the same host — e.g. the background broadcaster fanning posts at Arcade —
+// dials a fresh TCP connection per request and discards it, adding a handshake
+// to every call and churning ephemeral ports.
+func pooledTransport() *http.Transport {
+	t, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{}
+	}
+	t = t.Clone()
+	t.MaxIdleConns = 512
+	t.MaxIdleConnsPerHost = 128
+	t.IdleConnTimeout = 90 * time.Second
+	return t
+}
+
 func NewRestyClientFactory() *RestyClientFactory {
 	transport := otelhttp.NewTransport(
-		http.DefaultTransport,
+		pooledTransport(),
 		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
 			return otelhttptrace.NewClientTrace(ctx)
 		}),

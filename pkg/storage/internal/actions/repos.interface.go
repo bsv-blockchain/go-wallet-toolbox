@@ -97,6 +97,7 @@ type CommissionRepo interface {
 type UTXORepo interface {
 	UnreserveUTXOsByTransactionID(ctx context.Context, transactionID uint) error
 	CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error
+	MakeChangeSpendableAndIndexByTxID(ctx context.Context, txID string) error
 }
 
 type Providers interface {

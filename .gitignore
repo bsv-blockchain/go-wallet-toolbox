@@ -25,6 +25,10 @@ go.work.sum
 
 # env file
 .env
+.env.tstn
+
+# Local TSTN throughput dashboard override (copy from *.example; holds private wiring)
+docker-compose.throughput-dashboard.tstn.override.yaml
 
 # Jetbrains
 .idea/

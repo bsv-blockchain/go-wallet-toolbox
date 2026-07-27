@@ -20,14 +20,17 @@ import (
 
 // fakeWallet implements WalletAPI with controllable balance and basket totals.
 type fakeWallet struct {
-	mu           sync.Mutex
-	balance      uint64
-	balanceErr   error
-	fuelTotal    uint32
-	reserveTotal uint32
-	listErr      error
-	listCalls    []sdk.ListOutputsArgs
-	originators  []string
+	mu              sync.Mutex
+	balance         uint64
+	balanceErr      error
+	fuelTotal       uint32
+	reserveTotal    uint32
+	listErr         error
+	listCalls       []sdk.ListOutputsArgs
+	originators     []string
+	actions         []sdk.Action
+	listActionsErr  error
+	listActionCalls int
 }
 
 func (f *fakeWallet) Balance(context.Context) (uint64, error) {
@@ -55,6 +58,37 @@ func (f *fakeWallet) ListOutputs(_ context.Context, args sdk.ListOutputsArgs, or
 		total = f.reserveTotal
 	}
 	return &sdk.ListOutputsResult{TotalOutputs: total}, nil
+}
+
+func (f *fakeWallet) ListActions(_ context.Context, args sdk.ListActionsArgs, originator string) (*sdk.ListActionsResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listActionCalls++
+	f.originators = append(f.originators, originator)
+	if f.listActionsErr != nil {
+		return nil, f.listActionsErr
+	}
+	total := uint32(len(f.actions)) //nolint:gosec // test fixture size
+	limit := uint32(10)
+	if args.Limit != nil {
+		limit = *args.Limit
+	}
+	offset := uint32(0)
+	if args.Offset != nil {
+		offset = *args.Offset
+	}
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	page := f.actions[offset:end]
+	return &sdk.ListActionsResult{
+		TotalActions: total,
+		Actions:      append([]sdk.Action(nil), page...),
+	}, nil
 }
 
 func (f *fakeWallet) setFuel(n uint32) {
@@ -95,7 +129,13 @@ func discardLogger() *slog.Logger {
 func newTestSampler(t *testing.T, wallet WalletAPI, ctrl *stream.Controller, targetTPS uint64) *Sampler {
 	t.Helper()
 	if ctrl == nil {
-		ctrl = stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 1, Workers: 1, Originator: "test"}, discardLogger())
+		// Stream TPS drives runway; align controller TPS with the sampler config
+		// so runway tests remain predictable unless a custom ctrl is passed.
+		tps := int(targetTPS) //nolint:gosec // G115: fixed small test value
+		if tps <= 0 {
+			tps = 1
+		}
+		ctrl = stream.NewController(&fakeActionCreator{}, stream.Options{TPS: tps, Workers: 1, Originator: "test"}, discardLogger())
 	}
 	// long interval; tests drive sample() directly
 	return NewSampler(wallet, ctrl, Config{
@@ -147,22 +187,69 @@ func TestSample_TickFieldsAndRunway(t *testing.T) {
 	assert.Equal(t, uint64(0), tick.TPSAttempted)
 	assert.Equal(t, uint64(0), tick.TPSSucceeded)
 	assert.Equal(t, uint64(0), tick.TPSFailed)
+	assert.Equal(t, stream.ActionLabel, tick.Network.Label)
+	assert.Equal(t, uint64(0), tick.Network.Total)
+	assert.InDelta(t, -1.0, tick.Network.AcceptRate, 1e-9)
 
 	// ListOutputs polled for fuel + reserve with limit 1 and originator.
+	// ListActions probe (total=0) is a third wallet call with the same originator.
 	require.Len(t, wallet.listCalls, 2)
 	assert.Equal(t, wdk.BasketNameForFuel, wallet.listCalls[0].Basket)
 	assert.Equal(t, wdk.BasketNameForReserve, wallet.listCalls[1].Basket)
 	require.NotNil(t, wallet.listCalls[0].Limit)
 	assert.Equal(t, uint32(1), *wallet.listCalls[0].Limit)
-	assert.Equal(t, []string{"test-originator", "test-originator"}, wallet.originators)
+	assert.Equal(t, []string{"test-originator", "test-originator", "test-originator"}, wallet.originators)
+	assert.Equal(t, 1, wallet.listActionCalls)
 }
 
-func TestSample_RunwayZeroWhenTargetTPSZero(t *testing.T) {
-	wallet := &fakeWallet{fuelTotal: 500}
-	s := newTestSampler(t, wallet, nil, 0)
+func TestSample_RunwayZeroWhenNoFuel(t *testing.T) {
+	wallet := &fakeWallet{fuelTotal: 0}
+	s := newTestSampler(t, wallet, nil, 10)
 
 	s.sample(context.Background())
 	assert.InDelta(t, 0, s.LastTick().FuelRunwaySec, 0.001)
+}
+
+func TestSample_RunwayUsesStreamConfiguredTPS(t *testing.T) {
+	// Sampler config still says 10 TPS (FuelKeeper demo), but the stream controller
+	// is set to 100 — runway must follow the stream/UI target.
+	ctrl := stream.NewController(&fakeActionCreator{}, stream.Options{TPS: 100, Workers: 1, Originator: "test"}, discardLogger())
+	wallet := &fakeWallet{fuelTotal: 250}
+	s := NewSampler(wallet, ctrl, Config{
+		Originator: "test-originator", Interval: time.Hour,
+		TargetTPS: 10, Denomination: 2, TargetPool: 500,
+		LowWaterPercent: 60, HighWaterPercent: 100,
+		Logger: discardLogger(),
+	})
+
+	s.sample(context.Background())
+	tick := s.LastTick()
+	assert.Equal(t, uint64(100), tick.TargetTPS)
+	assert.InDelta(t, 2.5, tick.FuelRunwaySec, 1e-9) // 250 / 100, not 250 / 10
+}
+
+func TestSetTargetPool_UpdatesGauges(t *testing.T) {
+	s := newTestSampler(t, &fakeWallet{fuelTotal: 100}, nil, 10)
+	require.Equal(t, uint64(1000), s.TargetPoolSize())
+
+	s.SetTargetPool(4500, 10)
+	require.Equal(t, uint64(4500), s.TargetPoolSize())
+
+	s.sample(context.Background())
+	tick := s.LastTick()
+	assert.Equal(t, uint64(4500), tick.TargetPoolSize)
+	assert.Equal(t, uint64(2700), tick.LowWater)  // 60% of 4500
+	assert.Equal(t, uint64(4500), tick.HighWater) // 100%
+
+	// tps=0 leaves previous display TPS; pool still updates.
+	s.SetTargetPool(9000, 0)
+	require.Equal(t, uint64(9000), s.TargetPoolSize())
+	s.sample(context.Background())
+	assert.Equal(t, uint64(9000), s.LastTick().TargetPoolSize)
+
+	// pool=0 is a no-op.
+	s.SetTargetPool(0, 50)
+	require.Equal(t, uint64(9000), s.TargetPoolSize())
 }
 
 func TestSample_EmitsTickEvent(t *testing.T) {
@@ -450,8 +537,9 @@ func TestRun_SamplesThenStopsOnCancel(t *testing.T) {
 
 func TestSample_WalletErrorsDoNotPanic(t *testing.T) {
 	wallet := &fakeWallet{
-		balanceErr: errors.New("balance down"),
-		listErr:    errors.New("list down"),
+		balanceErr:     errors.New("balance down"),
+		listErr:        errors.New("list down"),
+		listActionsErr: errors.New("list actions down"),
 	}
 	s := newTestSampler(t, wallet, nil, 10)
 
@@ -462,8 +550,99 @@ func TestSample_WalletErrorsDoNotPanic(t *testing.T) {
 	assert.Equal(t, uint64(0), tick.DefaultSats)
 	assert.Equal(t, uint64(0), tick.FuelCount)
 	assert.Equal(t, uint64(0), tick.ReserveCount)
+	assert.Equal(t, stream.ActionLabel, tick.Network.Label)
+	assert.InDelta(t, -1.0, tick.Network.AcceptRate, 1e-9)
 	// still emits tick
 	require.Len(t, s.RecentEvents(), 1)
+}
+
+func TestSummarizeNetworkActions_AcceptRate(t *testing.T) {
+	actions := []sdk.Action{
+		{Status: sdk.ActionStatusUnproven},
+		{Status: sdk.ActionStatusUnproven},
+		{Status: sdk.ActionStatusCompleted},
+		{Status: sdk.ActionStatusSending},
+		{Status: actionStatusFailed},
+		{Status: actionStatusAborted},
+		{Status: sdk.ActionStatusNoSend},
+	}
+	h := summarizeNetworkActions(42, actions)
+	assert.Equal(t, uint64(42), h.Total)
+	assert.Equal(t, uint64(7), h.Sampled)
+	assert.Equal(t, uint64(2), h.Unproven)
+	assert.Equal(t, uint64(1), h.Completed)
+	assert.Equal(t, uint64(1), h.Sending)
+	assert.Equal(t, uint64(1), h.Failed)
+	assert.Equal(t, uint64(1), h.Aborted)
+	assert.Equal(t, uint64(1), h.Other)
+	assert.Equal(t, uint64(3), h.Accepted)
+	assert.Equal(t, uint64(4), h.Decided)
+	assert.InDelta(t, 0.75, h.AcceptRate, 1e-9) // 3 / (3+1)
+	assert.Equal(t, stream.ActionLabel, h.Label)
+}
+
+func TestSummarizeNetworkActions_NoDecided(t *testing.T) {
+	h := summarizeNetworkActions(2, []sdk.Action{
+		{Status: sdk.ActionStatusSending},
+		{Status: actionStatusAborted},
+	})
+	assert.Equal(t, uint64(0), h.Decided)
+	assert.InDelta(t, -1.0, h.AcceptRate, 1e-9)
+}
+
+func TestSample_NetworkHealthFromListActions(t *testing.T) {
+	wallet := &fakeWallet{
+		actions: []sdk.Action{
+			{Status: sdk.ActionStatusSending},
+			{Status: sdk.ActionStatusUnproven},
+			{Status: actionStatusFailed},
+			{Status: sdk.ActionStatusUnproven},
+		},
+	}
+	s := newTestSampler(t, wallet, nil, 10)
+	s.sample(context.Background())
+
+	n := s.LastTick().Network
+	assert.Equal(t, uint64(4), n.Total)
+	assert.Equal(t, uint64(4), n.Sampled)
+	assert.Equal(t, uint64(2), n.Unproven)
+	assert.Equal(t, uint64(1), n.Sending)
+	assert.Equal(t, uint64(1), n.Failed)
+	assert.Equal(t, uint64(2), n.Accepted)
+	assert.Equal(t, uint64(3), n.Decided)
+	assert.InDelta(t, 2.0/3.0, n.AcceptRate, 1e-9)
+	// probe (limit 1) + page (all 4)
+	assert.Equal(t, 2, wallet.listActionCalls)
+}
+
+func TestSample_NetworkHealthSamplesNewestPage(t *testing.T) {
+	wallet := &fakeWallet{actions: nil}
+	s := newTestSampler(t, wallet, nil, 5)
+	s.sample(context.Background())
+	assert.Equal(t, 1, wallet.listActionCalls, "empty total should not page")
+	assert.Equal(t, uint64(0), s.LastTick().Network.Sampled)
+
+	// Newest window: oldest actions are failed; newest are unproven. Sampler must
+	// offset into the tail so accept_rate reflects the recent page only.
+	actions := make([]sdk.Action, int(networkSampleLimit)+50)
+	for i := range actions {
+		if i < 50 {
+			actions[i] = sdk.Action{Status: actionStatusFailed}
+		} else {
+			actions[i] = sdk.Action{Status: sdk.ActionStatusUnproven}
+		}
+	}
+	wallet.actions = actions
+	wallet.listActionCalls = 0
+	s.sample(context.Background())
+
+	n := s.LastTick().Network
+	assert.Equal(t, 2, wallet.listActionCalls)
+	assert.Equal(t, uint64(len(actions)), n.Total)
+	assert.Equal(t, uint64(networkSampleLimit), n.Sampled)
+	assert.Equal(t, uint64(networkSampleLimit), n.Unproven)
+	assert.Equal(t, uint64(0), n.Failed)
+	assert.InDelta(t, 1.0, n.AcceptRate, 1e-9)
 }
 
 func TestConcurrentLastTickAndSubscribe(t *testing.T) {

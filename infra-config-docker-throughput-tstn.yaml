@@ -1,0 +1,196 @@
+# =============================================================================
+# TSTN throughput demo — storage server config (dashboard stack)
+# =============================================================================
+# Loaded by cmd/infra_throughput as infra-config-throughput.yaml (cwd / volume).
+#
+# Locked demo profile (must match dashboard config.DemoThroughput() / DemoFeeModel):
+#   bsv_network: tstn
+#   utxo_management.strategy: throughput
+#   fee_model: sat/kb value 100 (matches Arcade host GoBDK DefaultMinFeePerKB;
+#                               1 sat/kb is the network going rate but this host
+#                               465-rejects below its floor — verified 2026-07-24)
+#   expected_tx_size_bytes: 200
+#   expected_output_satoshis: 0
+#   denomination_satoshis: 30   (covers the ~21-sat real fee with ONE fuel claim)
+#   target_tps: 1000            (server pool identity; UI TPS resizes client FuelKeeper)
+#
+# Private endpoints are NOT in this file. Supply at runtime:
+#   TSTN_ARCADE_URL          (required) Arcade / ARC base
+#   TSTN_CHAINTRACKS_URL     (optional) defaults to ${TSTN_ARCADE_URL}/chaintracks
+#
+# wallet_services is intentionally omitted so Defaults() + OnPostLoad reconciliation
+# fill Arcade / ARC / ChainTracks from those env vars (and disable WhatsOnChain).
+#
+# Usage: see docs/throughput-dashboard.md § TSTN compose override
+# =============================================================================
+
+bsv_network: tstn
+
+name: go-storage-server-throughput-tstn
+
+# --- Server Identity (required) ---
+# Development key for local Docker only. For a durable deployment generate your own:
+#   go run cmd/infra_config_gen/main.go -k -o infra-config.yaml
+server_private_key: dc745c57de627a6d3a3ca549e0f9fb6b8f779108a1fe6fe290cc4df3461125d6
+
+# --- Database (PostgreSQL via docker-compose 'db' service) ---
+db:
+  engine: postgres
+  max_connection_idle_time: 6m0s
+  max_connection_time: 1m0s
+  max_idle_connections: 10
+  max_open_connections: 50
+
+  postgresql:
+    host: db
+    port: "5432"
+    user: postgres
+    # Local docker-compose Postgres only — not a production secret.
+    password: postgres # NOSONAR
+    db_name: storage
+    schema: public
+    ssl_mode: disable
+    time_zone: UTC
+
+# --- HTTP / Storage Server ---
+http:
+  port: 8100
+  request_price: 0
+  max_request_body_bytes: 104857600 # 100 MiB
+
+  cors:
+    enabled: true
+    allow_all_origins: true
+    allow_private_network: true
+    allowed_methods:
+      - POST
+    allowed_headers:
+      - content-type
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - x-bsv-auth-requested-certificates
+      - X-BSV-Payment
+    exposed_headers:
+      - authorization
+      - x-bsv-auth-version
+      - x-bsv-auth-message-type
+      - x-bsv-auth-identity-key
+      - x-bsv-auth-nonce
+      - x-bsv-auth-your-nonce
+      - x-bsv-auth-signature
+      - x-bsv-auth-request-id
+      - X-BSV-Payment-Version
+      - X-BSV-Payment-Satoshis-Required
+      - X-BSV-Payment-Satoshis-Paid
+      - X-BSV-Payment-Derivation-Prefix
+
+# --- Logging ---
+logging:
+  enabled: true
+  handler: json
+  # warn: at high TPS the per-createAction INFO lines ("Throughput funding
+  # outcome") become a measurable cost (hundreds of JSON log writes/second).
+  level: warn
+
+# --- Monitor / Background Tasks ---
+monitor:
+  enabled: true
+  tasks:
+    check_for_proofs:
+      enabled: true
+      interval_seconds: 60
+      start_immediately: false
+    fail_abandoned:
+      enabled: true
+      interval_seconds: 300
+      start_immediately: false
+    send_waiting:
+      enabled: true
+      interval_seconds: 300
+      start_immediately: true
+    un_fail:
+      enabled: true
+      interval_seconds: 600
+      start_immediately: false
+
+# --- Change Basket Defaults ---
+change_basket:
+  max_change_outputs_per_tx: 8
+  minimum_desired_utxo_value: 1000
+  number_of_desired_utxos: 32
+
+# --- Fee Model (match Arcade host min-fee policy: 100 sat/kb) ---
+# To run at the 1 sat/kb network rate: lower the Arcade policy first, then set
+# value: 1 and denomination_satoshis: 2 here AND in dashboard config.DemoFeeModel /
+# DemoThroughput. This host rejects lower fees with ARC 465 "fee is too low".
+fee_model:
+  type: sat/kb
+  value: 100
+
+# --- UTXO management (throughput) — same shape as live-test OP_RETURN profile ---
+utxo_management:
+  strategy: throughput
+  throughput:
+    expected_tx_size_bytes: 200
+    expected_output_satoshis: 0
+    # Explicit 30 (derived would be 20): the real ~202 B 1-input OP_RETURN tx
+    # costs 21 sats at 100 sat/kb, so 20-sat fuel forces TWO claims per action
+    # (multi_claim) — double burn + double UTXO contention. (2 at 1 sat/kb.)
+    # Must match the dashboard's config.DemoThroughput DenominationSatoshis.
+    denomination_satoshis: 30
+    target_tps: 1000
+    expected_confirmation_seconds: 300
+    pool_headroom_factor: 1.5
+    # 0 → derive from target_tps × confirmation × headroom; dashboard also resizes
+    # the client FuelKeeper target from the UI TPS at stream start.
+    target_pool_size: 0
+    low_water_percent: 60
+    high_water_percent: 100
+    # "any" allows mined → unproven → sending so delayed-broadcast fuel is usable
+    # before proofs land (prefer_mined alone can stall the stream).
+    spend_policy: any
+    pool_basket: fuel
+    reserve_basket: reserve
+    fanout_outputs_per_tx: 100
+    # 100 × 300 = 30k fuel UTXOs per keeper round (was 50 → only 5k/round).
+    # Sustained identity: max_txs × outputs >= target_tps × interval × 1.2
+    # → 30000 >= 1000 × 2 × 1.2. Client FuelKeeper also catch-up-loops while
+    # below low water so interval does not throttle fill rate.
+    fanout_max_txs_per_round: 300
+    fanout_tree_depth: 2
+    consolidation_inputs_per_tx: 1000
+    top_up:
+      enabled: true
+      interval_seconds: 2
+      start_immediately: true
+
+# --- Transaction Status Sync ---
+synchronize_tx_statuses:
+  blocks_delay: 1
+  check_no_send_period_hours: 24
+  max_attempts: 100
+  max_rebroadcast_attempts: 0
+
+fail_abandoned:
+  min_transaction_age_seconds: 300
+
+# --- Commission (disabled by default) ---
+commission:
+  pub_key_hex: ""
+  satoshis: 0
+
+# --- Tracing (optional) ---
+tracing:
+  enabled: false
+  dialAddr: http://jaeger:4317
+  sample: 100
+
+# wallet_services intentionally omitted:
+# Defaults() + OnPostLoad for bsv_network=tstn wire Arcade/ARC/ChainTracks from
+# TSTN_ARCADE_URL / TSTN_CHAINTRACKS_URL and disable WhatsOnChain.

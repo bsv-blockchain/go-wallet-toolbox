@@ -220,6 +220,90 @@ func (u *UTXOs) UnreserveUTXOsByTransactionID(ctx context.Context, transactionID
 	return nil
 }
 
+// DeleteIndexRowsForOutputs removes UserUTXO (fundable index) rows for the given
+// outputs. Used to drop rows that advertise already-spent outputs, which would
+// otherwise be re-selected by every funding attempt and fail deterministically.
+func (u *UTXOs) DeleteIndexRowsForOutputs(ctx context.Context, userID int, outputIDs []uint) error {
+	if len(outputIDs) == 0 {
+		return nil
+	}
+
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-DeleteIndexRowsForOutputs", attribute.Int("UserID", userID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	utxoTable := &u.query.UserUTXO
+	_, err = utxoTable.WithContext(ctx).
+		Where(utxoTable.UserID.Eq(userID)).
+		Where(utxoTable.OutputID.In(outputIDs...)).
+		Delete()
+	if err != nil {
+		return fmt.Errorf("failed to delete stale utxo index rows: %w", err)
+	}
+	return nil
+}
+
+// MakeChangeSpendableAndIndexByTxID marks a transaction's change outputs
+// spendable and (re)indexes them in UserUTXO with the transaction's current
+// status tier.
+//
+// This exists for the delayed-broadcast queue path. Outputs are created
+// not-spendable and are normally only flipped once the network accepts the
+// transaction; until then their UserUTXO rows carry the placeholder (empty)
+// status, which callers listing basket outputs count as inventory but the
+// funder — which claims from UserUTXO by status tier — cannot see. At high
+// request rates the acceptance pipeline lags far behind creation, so freshly
+// minted change (notably the fuel pool) stayed unusable and funding failed
+// with "not enough funds" against an apparently full basket.
+//
+// Promoting at queue time makes the outputs claimable at the "sending" tier,
+// which only spend policies that opt into unaccepted funds (SpendPolicyAny)
+// will select — the same trade-off AcceptDelayedBroadcast already implies.
+// Callers must NOT use this for no-send transactions, whose change is reachable
+// only through an explicit noSendChange reference.
+func (u *UTXOs) MakeChangeSpendableAndIndexByTxID(ctx context.Context, txID string) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-MakeChangeSpendableAndIndexByTxID", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = u.query.DBTransaction(func(query *genquery.Query) error {
+		filterScope := func(dao gen.Dao) gen.Dao {
+			subquery := query.Transaction.
+				Select(query.Transaction.ID).
+				Where(query.Transaction.TxID.Eq(txID))
+
+			return dao.
+				Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
+				// Never touch an output that is already spent: makeOutputsSpendable
+				// also clears spent_by, so without this guard a repeated call
+				// would resurrect a spent output and index it as fundable —
+				// producing exactly the stale index rows that poison funding.
+				Where(query.Output.SpentBy.IsNull()).
+				Scopes(isChangeDaoScope(query))
+		}
+
+		if spendableErr := makeOutputsSpendable(ctx, query, filterScope); spendableErr != nil {
+			return spendableErr
+		}
+
+		changeOutputs, outputsErr := getOutputsWithTxStatus(ctx, query, filterScope)
+		if outputsErr != nil {
+			return outputsErr
+		}
+
+		return createUTXOsFromOutputs(ctx, query, changeOutputs)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to make change spendable for txID %q: %w", txID, err)
+	}
+
+	return nil
+}
+
 func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID string) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Utxos-CreateUTXOForSpendableOutputsByTxID", attribute.String("TxID", txID))

@@ -111,6 +111,10 @@ type CreateActionParams struct {
 	IsNoSend                 bool
 	IsDelayed                bool
 	FuelShape                *wdk.ShapedChange
+	// ReturnTXIDOnly mirrors Options.ReturnTXIDOnly: the caller will discard
+	// the returned transaction data, so response BEEFs may be aggressively
+	// trimmed (see mergeAllocatedUTXOs).
+	ReturnTXIDOnly bool
 }
 
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
@@ -130,6 +134,7 @@ func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionPara
 		IsDelayed:                args.IsDelayed,
 		KnownTxIDs:               args.Options.KnownTxids,
 		FuelShape:                args.Options.FuelShape,
+		ReturnTXIDOnly:           args.Options.ReturnTXIDOnly.Value(),
 	}
 }
 
@@ -625,7 +630,24 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	err = retryOnContention(ctx, c.logger, c.random, func() error {
-		return c.db.WithContext(ctx).Transaction(fundingClosure)
+		fundingErr := c.db.WithContext(ctx).Transaction(fundingClosure)
+
+		// Funding selected an output the UserUTXO index still advertised as
+		// fundable but which is already spent. The failing transaction rolled
+		// back, so drop those index rows here — in their own transaction —
+		// otherwise selection (deterministic by satoshis, then output id) picks
+		// the same dead rows on every retry and funding fails forever with an
+		// apparently full basket.
+		var stale *repo.StaleUTXOIndexError
+		if errors.As(fundingErr, &stale) {
+			c.logger.WarnContext(ctx, "dropping stale fundable index rows for already-spent outputs",
+				slog.Any("outputIDs", stale.OutputIDs))
+			if healErr := c.utxoRepo.DeleteIndexRowsForOutputs(ctx, userID, stale.OutputIDs); healErr != nil {
+				c.logger.ErrorContext(ctx, "failed to drop stale fundable index rows", logging.Error(healErr))
+			}
+		}
+
+		return fundingErr
 	})
 	if err != nil {
 		if errors.Is(err, wdk.ErrNotEnoughFunds) {
@@ -675,7 +697,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
-	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs)
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.TrustSelf && params.ReturnTXIDOnly)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}
@@ -1179,6 +1201,7 @@ func (c *create) mergeAllocatedUTXOs(
 	inputBeef *transaction.Beef,
 	allocatedUTXOs []*funder.UTXO,
 	knownTxIDs primitives.TXIDHexStrings,
+	trimSelfKnown bool,
 ) (primitives.ExplicitByteArray, error) {
 	txIDs, err := c.outputRepo.FindTxIDsByOutputIDs(ctx, seq.Map(seq.FromSlice(allocatedUTXOs), func(utxo *funder.UTXO) uint {
 		return utxo.OutputID
@@ -1187,7 +1210,24 @@ func (c *create) mergeAllocatedUTXOs(
 		return nil, fmt.Errorf("failed to find allocated outputs: %w", err)
 	}
 
-	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), entity.WithMergeToBEEF(inputBeef), entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...))
+	opts := []entity.GetBEEFOption{
+		entity.WithMergeToBEEF(inputBeef),
+		entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...),
+	}
+	if trimSelfKnown {
+		// Only when the caller BOTH trusts storage-known txs (trustSelf=known)
+		// AND asked for ReturnTXIDOnly (it discards the returned tx data):
+		// every allocated (storage-managed) input collapses to a TxIDOnly stub
+		// instead of a recursive ancestry walk — no raw-tx reads, BUMP merges,
+		// or multi-kB response BEEFs. Signing does not need the ancestry
+		// (per-input SourceLockingScript/SourceSatoshis are in the result), and
+		// delayed broadcast rebuilds its own BEEF from known_txes. At high TPS
+		// this walk dominates createAction CPU on both sides. Callers that DO
+		// consume the response (default flows, cross-wallet BEEF handoff, beef
+		// party learning) keep the full ancestry.
+		opts = append(opts, entity.WithTrustSelf(sdk.TrustSelfKnown))
+	}
+	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get BEEF for allocated UTXOs: %w", err)
 	}

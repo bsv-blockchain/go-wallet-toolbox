@@ -412,6 +412,16 @@ func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, origina
 
 	result, err := action.CreateAction(ctx, sdk.CreateActionArgs{
 		Description: "fuel fan-out",
+		Options: &sdk.CreateActionOptions{
+			// Fan-outs are pure minting: the caller keeps only the error, so
+			// there is no reason to return (or assemble) the transaction data.
+			// This also spares the funding response a recursive ancestry walk
+			// over storage-managed inputs — fatal for fan-outs, whose chunk
+			// input chains through every prior fan-out's change output and
+			// grows without bound while nothing is mined, eventually exceeding
+			// the BEEF builder's recursion limit and killing all minting.
+			ReturnTXIDOnly: to.Ptr(true),
+		},
 	}, originator, w.party)
 	if err != nil {
 		return nil, fmt.Errorf("fan-out fuel failed: %w", err)

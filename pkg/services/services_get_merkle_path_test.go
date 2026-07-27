@@ -2,17 +2,21 @@ package services_test
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	sdk "github.com/bsv-blockchain/go-sdk/transaction"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/to"
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arc"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arcade"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	btst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
@@ -177,11 +181,11 @@ func TestGetMerklePath(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 
-		txID := btst.TestTxID
+		bitailsTxID := btst.TestTxID
 		blockHash := btst.TestTargetHash
 		sibling := btst.TestSiblingHash
 
-		txHash := btst.HashFromHex(t, txID)
+		txHash := btst.HashFromHex(t, bitailsTxID)
 		siblingHash := btst.HashFromHex(t, sibling)
 
 		merklePath := sdk.MerklePath{
@@ -199,26 +203,30 @@ func TestGetMerklePath(t *testing.T) {
 			}},
 		}
 
-		merkleRoot, err := merklePath.ComputeRootHex(&txID)
+		merkleRoot, err := merklePath.ComputeRootHex(&bitailsTxID)
 		require.NoError(t, err, "failed to compute merkle root")
 
-		given.Bitails().WillReturnTscProof(txID, blockHash, 0, []string{sibling})
+		given.Bitails().WillReturnTscProof(bitailsTxID, blockHash, 0, []string{sibling})
 
 		headerWithCorrectMerkleRoot := btst.FakeHeaderHexWithMerkleRoot(t, merkleRoot)
 		given.Bitails().WillReturnBlockHeader(blockHash, headerWithCorrectMerkleRoot)
 
-		given.Bitails().WillReturnBranchProof(txID, blockHash, merkleRoot, []map[string]string{
+		given.Bitails().WillReturnBranchProof(bitailsTxID, blockHash, merkleRoot, []map[string]string{
 			{
 				"pos":  "0",
 				"hash": sibling,
 			},
 		})
-		given.Bitails().WillReturnTxStatus(txID, btst.TestBlockHeight)
+		given.Bitails().WillReturnTxStatus(bitailsTxID, btst.TestBlockHeight)
 
-		services := given.Services().Config(testservices.WithEnabledBitails(true)).New()
+		// Arcade is default-first on mainnet; disable so Bitails can be reached after ARC/WoC.
+		services := given.Services().Config(
+			testservices.WithEnabledArcade(false),
+			testservices.WithEnabledBitails(true),
+		).New()
 
 		// when:
-		response, err := services.MerklePath(t.Context(), txID)
+		response, err := services.MerklePath(t.Context(), bitailsTxID)
 
 		// then:
 		require.NoError(t, err)
@@ -233,5 +241,110 @@ func TestGetMerklePath(t *testing.T) {
 		}, response.BlockHeader)
 		require.NotEmpty(t, response.Notes)
 		require.Equal(t, "getMerklePathSuccess", response.Notes[0].What)
+	})
+
+	t.Run("get merkle path from Arcade first when enabled", func(t *testing.T) {
+		// given: mainnet defaults enable Arcade; mock GET /tx/{txid} on the Arcade host
+		given := testservices.GivenServices(t)
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   tx.TxID(),
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err)
+		blockHash := testservices.TestBlockHash
+
+		// Prefer Arcade over ARC: ARC also has a path so if ordering is wrong the
+		// response would be named ARC.
+		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithMerklePath(merklePath)
+
+		arcadeURL := defs.DefaultServicesConfig(defs.NetworkMainnet).Arcade.URL
+		responder, err := httpmock.NewJsonResponder(200, map[string]any{
+			"txid":        txID,
+			"txStatus":    "MINED",
+			"blockHash":   blockHash,
+			"blockHeight": 2000,
+			"merklePath":  merklePath.Hex(),
+		})
+		require.NoError(t, err)
+		given.Transport().RegisterResponder(
+			http.MethodGet,
+			arcadeURL+"/tx/"+txID,
+			responder,
+		)
+
+		services := given.Services().New()
+
+		// when:
+		response, err := services.MerklePath(t.Context(), txID)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, arcade.ServiceName, response.Name)
+		assert.Equal(t, merklePath, *response.MerklePath)
+		assert.Equal(t, wdk.MerklePathBlockHeader{
+			Height:     2000,
+			Hash:       blockHash,
+			MerkleRoot: merkleRoot,
+		}, *response.BlockHeader)
+	})
+
+	t.Run("falls through to ARC when Arcade does not know the tx", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: 2000,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   tx.TxID(),
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   someSecondHash,
+					},
+				},
+			},
+		}
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err)
+
+		arcadeURL := defs.DefaultServicesConfig(defs.NetworkMainnet).Arcade.URL
+		given.Transport().RegisterResponder(
+			http.MethodGet,
+			arcadeURL+"/tx/"+txID,
+			httpmock.NewStringResponder(404, `{"error":"transaction not found"}`),
+		)
+		given.ARC().IsUpAndRunning()
+		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithMerklePath(merklePath)
+
+		services := given.Services().New()
+
+		// when:
+		response, err := services.MerklePath(t.Context(), txID)
+
+		// then:
+		require.NoError(t, err)
+		require.NotNil(t, response)
+		assert.Equal(t, arc.ServiceName, response.Name)
+		assert.Equal(t, merklePath, *response.MerklePath)
+		assert.Equal(t, merkleRoot, response.BlockHeader.MerkleRoot)
 	})
 }

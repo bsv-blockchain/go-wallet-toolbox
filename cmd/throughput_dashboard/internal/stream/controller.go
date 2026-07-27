@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,9 @@ type Stats struct {
 	Failed    uint64 `json:"failed"`
 	Iteration uint64 `json:"iteration"`
 	Running   bool   `json:"running"`
+	// Draining is true after a stop request while in-flight createActions are
+	// still finishing (Running stays true until the drain completes).
+	Draining  bool   `json:"draining"`
 	TPS       int    `json:"tps"`
 	Workers   int    `json:"workers"`
 	StartedAt string `json:"started_at,omitempty"`
@@ -41,8 +45,48 @@ type Options struct {
 // pool; unbounded user input would allow a denial-of-service allocation.
 const (
 	MaxTPS     = 100_000
-	MaxWorkers = 512
+	MaxWorkers = 128 // absolute ceiling for explicit overrides
+
+	// AutoWorkersCap is the max workers derived from TPS. Workers are only an
+	// in-flight budget: actual RPC concurrency is bounded by the shared
+	// wallet's slot pool (syncwallet), so extra workers just keep the slots
+	// saturated. 64 covers the 2×√tps curve up to 1000 TPS.
+	AutoWorkersCap = 64
+
+	// ActionLabel is attached to every stream createAction so the metrics
+	// sampler can ListActions for network-accept health separately from UI
+	// createAction success (delayed broadcast returns before Arcade/ARC).
+	ActionLabel = "throughput-dashboard-stream"
 )
+
+// WorkersForTPS sizes the auto worker pool for a target createAction rate.
+//
+// The producer is rate-limited at tps; workers only bound concurrent in-flight
+// createActions. With a serialized wallet client, useful concurrency is small
+// (one RPC at a time), so we use a sub-linear curve that grows headroom slowly
+// then plateaus:
+//
+//	workers = min(AutoWorkersCap, max(1, ceil(2 × √tps)))
+//
+// Examples: 1→2, 10→7, 25→10, 100→20, 256→32, 1000→32 (capped).
+// Explicit Options.Workers still wins (clamped only by MaxWorkers).
+func WorkersForTPS(tps int) int {
+	if tps <= 0 {
+		return 1
+	}
+	// 2×√tps: enough pipeline for modest overlap without 1:1 goroutine spam.
+	w := int(math.Ceil(2 * math.Sqrt(float64(tps))))
+	if w < 1 {
+		w = 1
+	}
+	if w > AutoWorkersCap {
+		w = AutoWorkersCap
+	}
+	if w > MaxWorkers {
+		w = MaxWorkers
+	}
+	return w
+}
 
 // Controller is a start/stop controllable rate-limited createAction stream.
 type Controller struct {
@@ -51,6 +95,8 @@ type Controller struct {
 
 	mu         sync.Mutex
 	running    bool
+	draining   bool               // stop requested, in-flight createActions finishing
+	onRunning  func(bool)         // state-transition hook, invoked under mu
 	stopProd   context.CancelFunc // stops new job production only
 	done       chan struct{}
 	tps        int
@@ -65,6 +111,7 @@ type Controller struct {
 }
 
 // NewController creates a stream controller. Default options apply until Start overrides them.
+// When defaults.Workers is <= 0, workers are derived from TPS via WorkersForTPS.
 func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) *Controller {
 	if logger == nil {
 		logger = slog.Default()
@@ -73,7 +120,7 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 		defaults.TPS = 10
 	}
 	if defaults.Workers <= 0 {
-		defaults.Workers = 8
+		defaults.Workers = WorkersForTPS(defaults.TPS)
 	}
 	if defaults.Originator == "" {
 		defaults.Originator = "throughput-dashboard.local"
@@ -87,7 +134,33 @@ func NewController(wallet ActionCreator, defaults Options, logger *slog.Logger) 
 	}
 }
 
+// SetRunningListener registers fn, called on every real run-state transition:
+// true when a stream starts, false when a run fully ends (after the drain, not
+// at the stop request). Exactly one false fires per run. fn runs under the
+// controller mutex — it must be fast, non-blocking, and must not call back
+// into the Controller. Register before the first Start.
+//
+// This is the authoritative signal for stream-coupled behavior (FuelKeeper
+// fair-share mode): deriving it here, under the same lock as the transition,
+// cannot desynchronize the way independent writes from racing HTTP start/stop
+// handlers could.
+func (c *Controller) SetRunningListener(fn func(running bool)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onRunning = fn
+}
+
+// notifyRunningLocked fires the transition hook; call with c.mu held.
+func (c *Controller) notifyRunningLocked(running bool) {
+	if c.onRunning != nil {
+		c.onRunning(running)
+	}
+}
+
 // Start begins the event stream. Returns an error if a stream is already running.
+//
+// When opts.Workers is <= 0, the worker pool size is derived from the effective
+// TPS (WorkersForTPS). Explicit Workers > 0 still override (API/tests).
 //
 // parent, when canceled, stops scheduling new events (same as Stop) but does not
 // abort createActions already in flight. Stop always waits for those to finish.
@@ -95,6 +168,9 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.running {
+		if c.draining {
+			return fmt.Errorf("stream stopping (draining in-flight createActions); retry shortly")
+		}
 		return fmt.Errorf("stream already running")
 	}
 	if opts.TPS > 0 {
@@ -102,6 +178,8 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	}
 	if opts.Workers > 0 {
 		c.workers = opts.Workers
+	} else {
+		c.workers = WorkersForTPS(c.tps)
 	}
 	if opts.Originator != "" {
 		c.originator = opts.Originator
@@ -127,6 +205,7 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 	c.done = make(chan struct{})
 	c.running = true
 	c.startedAt = time.Now().UTC()
+	c.notifyRunningLocked(true)
 
 	// Snapshot knobs for this run so concurrent Stats/Start readers cannot observe
 	// mid-run mutation (Start rejects when running, but we still avoid racing reads).
@@ -145,11 +224,29 @@ func (c *Controller) Start(parent context.Context, opts Options) error {
 // Concurrent Stop calls are safe; a Stop that loses a race with a subsequent Start
 // will not tear down the newer run.
 func (c *Controller) Stop() {
+	c.stop(nil)
+}
+
+// StopWithTimeout stops production and waits up to d for in-flight
+// createActions to finish. It returns true when the stream fully stopped and
+// false when the drain is still in progress after d — in that case production
+// is already halted, Stats reports Draining, and the run finishes in the
+// background (run() clears state when the last worker exits). HTTP handlers
+// use this so a slow storage RPC cannot hang the stop endpoint.
+func (c *Controller) StopWithTimeout(d time.Duration) bool {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	return c.stop(timer.C)
+}
+
+// stop implements Stop/StopWithTimeout. A nil deadline waits indefinitely.
+func (c *Controller) stop(deadline <-chan time.Time) bool {
 	c.mu.Lock()
 	if !c.running {
 		c.mu.Unlock()
-		return
+		return true
 	}
+	c.draining = true
 	stopProd := c.stopProd
 	done := c.done
 	c.mu.Unlock()
@@ -158,19 +255,31 @@ func (c *Controller) Stop() {
 		stopProd()
 	}
 	if done != nil {
-		<-done
+		select {
+		case <-done:
+		case <-deadline:
+			c.logger.Warn("stream stop timed out; in-flight createActions keep draining in background",
+				"stats", c.Stats())
+			return false
+		}
 	}
 
 	c.mu.Lock()
 	// Only clear state if this Stop still owns the generation it stopped.
 	// run() may already have cleared running; a newer Start may have replaced done.
 	if c.done == done {
+		wasRunning := c.running
 		c.running = false
+		c.draining = false
 		c.stopProd = nil
 		c.done = nil
+		if wasRunning {
+			c.notifyRunningLocked(false)
+		}
 	}
 	c.mu.Unlock()
 	c.logger.Info("event stream stopped", "stats", c.Stats())
+	return true
 }
 
 // Running reports whether the stream is active.
@@ -184,6 +293,7 @@ func (c *Controller) Running() bool {
 func (c *Controller) Stats() Stats {
 	c.mu.Lock()
 	running := c.running
+	draining := c.draining
 	tps := c.tps
 	workers := c.workers
 	started := c.startedAt
@@ -195,6 +305,7 @@ func (c *Controller) Stats() Stats {
 		Failed:    c.failed.Load(),
 		Iteration: c.iteration.Load(),
 		Running:   running,
+		Draining:  draining,
 		TPS:       tps,
 		Workers:   workers,
 	}
@@ -244,8 +355,13 @@ drain:
 	c.mu.Lock()
 	// Mark stopped if this generation is still current. Stop() may also clear.
 	if c.done == done {
+		wasRunning := c.running
 		c.running = false
+		c.draining = false
 		c.stopProd = nil
+		if wasRunning {
+			c.notifyRunningLocked(false)
+		}
 	}
 	c.mu.Unlock()
 }
@@ -263,6 +379,7 @@ func (c *Controller) runOne(ctx context.Context, originator string) {
 
 	args := sdk.CreateActionArgs{
 		Description: fmt.Sprintf("throughput dashboard stream #%d", iter),
+		Labels:      []string{ActionLabel},
 		Outputs: []sdk.CreateActionOutput{
 			{
 				LockingScript:     locking,
@@ -272,6 +389,13 @@ func (c *Controller) runOne(ctx context.Context, originator string) {
 		},
 		Options: &sdk.CreateActionOptions{
 			AcceptDelayedBroadcast: to.Ptr(true),
+			// The stream discards the returned transaction, and skipping it
+			// skips the expensive client-side path entirely: no atomic-BEEF
+			// assembly and no merge of the response's (potentially deep,
+			// unproven) ancestry into the wallet's shared BEEF graph — that
+			// merge serializes every action behind one mutex doing merkle
+			// hashing and collapses throughput at high TPS.
+			ReturnTXIDOnly: to.Ptr(true),
 		},
 	}
 

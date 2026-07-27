@@ -13,20 +13,54 @@ import (
 )
 
 const (
-	// BackgroundBroadcasterWorkerCount defines the number of workers that will process broadcast items.
+	// BackgroundBroadcasterWorkerCount is the default number of workers that
+	// process broadcast items.
+	//
+	// Worker count is the ceiling on network acceptance for delayed broadcast,
+	// and therefore on any throughput that depends on outputs becoming
+	// spendable: an output is only marked spendable once its transaction is
+	// accepted by the network (see actions.updateSingleTx). At ~300ms per post
+	// this default sustains only ~33 tx/s, which a high-rate workload will
+	// overflow — its queued transactions then fall back to the far slower
+	// send_waiting cron and risk being aborted by the abandon sweep. Deployments
+	// expecting that load raise it via Sizing (the throughput strategy does).
+	//
+	// The default stays small because every storage provider starts this pool
+	// eagerly, including the many short-lived ones a test suite creates.
 	BackgroundBroadcasterWorkerCount = 10
 
-	// BackgroundBroadcasterChannelSize defines the buffer size for the broadcast channel.
-	// The average broadcast time in tests is 300ms, so for 10 workers, 1000 elements should be processed in 30sec
-	// This is chosen as a trade-off between memory usage and throughput; it can be tuned based on expected workload.
+	// BackgroundBroadcasterChannelSize is the default buffer size for the
+	// broadcast channel. Add() drops to the cron fallback once it is full.
 	BackgroundBroadcasterChannelSize = 1000
 )
+
+// Sizing configures the broadcaster's capacity. Zero values select the
+// defaults above.
+type Sizing struct {
+	Workers     int
+	ChannelSize int
+}
+
+func (s Sizing) workers() int {
+	if s.Workers <= 0 {
+		return BackgroundBroadcasterWorkerCount
+	}
+	return s.Workers
+}
+
+func (s Sizing) channelSize() int {
+	if s.ChannelSize <= 0 {
+		return BackgroundBroadcasterChannelSize
+	}
+	return s.ChannelSize
+}
 
 type broadcaster interface {
 	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error)
 }
 
 type BackgroundBroadcaster struct {
+	sizing           Sizing
 	ctx              context.Context
 	cancel           context.CancelFunc
 	broadcastChannel chan broadcastItem
@@ -45,13 +79,14 @@ type broadcastItem struct {
 	txIDs []string
 }
 
-func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus) *BackgroundBroadcaster {
+func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus, sizing Sizing) *BackgroundBroadcaster {
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
 	return &BackgroundBroadcaster{
+		sizing:               sizing,
 		ctx:                  bbContext,
 		cancel:               cancel,
-		broadcastChannel:     make(chan broadcastItem, BackgroundBroadcasterChannelSize),
+		broadcastChannel:     make(chan broadcastItem, sizing.channelSize()),
 		logger:               logger,
 		broadcastHandler:     broadcastHandler,
 		txBroadcastedChannel: txBroadcastedChannel,
@@ -59,7 +94,7 @@ func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, br
 }
 
 func (bb *BackgroundBroadcaster) Start() {
-	for i := 0; i < BackgroundBroadcasterWorkerCount; i++ {
+	for i := 0; i < bb.sizing.workers(); i++ {
 		bb.wg.Add(1)
 		go bb.worker()
 	}

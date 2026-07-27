@@ -12,7 +12,7 @@ const ArcGorillaPoolServiceName = "ARC-GorillaPool"
 const ArcadeURL = "https://arcade-v2-us-1.bsvblockchain.tech"
 
 // ArcadeTTNURL is the default Arcade instance for the public Teranode Test Net (ttn).
-// The same host also serves the ttn ChainTracks endpoint under /chaintracks/v1.
+// The same host also serves ChainTracks under /chaintracks (client uses /v2/... paths).
 const ArcadeTTNURL = "https://arcade-v2-ttn-us-1.bsvblockchain.tech"
 
 // GorillaPoolArcURL is the default mainnet GorillaPool ARC instance (failover only).

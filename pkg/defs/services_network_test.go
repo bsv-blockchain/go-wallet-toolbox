@@ -19,7 +19,7 @@ func TestDefaultServicesConfigPerNetwork(t *testing.T) {
 		require.True(t, cfg.ArcGorillaPoolConfig.Enabled)
 		require.True(t, cfg.WhatsOnChain.Enabled)
 		require.False(t, cfg.ChaintracksClient.Enabled)
-		require.Equal(t, "https://arcade-v2-us-1.bsvblockchain.tech/chaintracks/v1", cfg.ChaintracksClient.RemoteURL)
+		require.Equal(t, "https://arcade-v2-us-1.bsvblockchain.tech/chaintracks", cfg.ChaintracksClient.RemoteURL)
 	})
 
 	t.Run("test keeps testnet ARC, Arcade off, WoC on", func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestDefaultServicesConfigPerNetwork(t *testing.T) {
 		require.True(t, cfg.WhatsOnChain.Enabled)
 		require.True(t, cfg.ChaintracksClient.Enabled)
 		require.Equal(t, defs.ChaintracksClientModeRemote, cfg.ChaintracksClient.Mode)
-		require.Equal(t, "https://arcade-v2-ttn-us-1.bsvblockchain.tech/chaintracks/v1", cfg.ChaintracksClient.RemoteURL)
+		require.Equal(t, "https://arcade-v2-ttn-us-1.bsvblockchain.tech/chaintracks", cfg.ChaintracksClient.RemoteURL)
 
 		require.NoError(t, cfg.Validate())
 	})
@@ -63,7 +63,7 @@ func TestDefaultServicesConfigPerNetwork(t *testing.T) {
 		require.False(t, cfg.WhatsOnChain.Enabled, "tstn has no WhatsOnChain service")
 		require.True(t, cfg.ChaintracksClient.Enabled)
 		// chaintracks falls back to the arcade host when TSTN_CHAINTRACKS_URL is unset.
-		require.Equal(t, "https://arcade.example.tstn/chaintracks/v1", cfg.ChaintracksClient.RemoteURL)
+		require.Equal(t, "https://arcade.example.tstn/chaintracks", cfg.ChaintracksClient.RemoteURL)
 
 		require.NoError(t, cfg.Validate())
 	})

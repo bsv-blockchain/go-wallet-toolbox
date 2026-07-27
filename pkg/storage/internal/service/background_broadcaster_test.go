@@ -106,7 +106,7 @@ func TestBackgroundBroadcaster_HappyPath(t *testing.T) {
 			mockBroadcast := &mockBroadcaster{}
 
 			logger, _ := loggerForTestBroadcaster()
-			bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+			bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 			bb.Start()
 
 			for txSpec := range broadcastItemsGenerator(tt.length) {
@@ -129,7 +129,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 	mockBroadcast := &mockBroadcaster{}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 	bb.Start()
 
 	moreThanChannerSize := 2*service.BackgroundBroadcasterChannelSize + 1
@@ -156,7 +156,7 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 	}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 	bb.Start()
 
 	moreThanChannerSize := 2*service.BackgroundBroadcasterChannelSize + 1
@@ -185,7 +185,7 @@ func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
 	}
 
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 	bb.Start()
 
 	const count = 10
@@ -208,7 +208,7 @@ func TestBackgroundBroadcast_BroadcasterReturnsError(t *testing.T) {
 	}
 
 	logger, logsBuffer := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 	bb.Start()
 
 	const count = 10
@@ -233,7 +233,7 @@ func TestBackgroundBroadcast_BroadcasterPanics(t *testing.T) {
 	}
 
 	logger, logsBuffer := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil)
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, nil, service.Sizing{})
 	bb.Start()
 
 	const count = 10
@@ -250,4 +250,25 @@ func TestBackgroundBroadcast_BroadcasterPanics(t *testing.T) {
 	assert.Contains(t, logsBuffer.String(), mockBroadcast.panicDuringCall.Error())
 
 	bb.Stop()
+}
+
+// TestSizingDefaultsStaySmall guards the delayed-broadcast pool's default size.
+// Every storage provider starts this pool eagerly, so a large default multiplies
+// across the many short-lived providers a test suite creates — raising it to 128
+// workers with a 50k buffer once made the Postgres suite exceed its 30m budget.
+// High-rate deployments opt in through Sizing instead.
+func TestSizingDefaultsStaySmall(t *testing.T) {
+	testLogger, _ := loggerForTestBroadcaster()
+	zero := service.Sizing{}
+	require.LessOrEqual(t, service.BackgroundBroadcasterWorkerCount, 16,
+		"default worker count is paid by every provider, including test ones")
+
+	bb := service.NewBackgroundBroadcaster(t.Context(), testLogger, &mockBroadcaster{}, nil, zero)
+	require.NotNil(t, bb)
+
+	// An explicit sizing is honored, which is how the throughput strategy
+	// buys enough acceptance capacity to keep pace with createAction.
+	sized := service.NewBackgroundBroadcaster(t.Context(), testLogger, &mockBroadcaster{}, nil,
+		service.Sizing{Workers: 64, ChannelSize: 4096})
+	require.NotNil(t, sized)
 }

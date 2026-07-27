@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
@@ -20,7 +21,37 @@ const (
 	connectRetryWindow  = 30 * time.Second
 	connectRetryInitial = 1 * time.Second
 	connectRetryMax     = 5 * time.Second
+
+	// storageRequestTimeout bounds a single storage RPC. The BRC-104 client
+	// resolves a request when its response arrives, so a response lost by an
+	// overloaded server would otherwise block the caller indefinitely — which
+	// stalls whatever loop issued it (the FuelKeeper's mint round holds a
+	// round-in-flight flag, so one lost response disabled minting entirely).
+	storageRequestTimeout = 60 * time.Second
+
+	// storageMaxIdleConnsPerHost sizes the connection pool for the storage
+	// host. http.DefaultTransport keeps only 2 idle connections per host, so
+	// with many concurrent RPCs nearly every request paid for a fresh TCP
+	// connection and then discarded it.
+	storageMaxIdleConnsPerHost = 128
 )
+
+// pooledStorageClient builds the HTTP client used for storage RPCs: a
+// connection pool sized for concurrent use, plus a per-request timeout.
+func pooledStorageClient() *http.Client {
+	transport := &http.Transport{}
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = dt.Clone()
+	}
+	transport.MaxIdleConns = 4 * storageMaxIdleConnsPerHost
+	transport.MaxIdleConnsPerHost = storageMaxIdleConnsPerHost
+	transport.IdleConnTimeout = 90 * time.Second
+
+	return &http.Client{
+		Timeout:   storageRequestTimeout,
+		Transport: transport,
+	}
+}
 
 // Wallet connects to remote storage, probing with Balance until ready.
 func Wallet(
@@ -43,7 +74,7 @@ func Wallet(
 				connected = nil
 			}
 			w, err := wallet.NewWithStorageFactory(network, priv, func(userWallet sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
-				return storage.NewClient(serverURL, userWallet)
+				return storage.NewClient(serverURL, userWallet, storage.WithHttpClient(pooledStorageClient()))
 			})
 			if err != nil {
 				return err

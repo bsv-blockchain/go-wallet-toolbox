@@ -7,6 +7,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -31,6 +32,29 @@ type ThroughputConfig struct {
 	PoolBasket         string
 	ReserveBasket      string
 	FanoutOutputsPerTx uint64
+	// TargetTPS is the createAction rate this deployment is provisioned for.
+	// It sizes the delayed-broadcast pool: acceptance must keep pace with
+	// creation, because outputs only become spendable once accepted.
+	TargetTPS uint64
+}
+
+// broadcasterSizing derives the delayed-broadcast pool from the configured
+// rate. A post takes on the order of a few hundred milliseconds, so sustaining
+// N tx/s needs roughly N/3 concurrent posts; the buffer holds a few seconds of
+// creation so a burst does not spill to the (much slower) cron fallback.
+// Non-throughput deployments get the package defaults.
+func (t ThroughputConfig) broadcasterSizing() service.Sizing {
+	if !t.Enabled || t.TargetTPS == 0 {
+		return service.Sizing{}
+	}
+	workers := int(min(t.TargetTPS/2, 256)) //nolint:gosec // bounded by the min above
+	if workers < service.BackgroundBroadcasterWorkerCount {
+		workers = service.BackgroundBroadcasterWorkerCount
+	}
+	return service.Sizing{
+		Workers:     workers,
+		ChannelSize: workers * 400,
+	}
 }
 
 func New(
@@ -63,6 +87,7 @@ func New(
 		beefVerifier,
 		scriptsVerifier,
 		txBroadcastedChannel,
+		throughput.broadcasterSizing(),
 	)
 
 	return &Actions{

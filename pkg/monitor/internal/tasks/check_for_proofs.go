@@ -12,6 +12,9 @@ type TransactionStatusesSynchronizer interface {
 	SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error)
 }
 
+// CheckForProofsTask periodically pulls merkle proofs via storage status sync.
+// When Arcade is enabled this is a fallback: the preferred path is the Arcade
+// SSE broadcast-event handler, which pushes proofs without polling.
 type CheckForProofsTask struct {
 	storage         TransactionStatusesSynchronizer
 	txProvenChannel chan<- wdk.CurrentTxStatus

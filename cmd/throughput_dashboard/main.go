@@ -68,27 +68,47 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create wallet: %w", err)
 	}
-	// Serialize all storage RPCs: concurrent AuthFetch handshakes deadlock and
-	// leave FuelKeeper + sampler stuck so the UI never shows internalized funds.
-	wallet := syncwallet.New(operatorWallet)
+	// Bound concurrent storage RPCs: the patched go-sdk AuthFetch (see
+	// third_party/go-sdk) handles concurrent requests on one session, but the
+	// local infra HTTP stack degrades past ~16 in flight, and FIFO slot wakeups
+	// keep FuelKeeper bursts from starving the sampler and stream.
+	wallet := syncwallet.New(operatorWallet, cfg.WalletMaxInFlight)
 	defer wallet.Close()
 
 	throughput := config.DemoThroughput()
-	denom, err := throughput.Denomination(defs.DefaultFeeModel(), defs.DefaultCommission())
+	denom, err := config.DemoDenomination(network)
 	if err != nil {
 		return fmt.Errorf("resolve denomination: %w", err)
 	}
-	targetPool := throughput.TargetPool()
+	// Pin resolved denomination on the throughput profile so FuelKeeper and
+	// gauges match the server fee model (100 sat/kb → 20-sat fuel for 200 B demos).
+	throughput.DenominationSatoshis = denom
+	// Size the fuel inventory target from the dashboard TPS (env default, then
+	// resized again whenever the UI starts a stream at a different TPS).
+	targetPool := config.DemoTargetPoolForTPS(cfg.TPS)
+	fkCfg := fuelkeeper.FromThroughput(throughput, denom)
+	fkCfg.TargetPoolSize = targetPool
+	// Demo mint-rate knobs, sized for the concurrent (bounded) wallet: burn at
+	// high TPS is ~1 fuel per action, so refill needs several leaf fan-outs
+	// (100 outputs each) per second. Parallel leaves + a light yield keep the
+	// keeper near mint≈burn without starving stream slots.
+	// Concurrent leaves fund from the same reserve basket and can select the
+	// same chunk. That collision is retryable contention (the loser picks
+	// another chunk on its next attempt), so parallel minting is safe and
+	// multiplies mint rate — which is what bounds sustainable stream TPS.
+	fkCfg.MintConcurrency = 4
+	fkCfg.StreamLeafCap = 50
+	fkCfg.StreamYieldMultiple = 1
 	logger.Info(
 		"throughput profile",
 		"denomination_satoshis", denom,
-		"target_tps", throughput.TargetTPS,
+		"target_tps", cfg.TPS,
 		"target_pool", targetPool,
 		"low_water_percent", throughput.LowWaterPercent,
 		"high_water_percent", throughput.HighWaterPercent,
 	)
 
-	keeper, err := fuelkeeper.New(wallet, fuelkeeper.FromThroughput(throughput, denom), logger)
+	keeper, err := fuelkeeper.New(wallet, fkCfg, logger)
 	if err != nil {
 		return fmt.Errorf("create fuel keeper: %w", err)
 	}
@@ -99,11 +119,14 @@ func run(logger *slog.Logger) error {
 		Workers:    cfg.Workers,
 		Originator: cfg.Originator,
 	}, logger)
+	// Fair-share minting follows the stream's real run-state transitions
+	// (start / fully-drained stop), atomically with the controller's own state.
+	ctrl.SetRunningListener(keeper.SetStreamActive)
 
 	sampler := metrics.NewSampler(wallet, ctrl, metrics.Config{
 		Originator:       cfg.Originator,
 		Interval:         time.Duration(cfg.SampleSeconds) * time.Second,
-		TargetTPS:        throughput.TargetTPS,
+		TargetTPS:        uint64(cfg.TPS), //nolint:gosec // env TPS is validated > 0
 		Denomination:     denom,
 		TargetPool:       targetPool,
 		LowWaterPercent:  throughput.LowWaterPercent,
@@ -127,6 +150,7 @@ func run(logger *slog.Logger) error {
 	srv := api.New(api.Deps{
 		Ctrl:       ctrl,
 		Sampler:    sampler,
+		Fuel:       keeper,
 		Wallet:     wallet,
 		Priv:       priv,
 		Network:    network,
@@ -161,7 +185,9 @@ func run(logger *slog.Logger) error {
 		}
 	}
 
-	ctrl.Stop()
+	// Bounded: docker stop grants ~10s before SIGKILL; a hung storage RPC must
+	// not turn shutdown into a kill.
+	_ = ctrl.StopWithTimeout(5 * time.Second)
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = httpServer.Shutdown(shutdownCtx)

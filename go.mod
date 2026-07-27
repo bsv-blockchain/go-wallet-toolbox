@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.5
 	github.com/bsv-blockchain/go-chaintracks v1.2.10
-	github.com/bsv-blockchain/go-sdk v1.3.1
+	github.com/bsv-blockchain/go-sdk v1.3.2
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.8
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.2
@@ -30,6 +30,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	go.uber.org/mock v0.6.0
+	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/datatypes v1.2.7
@@ -253,7 +254,6 @@ require (
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260717140457-bdb89881bb75 // indirect
 	golang.org/x/term v0.45.0 // indirect

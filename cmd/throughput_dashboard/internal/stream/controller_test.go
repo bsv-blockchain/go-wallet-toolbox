@@ -154,6 +154,7 @@ func TestControllerCreateActionArgs(t *testing.T) {
 		require.NotNilf(t, a.Options.AcceptDelayedBroadcast, "call %d", i)
 		require.Truef(t, *a.Options.AcceptDelayedBroadcast, "call %d: AcceptDelayedBroadcast", i)
 
+		require.Equalf(t, []string{stream.ActionLabel}, a.Labels, "call %d: stream label", i)
 		require.Equalf(t, "demo-origin", origins[i], "call %d: originator", i)
 	}
 
@@ -200,8 +201,124 @@ func TestControllerDefaults(t *testing.T) {
 	ctrl := stream.NewController(&fakeWallet{}, stream.Options{}, nil)
 	stats := ctrl.Stats()
 	require.Equal(t, 10, stats.TPS)
-	require.Equal(t, 8, stats.Workers)
+	require.Equal(t, stream.WorkersForTPS(10), stats.Workers)
 	require.False(t, stats.Running)
+}
+
+func TestWorkersForTPS(t *testing.T) {
+	require.Equal(t, 1, stream.WorkersForTPS(0))
+	require.Equal(t, 1, stream.WorkersForTPS(-5))
+	// ceil(2×√tps), capped at AutoWorkersCap
+	require.Equal(t, 2, stream.WorkersForTPS(1))   // ceil(2.00)
+	require.Equal(t, 7, stream.WorkersForTPS(10))  // ceil(6.32)
+	require.Equal(t, 10, stream.WorkersForTPS(25)) // ceil(10.0)
+	require.Equal(t, 20, stream.WorkersForTPS(100))
+	require.Equal(t, stream.AutoWorkersCap, stream.WorkersForTPS(1000))
+	require.Equal(t, stream.AutoWorkersCap, stream.WorkersForTPS(10_000))
+	// Derived path never exceeds AutoWorkersCap (stricter than MaxWorkers).
+	require.LessOrEqual(t, stream.WorkersForTPS(stream.MaxWorkers*10), stream.AutoWorkersCap)
+}
+
+func TestControllerStartDerivesWorkersFromTPS(t *testing.T) {
+	ctrl := stream.NewController(&fakeWallet{}, stream.Options{TPS: 10, Workers: 2}, nil)
+	// Workers=0 → derive from TPS=40 → ceil(2×√40)≈13
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 40}))
+	stats := ctrl.Stats()
+	require.Equal(t, 40, stats.TPS)
+	require.Equal(t, stream.WorkersForTPS(40), stats.Workers)
+	require.Equal(t, 13, stats.Workers)
+	ctrl.Stop()
+}
+
+// gatedWallet blocks every CreateAction until release is closed; entered is
+// closed on the first call so tests can wait for an in-flight createAction.
+type gatedWallet struct {
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func newGatedWallet() *gatedWallet {
+	return &gatedWallet{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+func (g *gatedWallet) CreateAction(context.Context, sdk.CreateActionArgs, string) (*sdk.CreateActionResult, error) {
+	g.once.Do(func() { close(g.entered) })
+	<-g.release
+	return &sdk.CreateActionResult{}, nil
+}
+
+func TestStopWithTimeout_ReportsDrainingAndFinishesInBackground(t *testing.T) {
+	gate := newGatedWallet()
+	ctrl := stream.NewController(gate, stream.Options{TPS: 100, Workers: 1, Originator: "o"}, nil)
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 100, Workers: 1}))
+
+	select {
+	case <-gate.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no createAction in flight")
+	}
+
+	// Worker is stuck inside CreateAction: bounded stop must return, not hang.
+	require.False(t, ctrl.StopWithTimeout(50*time.Millisecond))
+	stats := ctrl.Stats()
+	require.True(t, stats.Running, "run is still draining")
+	require.True(t, stats.Draining)
+
+	// Restart while draining is rejected with a draining-specific error.
+	err := ctrl.Start(context.Background(), stream.Options{TPS: 10})
+	require.ErrorContains(t, err, "draining")
+
+	// Unblock the wallet: the background drain must finish and clear state.
+	close(gate.release)
+	require.Eventually(t, func() bool { return !ctrl.Running() }, 5*time.Second, 10*time.Millisecond)
+	require.False(t, ctrl.Stats().Draining)
+
+	// Fully stopped: a new run starts cleanly.
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 1, Workers: 1}))
+	ctrl.Stop()
+}
+
+func TestStopWithTimeout_StoppedControllerReturnsTrue(t *testing.T) {
+	ctrl := stream.NewController(&fakeWallet{}, stream.Options{TPS: 1, Workers: 1}, nil)
+	require.True(t, ctrl.StopWithTimeout(10*time.Millisecond))
+}
+
+func TestRunningListener_FiresOncePerTransition(t *testing.T) {
+	var mu sync.Mutex
+	var transitions []bool
+
+	gate := newGatedWallet()
+	ctrl := stream.NewController(gate, stream.Options{TPS: 100, Workers: 1, Originator: "o"}, nil)
+	ctrl.SetRunningListener(func(running bool) {
+		mu.Lock()
+		transitions = append(transitions, running)
+		mu.Unlock()
+	})
+
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 100, Workers: 1}))
+	<-gate.entered
+
+	// Timed-out stop must NOT fire false — the run is still draining.
+	require.False(t, ctrl.StopWithTimeout(30*time.Millisecond))
+	mu.Lock()
+	require.Equal(t, []bool{true}, transitions, "false only fires when the drain completes")
+	mu.Unlock()
+
+	// Drain completes → exactly one false, whether run() or a Stop clears it.
+	close(gate.release)
+	require.Eventually(t, func() bool { return !ctrl.Running() }, 5*time.Second, 10*time.Millisecond)
+	ctrl.Stop() // idempotent; must not produce a second false
+	mu.Lock()
+	require.Equal(t, []bool{true, false}, transitions)
+	mu.Unlock()
+
+	// Next run fires true again.
+	require.NoError(t, ctrl.Start(context.Background(), stream.Options{TPS: 1, Workers: 1}))
+	ctrl.Stop()
+	mu.Lock()
+	require.Equal(t, []bool{true, false, true, false}, transitions)
+	mu.Unlock()
 }
 
 func TestControllerRejectsExcessiveWorkers(t *testing.T) {

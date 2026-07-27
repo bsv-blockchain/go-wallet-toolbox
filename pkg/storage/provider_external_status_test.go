@@ -206,6 +206,87 @@ func TestExternalStatusSeenAdvancesSendingToUnmined(t *testing.T) {
 	require.Equal(t, 1, externalNotes)
 }
 
+// Arcade models.Status values that mean "broadcaster has the tx" must advance
+// sending → unmined so change/fuel UTXOs become fundable (docs/sse.md + models).
+func TestExternalStatusArcadeBroadcastedStatusesAdvanceSendingToUnmined(t *testing.T) {
+	// Matches arcade/models Status lattice for non-terminal in-flight signals.
+	for _, status := range []string{
+		"RECEIVED",
+		"SENT_TO_NETWORK",
+		"ACCEPTED_BY_NETWORK",
+		"SEEN_ON_NETWORK",
+		"SEEN_MULTIPLE_NODES",
+		"SEEN_ON_MULTIPLE_NODES", // legacy docs alias
+		"STUMP_PROCESSING",
+	} {
+		t.Run(status, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+			activeStorage := given.Provider().
+				WithRandomizer(randomizer.NewTestRandomizer()).
+				GORM()
+
+			given.Provider().WhatsOnChain().WillRespondWithBroadcast(http.StatusInternalServerError, "unexpected response code 500: Missing inputs")
+			given.Provider().WhatsOnChain().WillRespondOnTxStatusNotFound()
+			_, signedTx := given.Action(activeStorage).Processed()
+			txID := signedTx.TxID().String()
+
+			thenDBState := testabilities.ThenDBState(t, activeStorage)
+			thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+
+			results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+				EventID: "alias-" + status,
+				TxID:    txID,
+				Status:  status,
+			})
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			require.Equal(t, wdk.ProvenTxStatusUnmined, results[0].Status)
+			thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusUnmined)
+			thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusUnproven)
+		})
+	}
+}
+
+// Arcade docs/sse.md: MINED frames carry blockHash, blockHeight, and merklePath
+// (BRC-74 BUMP hex) so push-only clients need not poll for proofs.
+func TestExternalStatusMinedSSEFrameWithBUMPCompletesTx(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	_, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+
+	merklePath := testutils.MockValidMerklePath(t, txID, externalEventBlockHeight)
+	merkleRoot, err := merklePath.ComputeRootHex(&txID)
+	require.NoError(t, err)
+	given.Provider().BHS().OnMerkleRootVerifyResponse(externalEventBlockHeight, merkleRoot, testabilities.BHSMerkleRootConfirmed)
+
+	// Shape mirrors Arcade SSE data payload for a live MINED frame.
+	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+		EventID:     "1745870512987654321",
+		TxID:        txID,
+		Status:      "MINED",
+		BlockHash:   externalEventBlockHash,
+		BlockHeight: externalEventBlockHeight,
+		MerklePath:  merklePath.Hex(),
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, wdk.ProvenTxStatusCompleted, results[0].Status)
+	require.Equal(t, merkleRoot, results[0].MerkleRoot)
+	require.NotNil(t, results[0].MerklePath)
+	require.Equal(t, merklePath.Hex(), results[0].MerklePath.Hex())
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+}
+
 // A RECEIVED event advances an in-flight (sending) transaction exactly like SEEN_*:
 // it is the first broadcaster acknowledgement that the tx was accepted.
 func TestExternalStatusReceivedAdvancesSendingToUnmined(t *testing.T) {

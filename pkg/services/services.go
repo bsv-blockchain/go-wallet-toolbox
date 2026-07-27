@@ -166,10 +166,28 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	// Arcade is the sole default broadcast path; the other broadcasters act as
 	// failovers behind a circuit breaker.
+	//
+	// Proof acquisition preference when Arcade is enabled:
+	//  1. Preferred: SSE /events push (monitor BroadcastStatusEvents) — no polling.
+	//  2. Fallback: MerklePath poll queue, with Arcade GET /tx/{txid} first so
+	//     status sync / check_for_proofs still works if the SSE client dies.
+	//     Then classic ARC → WhatsOnChain → Bitails.
 	var arcadeService *arcade.Service
 	var router *broadcastRouter
 	if config.Arcade.Enabled {
 		arcadeService = arcade.New(logger, options.RestyClientFactory.New(), config.Arcade)
+		// Fallback poll order only: first among pull providers, not the preferred path.
+		// GetStatusForTxIDs (GET /tx/{txid}) makes status sync work on networks
+		// where Arcade is the only reachable service (private TSTN has no
+		// WhatsOnChain/Bitails, which previously left the status queue empty:
+		// "failed to get status for txIDs: no services registered").
+		predefined = append([]Named[Implementation]{{
+			Name: arcade.ServiceName,
+			Item: Implementation{
+				MerklePath:        arcadeService.MerklePath,
+				GetStatusForTxIDs: arcadeService.GetStatusForTxIDs,
+			},
+		}}, predefined...)
 		breaker := circuitbreaker.New(logger, circuitbreaker.Config{
 			FailureThreshold: config.Arcade.CircuitBreaker.FailureThreshold,
 			ProbeInterval:    time.Duration(config.Arcade.CircuitBreaker.HealthProbeIntervalSeconds) * time.Second, //nolint:gosec // G115: safe; probe intervals are small values validated by config
@@ -398,6 +416,13 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		tipBroadcast:   tipBroadcast,
 	}
 
+	if arcadeService != nil {
+		// Depth of mined txs = tip − blockHeight + 1; resolve the tip through
+		// the aggregated CurrentHeight queue (chaintracks first). Wired after
+		// construction because the queue lives on walletServices.
+		arcadeService.SetChainTipHeight(walletServices.CurrentHeight)
+	}
+
 	walletServices.logActiveServices()
 	return walletServices
 }
@@ -451,6 +476,8 @@ func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
 
 // BroadcastStatusEvents streams transaction lifecycle status events pushed by the
 // primary broadcaster (Arcade SSE stream), invoking onEvent sequentially per event.
+// This is the preferred way to learn mined status and merkle proofs when Arcade is
+// enabled; MerklePath polling is only a fallback if this stream is unavailable.
 // It blocks until ctx is canceled (reconnecting automatically in between) and
 // returns an error when Arcade is disabled in the configuration.
 func (s *WalletServices) BroadcastStatusEvents(ctx context.Context, lastEventID string, onEvent func(wdk.BroadcastStatusEvent) error) error {
@@ -650,8 +677,11 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}}, nil
 	}
 
-	// hydrate txs in beef
-	if err := txutils.HydrateBEEF(beef); err != nil {
+	// Hydrate only the subject txs' direct inputs — EF conversion needs each
+	// input's source output, nothing deeper. The broadcast path may carry a
+	// direct-sources-only BEEF (own-wallet spends; see WithDirectSourcesOnly)
+	// where grandparents are intentionally absent.
+	if err := txutils.HydrateBEEFSubjects(beef, txIDs); err != nil {
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 

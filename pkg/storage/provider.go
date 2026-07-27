@@ -151,6 +151,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 				PoolBasket:         options.UTXOManagement.Throughput.PoolBasket,
 				ReserveBasket:      options.UTXOManagement.Throughput.ReserveBasket,
 				FanoutOutputsPerTx: options.UTXOManagement.Throughput.FanoutOutputsPerTx,
+				TargetTPS:          options.UTXOManagement.Throughput.TargetTPS,
 			},
 		),
 		options:          &options,

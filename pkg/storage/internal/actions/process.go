@@ -66,6 +66,7 @@ func newProcessAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
+	broadcasterSizing service.Sizing,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -83,7 +84,7 @@ func newProcessAction(
 		scriptsVerifier: scriptsVerifier,
 	}
 
-	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel)
+	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel, broadcasterSizing)
 	p.backgroundBroadcaster.Start()
 	return p
 }
@@ -472,7 +473,15 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs), entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
+	// Direct sources only: this BEEF feeds script verification and EF
+	// construction, both of which need just each input's source output. A full
+	// ancestry build re-validated every ancestor BUMP root per transaction —
+	// at high TPS that was the single largest CPU cost in the storage server
+	// (shared fuel parents re-validated for every spend).
+	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs),
+		entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
+		entity.WithDirectSourcesOnly(),
+	)
 	if err != nil {
 		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
@@ -483,8 +492,10 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	// hydrate txs in beef
-	if err = txutils.HydrateBEEF(beef); err != nil {
+	// Hydrate only the subject txs' direct inputs: the direct-sources-only
+	// BEEF deliberately omits grandparents, and neither script verification
+	// nor EF construction needs them.
+	if err = txutils.HydrateBEEFSubjects(beef, readyToSendTxIDs); err != nil {
 		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
@@ -646,29 +657,46 @@ func (p *process) setBatchForTxs(ctx context.Context, txIDs []string) error {
 	return nil
 }
 
+// queueTxForDelayedBroadcast moves one transaction into the pre-send state and
+// makes its change claimable. A status update that is skipped because the
+// transaction already advanced past this stage is expected and not an error.
+func (p *process) queueTxForDelayedBroadcast(ctx context.Context, txID string) error {
+	err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
+	if err != nil && !errors.Is(err, repo.ErrStatusUpdateSkipped) {
+		return fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
+	}
+	if err != nil {
+		// Legitimate: the tx is already beyond the broadcast stage, so there is
+		// nothing to re-queue as unsent.
+		p.logger.DebugContext(ctx, "known tx status update skipped (already beyond broadcast stage)", slog.String("txID", txID), logging.Error(err))
+	}
+
+	err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending, wdk.TxStatusUnprocessed)
+	if err != nil && !errors.Is(err, repo.ErrStatusUpdateSkipped) {
+		return fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
+	}
+	if err != nil {
+		// The user transaction is no longer in the expected pre-send state
+		// (e.g. it advanced concurrently). Do not downgrade it.
+		p.logger.DebugContext(ctx, "transaction status update skipped (not in expected pre-send state)", slog.String("txID", txID), logging.Error(err))
+	}
+
+	// Make this tx's change/fuel outputs claimable NOW at the "sending" tier.
+	// Waiting for network acceptance to flip them spendable starves the fuel
+	// pool at high request rates, because the acceptance pipeline runs orders
+	// of magnitude slower than creation. Only spend policies that accept
+	// unconfirmed funds will select them.
+	if err = p.utxoRepo.MakeChangeSpendableAndIndexByTxID(ctx, txID); err != nil {
+		return fmt.Errorf("failed to make outputs spendable for delayed txID %s: %w", txID, err)
+	}
+	return nil
+}
+
 func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string, beef *transaction.Beef) ([]wdk.SendWithResult, error) {
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	for _, txID := range txIDs {
-		err := p.knownTxRepo.UpdateKnownTxStatus(ctx, txID, wdk.ProvenTxStatusUnsent, wdk.ProvenTxReqBeyondBroadcastStageStatuses, nil)
-		if err != nil {
-			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
-				// Legitimate: the tx is already beyond the broadcast stage, so there is
-				// nothing to re-queue as unsent. Log and continue.
-				p.logger.DebugContext(ctx, "known tx status update skipped (already beyond broadcast stage)", slog.String("txID", txID), logging.Error(err))
-			} else {
-				return nil, fmt.Errorf("failed to update known tx status for txID %s: %w", txID, err)
-			}
-		}
-
-		err = p.txRepo.UpdateTransactionStatusByTxID(ctx, txID, wdk.TxStatusSending, wdk.TxStatusUnprocessed)
-		if err != nil {
-			if errors.Is(err, repo.ErrStatusUpdateSkipped) {
-				// The user transaction is no longer in the expected pre-send state
-				// (e.g. it advanced concurrently). Do not downgrade it; log and continue.
-				p.logger.DebugContext(ctx, "transaction status update skipped (not in expected pre-send state)", slog.String("txID", txID), logging.Error(err))
-			} else {
-				return nil, fmt.Errorf("failed to update transaction status for txID %s: %w", txID, err)
-			}
+		if err := p.queueTxForDelayedBroadcast(ctx, txID); err != nil {
+			return nil, err
 		}
 
 		sendWithResults = append(sendWithResults, wdk.SendWithResult{

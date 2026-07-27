@@ -89,15 +89,21 @@ FuelKeeper runs as soon as the dashboard process starts (every ~10s when below l
 1. Fans **default → reserve** chunks
 2. Mints exact-denomination **fuel** UTXOs for createAction
 
+The inventory **target pool** is sized from the stream TPS setting:
+
+`target_pool = tps × expected_confirmation_seconds × pool_headroom_factor`
+
+(with demo defaults: 300s × 1.5 → **4 500** fuel UTXOs at 10 TPS, **45 000** at 100 TPS). Starting a stream with a new TPS from the UI resizes that target immediately; FuelKeeper then mints toward the new high-water mark on subsequent rounds.
+
 Watch the UI balances and top-up feed. Until fuel is available, createActions may fall back to slower default-basket funding or fail with not-enough-funds — both are counted in the UI.
 
-Do **not** start a high-rate stream until fuel inventory is rising.
+Do **not** start a high-rate stream until fuel inventory is rising (or fund enough sats that FuelKeeper can mint toward the new target).
 
 ### 5. Start the stream
 
 1. Confirm fuel/reserve gauges look healthy.
 2. Start at low TPS (compose default is `10`).
-3. Click **Start stream** (or `POST /api/stream/start` with optional `{ "tps", "workers" }`).
+3. Click **Start stream** (or `POST /api/stream/start` with optional `{ "tps", "workers" }`). The response includes `target_pool_size` sized from that TPS.
 4. Confirm TPS chart and event feed move; stop anytime with **Stop stream** (FuelKeeper keeps running).
 
 Each createAction has a single 0-sat output:
@@ -138,7 +144,7 @@ go run ./cmd/throughput_dashboard
 | `BSV_NETWORK` | `main` | Mainnet-first |
 | `HTTP_ADDR` | `127.0.0.1:8200` | Compose binds `0.0.0.0:8200` published to localhost only |
 | `TPS` | `10` | Safer mainnet default (raise when funded) |
-| `WORKERS` | `8` | Concurrent createActions |
+| `WORKERS` | `0` (auto) | Concurrent createActions; `0` derives `WorkersForTPS(TPS)` (≈1 worker per TPS, max 512) |
 | `SAMPLE_SECONDS` | `1` | Gauge / TPS sample interval |
 | `ORIGINATOR` | `throughput-dashboard.local` | createAction originator |
 
@@ -176,11 +182,70 @@ Infra (compose) also accepts:
 | File | Purpose |
 |---|---|
 | `Dockerfile.dashboard` | Builds `infra_throughput` + `throughput_dashboard` |
-| `docker-compose.throughput-dashboard.yaml` | db + infra + dashboard |
+| `docker-compose.throughput-dashboard.yaml` | db + infra + dashboard (mainnet) |
 | `infra-config-docker-throughput-mainnet.yaml` | Mainnet throughput server config |
+| `infra-config-docker-throughput-tstn.yaml` | TSTN throughput server config (no private URLs) |
+| `docker-compose.throughput-dashboard.tstn.override.yaml.example` | Committed TSTN compose override template |
+| `.env.tstn.example` | Committed env template for private TSTN endpoints |
 
 Validate compose interpolation without starting containers:
 
 ```bash
 PRIVATE_KEY=00 docker compose -f docker-compose.throughput-dashboard.yaml config
 ```
+
+## TSTN compose override (private endpoints)
+
+`tstn` is a private Teranode scaling network. Arcade / ChainTracks hosts are **not**
+committed. Use a gitignored override + env file:
+
+```bash
+cp docker-compose.throughput-dashboard.tstn.override.yaml.example \
+   docker-compose.throughput-dashboard.tstn.override.yaml
+cp .env.tstn.example .env.tstn
+# edit .env.tstn — set PRIVATE_KEY and TSTN_ARCADE_URL
+# optional: TSTN_CHAINTRACKS_URL (defaults to ${TSTN_ARCADE_URL}/chaintracks)
+
+# Prefer a fresh Postgres volume when switching network from mainnet:
+docker compose \
+  -f docker-compose.throughput-dashboard.yaml \
+  -f docker-compose.throughput-dashboard.tstn.override.yaml \
+  --env-file .env.tstn \
+  down -v
+
+docker compose \
+  -f docker-compose.throughput-dashboard.yaml \
+  -f docker-compose.throughput-dashboard.tstn.override.yaml \
+  --env-file .env.tstn \
+  up --build
+```
+
+| Variable | Required | Set on | Notes |
+|---|---|---|---|
+| `PRIVATE_KEY` | Yes | dashboard | Operator wallet hex |
+| `BSV_NETWORK` / `INFRA_BSV_NETWORK` | Yes | both | Override sets `tstn` |
+| `TSTN_ARCADE_URL` | Yes | both | Private Arcade base (broadcast + merkle) |
+| `TSTN_CHAINTRACKS_URL` | No | both | Base URL; defaults to `${TSTN_ARCADE_URL}/chaintracks` (client uses `/v2/...`) |
+
+There is no WhatsOnChain on `tstn`. Browser funding wallets should use the **testnet**
+address family (tstn is testnet-based). UI badge should show **TSTN**.
+
+**Fee alignment:** private TSTN Arcade (GoBDK) uses **100 sat/kb** (`DefaultMinFeePerKB`).
+The demo wallet and `infra-config-docker-throughput-tstn.yaml` must match that floor
+(derived fuel denomination **20 sats** for 200 B OP_RETURN). Using 1 sat/kb / 2-sat fuel
+is rejected with ARC 465 `Fee too low` / `insufficient-fee` even though createAction succeeds.
+
+Validate TSTN interpolation without starting:
+
+```bash
+docker compose \
+  -f docker-compose.throughput-dashboard.yaml \
+  -f docker-compose.throughput-dashboard.tstn.override.yaml \
+  --env-file .env.tstn \
+  config
+```
+
+Gitignored local files (do not commit):
+
+- `.env.tstn`
+- `docker-compose.throughput-dashboard.tstn.override.yaml`

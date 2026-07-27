@@ -1,9 +1,17 @@
 // Package arcade provides a client for the Arcade transaction processor
-// (https://github.com/bsv-blockchain/arcade). It covers the HTTP broadcast
-// and query endpoints as well as the SSE stream of transaction status events.
+// (https://github.com/bsv-blockchain/arcade).
+//
+// Preferred lifecycle:
+//  1. Broadcast via POST /tx
+//  2. Receive status + merkle proofs on the SSE /events stream (no polling)
+//
+// Fallback when SSE is unavailable: MerklePath polls GET /tx/{txID} so monitor
+// status sync / check_for_proofs can still mark txs mined. That pull path is
+// deliberately secondary to the event stream.
 //
 // Note: Arcade is NOT classic-ARC compatible - endpoints have no /v1 prefix
-// and the broadcast body is binary Extended Format bytes.
+// and the broadcast body is binary Extended Format bytes. Do not point the
+// classic ARC client at the Arcade host for proofs; use this package.
 package arcade
 
 import (
@@ -13,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -77,6 +86,11 @@ type Service struct {
 	// when no line is read for this long the connection is dropped and redialed.
 	// Defaults to readWatchdogTimeout; overridable in tests.
 	sseReadWatchdogTimeout time.Duration
+	// chainTipHeight, when wired via SetChainTipHeight, provides the tip used
+	// to compute confirmation depth in GetStatusForTxIDs. Atomic: it is set
+	// after service construction (the height source is built later in the
+	// services wiring) and read from request goroutines.
+	chainTipHeight atomic.Pointer[ChainTipHeightFunc]
 }
 
 // New creates a new arcade service.
