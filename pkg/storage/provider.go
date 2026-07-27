@@ -1286,11 +1286,12 @@ func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args w
 	transactions := make([]wdk.CurrentTxStatus, 0, len(knownTxs))
 	for _, ktx := range knownTxs {
 		status := ktx.Status.ToStandardizedStatus()
-		switch txStatusMap[ktx.TxID] {
+		switch txStatusMap[ktx.TxID] { //nolint:exhaustive // only Failed/Aborted override the KnownTx-derived status; all other TxStatus values keep it
 		case wdk.TxStatusFailed:
 			status = wdk.TxUpdateStatusFailed
 		case wdk.TxStatusAborted:
 			status = wdk.TxUpdateStatusAborted
+		default:
 		}
 
 		txUpdate := wdk.CurrentTxStatus{
