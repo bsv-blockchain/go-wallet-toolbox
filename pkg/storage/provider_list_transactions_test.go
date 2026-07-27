@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -200,4 +201,121 @@ func TestListTransactions_AbortedTxReportedAsTerminal(t *testing.T) {
 	require.Len(t, result.Transactions, 1)
 	assert.Equal(t, txID, result.Transactions[0].TxID)
 	assert.Equal(t, wdk.TxUpdateStatusAborted, result.Transactions[0].Status)
+}
+
+// TestListTransactions_AbortedBeforeSigningIsReported covers the abort that happens
+// before a transaction is ever signed - the case the standardized-status override alone
+// does not reach.
+//
+// ListTransactions is driven by KnownTx, and a KnownTx row only appears once the
+// transaction is signed and spent. Aborting straight after CreateAction therefore leaves
+// nothing for that query to return, so the action used to vanish from the result set
+// entirely. For a caller polling ListTransactions for idempotency that is the worst
+// possible answer: absent is indistinguishable from never-created, yet the two require
+// opposite responses - an aborted action has had its inputs released and must be rebuilt.
+func TestListTransactions_AbortedBeforeSigningIsReported(t *testing.T) {
+	// Given:
+	ctx := t.Context()
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+	// and: a transaction created but never processed, so no KnownTx row exists for it
+	createResult, _ := given.Action(activeStorage).Created()
+
+	// and: aborted while still unsigned
+	_, err := activeStorage.AbortAction(ctx, testusers.Alice.AuthID(), wdk.AbortActionArgs{
+		Reference: primitives.Base64String(createResult.Reference),
+	})
+	require.NoError(t, err)
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByReference(testusers.Alice, createResult.Reference).
+		WithStatus(wdk.TxStatusAborted)
+
+	// When:
+	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), wdk.ListTransactionsArgs{
+		Limit:  50,
+		Offset: 0,
+	})
+
+	// Then: the aborted action is present and reported as Aborted, matched on Reference
+	// because no TxID was ever assigned to it.
+	require.NoError(t, err)
+
+	var aborted *wdk.CurrentTxStatus
+	for i := range result.Transactions {
+		if result.Transactions[i].Reference == createResult.Reference {
+			aborted = &result.Transactions[i]
+			break
+		}
+	}
+	require.NotNil(t, aborted, "aborted tx must be reported, not silently omitted")
+	assert.Equal(t, wdk.TxUpdateStatusAborted, aborted.Status)
+	assert.Empty(t, aborted.TxID, "no TxID is assigned before signing")
+}
+
+// TestListTransactions_FailedAndAbortedAreDistinguishable pins the distinction the
+// status exists for. Both are terminal, but only one is retryable: an aborted
+// transaction was never broadcast and its inputs are released, so it is safe to rebuild
+// from scratch, whereas a failed one was rejected by the network. Collapsing them onto a
+// single status would leave callers unable to decide between retrying and giving up.
+func TestListTransactions_FailedAndAbortedAreDistinguishable(t *testing.T) {
+	tests := map[string]struct {
+		status     wdk.TxStatus
+		wantStatus wdk.StandardizedTxStatus
+	}{
+		"aborted is reported as aborted": {
+			status:     wdk.TxStatusAborted,
+			wantStatus: wdk.TxUpdateStatusAborted,
+		},
+		"failed is reported as failed": {
+			status:     wdk.TxStatusFailed,
+			wantStatus: wdk.TxUpdateStatusFailed,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Given:
+			ctx := t.Context()
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			activeStorage := given.Provider().WithRandomizer(randomizer.NewTestRandomizer()).GORM()
+
+			createResult, _ := given.Action(activeStorage).Created()
+
+			// and: driven into the terminal status under test
+			userTxs, err := activeStorage.TransactionEntity().Read().
+				Reference().Equals(createResult.Reference).Find(ctx)
+			require.NoError(t, err)
+			require.Len(t, userTxs, 1)
+
+			require.NoError(t, activeStorage.TransactionEntity().Update(ctx, &entity.TransactionUpdateSpecification{
+				ID:     userTxs[0].ID,
+				Status: to.Ptr(tt.status),
+			}))
+
+			// When:
+			result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), wdk.ListTransactionsArgs{
+				Limit:  50,
+				Offset: 0,
+			})
+
+			// Then:
+			require.NoError(t, err)
+
+			var found *wdk.CurrentTxStatus
+			for i := range result.Transactions {
+				if result.Transactions[i].Reference == createResult.Reference {
+					found = &result.Transactions[i]
+					break
+				}
+			}
+			require.NotNil(t, found, "terminal tx must be reported")
+			assert.Equal(t, tt.wantStatus, found.Status)
+		})
+	}
 }
