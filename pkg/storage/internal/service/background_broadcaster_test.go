@@ -266,7 +266,7 @@ func TestSizingDefaultsStaySmall(t *testing.T) {
 	bb := service.NewBackgroundBroadcaster(t.Context(), testLogger, &mockBroadcaster{}, nil, zero)
 	require.NotNil(t, bb)
 
-	// An explicit sizing is honoured, which is how the throughput strategy
+	// An explicit sizing is honored, which is how the throughput strategy
 	// buys enough acceptance capacity to keep pace with createAction.
 	sized := service.NewBackgroundBroadcaster(t.Context(), testLogger, &mockBroadcaster{}, nil,
 		service.Sizing{Workers: 64, ChannelSize: 4096})
