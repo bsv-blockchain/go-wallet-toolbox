@@ -271,7 +271,7 @@ func TestTxStatusMappings(t *testing.T) {
 		{wdk.TxStatusNoSend, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
 		{wdk.TxStatusNonFinal, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
 		{wdk.TxStatusUnfail, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusWaiting},
-		{wdk.TxStatusAborted, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusFailed},
+		{wdk.TxStatusAborted, wdk.UTXOStatusUnknown, wdk.TxUpdateStatusAborted},
 	}
 
 	allStatuses := []wdk.TxStatus{

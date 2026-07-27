@@ -58,7 +58,7 @@ func (s TxStatus) ToStandardizedStatus() StandardizedTxStatus {
 	case TxStatusFailed:
 		return TxUpdateStatusInvalidTx
 	case TxStatusAborted:
-		return TxUpdateStatusFailed
+		return TxUpdateStatusAborted
 	default:
 		return TxUpdateStatusUnknown
 	}
@@ -257,6 +257,11 @@ const (
 	TxUpdateStatusMined        StandardizedTxStatus = "mined"
 	TxUpdateStatusUnknown      StandardizedTxStatus = "unknown"
 	TxUpdateStatusFailed       StandardizedTxStatus = "failed"
+	// TxUpdateStatusAborted marks a tx that was never broadcast (see TxStatusAborted) -
+	// distinct from TxUpdateStatusFailed (broadcast and rejected by the network), so
+	// callers polling ListTransactions can tell "safe to rebuild and retry" apart from
+	// "permanently rejected".
+	TxUpdateStatusAborted StandardizedTxStatus = "aborted"
 )
 
 // String returns the string representation of StandardizedTxStatus
