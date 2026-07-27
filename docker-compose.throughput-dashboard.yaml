@@ -20,17 +20,18 @@
 services:
   db:
     image: postgres:17-alpine
-    # Demo-only durability relaxation: the throughput demo is write-bound on
-    # WAL fsyncs at high createAction rates. A crash can lose/corrupt this
-    # database — acceptable for a local load demo, NEVER for production.
+    # The throughput demo is write-bound on WAL flushes at high createAction
+    # rates. synchronous_commit=off returns from COMMIT without waiting for the
+    # WAL flush, which removes that wait while keeping fsync ordering intact: a
+    # crash can lose the last fraction of a second of transactions, but cannot
+    # corrupt the database. fsync=off / full_page_writes=off would be faster
+    # still and are deliberately NOT set — they drop the ordering guarantees
+    # crash recovery relies on, so an OS or power failure can leave the
+    # database unrecoverable.
     command:
       - postgres
       - -c
       - synchronous_commit=off
-      - -c
-      - fsync=off
-      - -c
-      - full_page_writes=off
       - -c
       - checkpoint_completion_target=0.9
       - -c
