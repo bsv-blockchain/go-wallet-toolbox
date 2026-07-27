@@ -29,7 +29,7 @@ func TestAllStatusesMatchesArcadeLifecycle(t *testing.T) {
 	require.Equal(t, want, got)
 
 	// Canonical multi-node name (live SSE); legacy alias still defined.
-	assert.Equal(t, arcade.TxStatus("SEEN_MULTIPLE_NODES"), arcade.StatusSeenMultipleNodes)
-	assert.Equal(t, arcade.TxStatus("SEEN_ON_MULTIPLE_NODES"), arcade.StatusSeenOnMultipleNodes)
-	assert.Equal(t, arcade.TxStatus("ACCEPTED_BY_NETWORK"), arcade.StatusAcceptedByNetwork)
+	assert.Equal(t, arcade.StatusSeenMultipleNodes, arcade.TxStatus("SEEN_MULTIPLE_NODES"))
+	assert.Equal(t, arcade.StatusSeenOnMultipleNodes, arcade.TxStatus("SEEN_ON_MULTIPLE_NODES"))
+	assert.Equal(t, arcade.StatusAcceptedByNetwork, arcade.TxStatus("ACCEPTED_BY_NETWORK"))
 }

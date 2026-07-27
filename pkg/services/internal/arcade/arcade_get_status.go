@@ -132,6 +132,12 @@ func toStatusDetail(txID string, info *TXInfo, tip uint32) wdk.TxStatusDetail {
 			TxID:   txID,
 			Status: wdk.ResultStatusForTxIDNotFound.String(),
 		}
+	case StatusReceived, StatusSentToNetwork, StatusAcceptedByNetwork,
+		StatusSeenOnNetwork, StatusSeenMultipleNodes, StatusSeenOnMultipleNodes,
+		StatusDoubleSpendAttempted, StatusPendingRetry, StatusStumpProcessing,
+		StatusAnnouncedToNetwork, StatusStored:
+		// Seen by the network but not yet mined.
+		fallthrough
 	default:
 		depth := 0
 		return wdk.TxStatusDetail{

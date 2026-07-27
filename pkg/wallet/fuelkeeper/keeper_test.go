@@ -45,7 +45,7 @@ func (f *fakeWallet) ListOutputs(_ context.Context, args sdk.ListOutputsArgs, _ 
 
 func (f *fakeWallet) FanOutFuel(_ context.Context, shape wdk.ShapedChange, _ string) (*sdk.CreateActionResult, error) {
 	f.mu.Lock()
-	if string(shape.Basket) == "reserve" && f.maxChunkCount > 0 && uint64(shape.Count) > f.maxChunkCount {
+	if string(shape.Basket) == "reserve" && f.maxChunkCount > 0 && shape.Count > f.maxChunkCount {
 		f.mu.Unlock()
 		return nil, errors.New("funding failed: not enough funds")
 	}

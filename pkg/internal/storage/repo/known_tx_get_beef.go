@@ -144,8 +144,8 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		if model.RawTx == nil {
 			return fmt.Errorf("raw tx is nil in transaction %s", txID)
 		}
-		if _, err := mergeToBeef.MergeRawTx(model.RawTx, nil); err != nil {
-			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, err)
+		if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
+			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
 		}
 		return nil
 	}

@@ -413,7 +413,7 @@ func (k *Keeper) mintLeaves(ctx context.Context, cfg Config, leaves uint64) (uin
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(int(conc)) //nolint:gosec // small config knob
+	g.SetLimit(int(conc))
 
 	var mintedLeaves atomic.Uint64
 	issued := uint64(0)

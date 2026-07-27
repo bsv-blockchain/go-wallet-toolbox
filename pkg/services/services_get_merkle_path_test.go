@@ -181,11 +181,11 @@ func TestGetMerklePath(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 
-		txID := btst.TestTxID
+		bitailsTxID := btst.TestTxID
 		blockHash := btst.TestTargetHash
 		sibling := btst.TestSiblingHash
 
-		txHash := btst.HashFromHex(t, txID)
+		txHash := btst.HashFromHex(t, bitailsTxID)
 		siblingHash := btst.HashFromHex(t, sibling)
 
 		merklePath := sdk.MerklePath{
@@ -203,21 +203,21 @@ func TestGetMerklePath(t *testing.T) {
 			}},
 		}
 
-		merkleRoot, err := merklePath.ComputeRootHex(&txID)
+		merkleRoot, err := merklePath.ComputeRootHex(&bitailsTxID)
 		require.NoError(t, err, "failed to compute merkle root")
 
-		given.Bitails().WillReturnTscProof(txID, blockHash, 0, []string{sibling})
+		given.Bitails().WillReturnTscProof(bitailsTxID, blockHash, 0, []string{sibling})
 
 		headerWithCorrectMerkleRoot := btst.FakeHeaderHexWithMerkleRoot(t, merkleRoot)
 		given.Bitails().WillReturnBlockHeader(blockHash, headerWithCorrectMerkleRoot)
 
-		given.Bitails().WillReturnBranchProof(txID, blockHash, merkleRoot, []map[string]string{
+		given.Bitails().WillReturnBranchProof(bitailsTxID, blockHash, merkleRoot, []map[string]string{
 			{
 				"pos":  "0",
 				"hash": sibling,
 			},
 		})
-		given.Bitails().WillReturnTxStatus(txID, btst.TestBlockHeight)
+		given.Bitails().WillReturnTxStatus(bitailsTxID, btst.TestBlockHeight)
 
 		// Arcade is default-first on mainnet; disable so Bitails can be reached after ARC/WoC.
 		services := given.Services().Config(
@@ -226,7 +226,7 @@ func TestGetMerklePath(t *testing.T) {
 		).New()
 
 		// when:
-		response, err := services.MerklePath(t.Context(), txID)
+		response, err := services.MerklePath(t.Context(), bitailsTxID)
 
 		// then:
 		require.NoError(t, err)

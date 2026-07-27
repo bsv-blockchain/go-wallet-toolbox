@@ -14,8 +14,10 @@ package defs
 //	tstn     $TSTN_ARCADE_URL                          $TSTN_ARCADE_URL     no           no            on ($TSTN_CHAINTRACKS_URL or arcade/chaintracks)
 //
 // Proof acquisition when Arcade is enabled:
-//   preferred — SSE /events push (monitor); no MerklePath polling required when healthy
-//   fallback  — MerklePath poll order Arcade → ARC → WhatsOnChain → Bitails (if enabled)
+//
+//	preferred — SSE /events push (monitor); no MerklePath polling required when healthy
+//	fallback  — MerklePath poll order Arcade → ARC → WhatsOnChain → Bitails (if enabled)
+//
 // When Arcade is disabled (e.g. public testnet defaults): poll ARC → WhatsOnChain → Bitails.
 //
 // The ChainTracks RemoteURL is populated for every network (derived from the Arcade host)

@@ -303,7 +303,7 @@ func (s *Sampler) sample(ctx context.Context) {
 	targetPool := s.targetPool
 	s.mu.RUnlock()
 
-	gaugeTPS := uint64(stats.TPS)
+	gaugeTPS := uint64(stats.TPS) //nolint:gosec // G115: stream TPS is validated positive and bounded by MaxTPS
 	if gaugeTPS == 0 {
 		gaugeTPS = fallbackTPS
 	}
@@ -455,6 +455,9 @@ func summarizeNetworkActions(total uint64, actions []sdk.Action) NetworkHealth {
 			h.Failed++
 		case actionStatusAborted:
 			h.Aborted++
+		case sdk.ActionStatusUnsigned, sdk.ActionStatusNoSend, sdk.ActionStatusNonFinal:
+			// Not yet handed to the network; not a broadcast outcome.
+			h.Other++
 		default:
 			h.Other++
 		}

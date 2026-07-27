@@ -131,7 +131,7 @@ func newTestSampler(t *testing.T, wallet WalletAPI, ctrl *stream.Controller, tar
 	if ctrl == nil {
 		// Stream TPS drives runway; align controller TPS with the sampler config
 		// so runway tests remain predictable unless a custom ctrl is passed.
-		tps := int(targetTPS)
+		tps := int(targetTPS) //nolint:gosec // G115: fixed small test value
 		if tps <= 0 {
 			tps = 1
 		}

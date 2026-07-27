@@ -286,13 +286,13 @@ func (u *UTXOs) MakeChangeSpendableAndIndexByTxID(ctx context.Context, txID stri
 				Scopes(isChangeDaoScope(query))
 		}
 
-		if err := makeOutputsSpendable(ctx, query, filterScope); err != nil {
-			return err
+		if spendableErr := makeOutputsSpendable(ctx, query, filterScope); spendableErr != nil {
+			return spendableErr
 		}
 
-		changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
-		if err != nil {
-			return err
+		changeOutputs, outputsErr := getOutputsWithTxStatus(ctx, query, filterScope)
+		if outputsErr != nil {
+			return outputsErr
 		}
 
 		return createUTXOsFromOutputs(ctx, query, changeOutputs)

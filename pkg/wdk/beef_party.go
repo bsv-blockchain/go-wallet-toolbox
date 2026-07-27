@@ -206,7 +206,7 @@ func (bp *BeefParty) MergeBeefFromParty(party string, beef primitives.BEEF) erro
 
 	// Bound graph growth BEFORE merging: the caller may still resolve
 	// TxIDOnly entries of this response against the graph right after.
-	if len(bp.Beef.Transactions) > DefaultMaxGraphTxs {
+	if len(bp.Transactions) > DefaultMaxGraphTxs {
 		bp.resetLocked()
 	}
 
