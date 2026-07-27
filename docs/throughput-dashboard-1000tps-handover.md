@@ -16,10 +16,10 @@
 > **Read `docs/throughput-bottleneck-report.md` first** — the sections below
 > describe the OLD serialized architecture and are kept for history.
 
-**Audience:** another LLM (or engineer) continuing this work  
-**Repo:** `go-wallet-toolbox`  
-**Branch context:** `feat/network-ttn-tstn-support` (local TSTN demo stack)  
-**Date context:** 2026-07-24  
+**Audience:** another LLM (or engineer) continuing this work<br>
+**Repo:** `go-wallet-toolbox`<br>
+**Branch context:** `feat/network-ttn-tstn-support` (local TSTN demo stack)<br>
+**Date context:** 2026-07-24<br>
 **Primary goal:** run createAction load at high TPS (target **1000**) **indefinitely**, with FuelKeeper still minting fuel **during** the stream (not paused), without locking up the UI.
 
 ---
@@ -51,8 +51,8 @@ docker compose \
 
 Critical design constraint:
 
-> The dashboard wraps the operator wallet in **`syncwallet.Serial`**: **one mutex for all storage RPCs** (CreateAction, FanOutFuel, ListOutputs, ListActions, Balance, Internalize).  
-> Reason: BRC-104 AuthFetch is not safe for concurrent session handshakes on one peer.  
+> The dashboard wraps the operator wallet in **`syncwallet.Serial`**: **one mutex for all storage RPCs** (CreateAction, FanOutFuel, ListOutputs, ListActions, Balance, Internalize).<br>
+> Reason: BRC-104 AuthFetch is not safe for concurrent session handshakes on one peer.<br>
 > File: `cmd/throughput_dashboard/internal/syncwallet/serial.go`
 
 So **stream, FuelKeeper, and metrics sampler all serialize on the same lock**.
@@ -150,7 +150,7 @@ So: **FuelKeeper catch-up monopolizes the serial wallet during the stream**, whi
 
 ### 3.3 What the user does **not** want
 
-- **Do not pause FuelKeeper entirely while the stream runs.**  
+- **Do not pause FuelKeeper entirely while the stream runs.**<br>
   Minting must continue so the pool can track burn rate for indefinite load.
 
 ### 3.4 What “success” looks like
