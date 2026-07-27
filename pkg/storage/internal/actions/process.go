@@ -66,6 +66,7 @@ func newProcessAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
+	broadcasterSizing service.Sizing,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -83,7 +84,7 @@ func newProcessAction(
 		scriptsVerifier: scriptsVerifier,
 	}
 
-	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel)
+	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel, broadcasterSizing)
 	p.backgroundBroadcaster.Start()
 	return p
 }
