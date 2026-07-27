@@ -19,5 +19,5 @@ paths = [
 [[allowlists]]
 description = "Docker throughput live-test example config (dev-only keys)"
 paths = [
-    '''infra-config-docker-throughput\.yaml''',
+    '''infra-config-docker-throughput(-[a-z0-9]+)?\.yaml''',
 ]
