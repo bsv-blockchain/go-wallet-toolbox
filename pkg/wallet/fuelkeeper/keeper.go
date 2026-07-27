@@ -367,6 +367,38 @@ func (k *Keeper) runOnce(ctx context.Context) (catchUp bool, err error) {
 	return stillLow, nil
 }
 
+// mintOneLeaf performs a single leaf fan-out, retrying reserve-chunk selection
+// collisions. Concurrent leaves fund from the same reserve basket and can pick
+// the same chunk; storage reports that as a (deliberately non-retryable)
+// provided-input conflict, which would otherwise fail most of a round. A short
+// stagger between attempts spreads the selection.
+func (k *Keeper) mintOneLeaf(ctx context.Context, cfg Config, minted *atomic.Uint64) error {
+	shape := wdk.ShapedChange{
+		Count:    cfg.FanoutOutputsPerTx,
+		Satoshis: primitives.SatoshiValue(cfg.Denomination),
+		Basket:   primitives.StringUnder300(cfg.PoolBasket),
+	}
+
+	var err error
+	for attempt := range mintLeafAttempts {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Duration(attempt) * mintLeafRetryBackoff):
+			}
+		}
+		if err = k.fanOut(ctx, cfg, shape); err == nil {
+			minted.Add(1)
+			return nil
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("leaf fan-out failed after %d attempts: %w", mintLeafAttempts, err)
+}
+
 // mintLeaves runs up to `leaves` leaf fan-outs with MintConcurrency-bounded
 // parallelism and returns how many fuel outputs were minted. While a stream is
 // active it stops issuing new leaves past StreamLeafCap (a stream starting
@@ -395,36 +427,7 @@ func (k *Keeper) mintLeaves(ctx context.Context, cfg Config, leaves uint64) (uin
 			break
 		}
 		issued++
-		g.Go(func() error {
-			shape := wdk.ShapedChange{
-				Count:    cfg.FanoutOutputsPerTx,
-				Satoshis: primitives.SatoshiValue(cfg.Denomination),
-				Basket:   primitives.StringUnder300(cfg.PoolBasket),
-			}
-			// Concurrent leaves fund from the same reserve basket and can pick
-			// the same chunk; storage reports that as a (deliberately
-			// non-retryable) provided-input conflict, which would otherwise
-			// fail most of a round. Retry here — a different chunk is chosen on
-			// the next attempt — with a short stagger to spread the selection.
-			var err error
-			for attempt := range mintLeafAttempts {
-				if attempt > 0 {
-					select {
-					case <-gctx.Done():
-						return nil
-					case <-time.After(time.Duration(attempt) * mintLeafRetryBackoff):
-					}
-				}
-				if err = k.fanOut(gctx, cfg, shape); err == nil {
-					mintedLeaves.Add(1)
-					return nil
-				}
-				if gctx.Err() != nil {
-					return nil
-				}
-			}
-			return fmt.Errorf("leaf fan-out failed after %d attempts: %w", mintLeafAttempts, err)
-		})
+		g.Go(func() error { return k.mintOneLeaf(gctx, cfg, &mintedLeaves) })
 	}
 
 	err := g.Wait()

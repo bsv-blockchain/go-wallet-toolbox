@@ -168,7 +168,7 @@ func NewSampler(wallet WalletAPI, ctrl *stream.Controller, cfg Config) *Sampler 
 // SetTargetPool updates the fuel inventory target and optional display TPS used
 // when the stream controller reports 0. Safe to call while Run is active.
 // pool must be > 0; tps may be 0 to leave the previous display TPS unchanged.
-func (s *Sampler) SetTargetPool(pool uint64, tps uint64) {
+func (s *Sampler) SetTargetPool(pool, tps uint64) {
 	if pool == 0 {
 		return
 	}

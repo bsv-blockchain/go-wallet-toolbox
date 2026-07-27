@@ -33,6 +33,9 @@ const (
 	broadcastApplyWorkers   = 8
 	broadcastApplyBatchMax  = 64
 	broadcastApplyQueueSize = 1024
+
+	// broadcastApplyDeadlockAttempts bounds the retry of a deadlocked apply.
+	broadcastApplyDeadlockAttempts = 3
 )
 
 // BroadcastEventStreamer is implemented by services.WalletServices.
@@ -129,6 +132,31 @@ func (d *Daemon) handleBroadcastEvents(ctx context.Context, streamer BroadcastEv
 	d.logger.InfoContext(ctx, "Broadcast event handler stopped")
 }
 
+// applyBroadcastEvent applies one status event, retrying the deadlocks that
+// parallel appliers can form with each other or with the background broadcaster
+// (Postgres SQLSTATE 40P01) — the victim is safe to retry immediately. Failures
+// are logged and swallowed: replaying an event is safe, and the polling tasks
+// are the safety net.
+func (d *Daemon) applyBroadcastEvent(ctx context.Context, ev wdk.BroadcastStatusEvent) {
+	var results []wdk.TxSynchronizedStatus
+	var err error
+	for range broadcastApplyDeadlockAttempts {
+		results, err = d.storage.ProcessExternalTxStatusUpdate(ctx, ev)
+		if err == nil || !strings.Contains(err.Error(), "deadlock detected") {
+			break
+		}
+	}
+	if err != nil {
+		d.logger.ErrorContext(ctx, "ProcessExternalTxStatusUpdate failed",
+			slog.String("txID", ev.TxID),
+			slog.String("eventID", ev.EventID),
+			slog.Any("error", err),
+		)
+		return
+	}
+	d.sendProvenEvents(results)
+}
+
 // applyBroadcastEventBatch applies a batch of SSE events with bounded
 // concurrency, forwards proven results, and persists the replay cursor once —
 // to the last ID-carrying event of the batch — after every event in the batch
@@ -140,27 +168,8 @@ func (d *Daemon) applyBroadcastEventBatch(ctx context.Context, batch []wdk.Broad
 	g.SetLimit(broadcastApplyWorkers)
 	for _, ev := range batch {
 		g.Go(func() error {
-			var results []wdk.TxSynchronizedStatus
-			var storageErr error
-			// Parallel appliers can form lock cycles with each other or the
-			// background broadcaster (Postgres SQLSTATE 40P01); the victim is
-			// safe to retry immediately.
-			for attempt := 0; attempt < 3; attempt++ {
-				results, storageErr = d.storage.ProcessExternalTxStatusUpdate(gctx, ev)
-				if storageErr == nil || !strings.Contains(storageErr.Error(), "deadlock detected") {
-					break
-				}
-			}
-			if storageErr != nil {
-				d.logger.ErrorContext(gctx, "ProcessExternalTxStatusUpdate failed",
-					slog.String("txID", ev.TxID),
-					slog.String("eventID", ev.EventID),
-					slog.Any("error", storageErr),
-				)
-				return nil // keep the batch going; cursor still advances
-			}
-			d.sendProvenEvents(results)
-			return nil
+			d.applyBroadcastEvent(gctx, ev)
+			return nil // a failed event never fails the batch; the cursor still advances
 		})
 	}
 	_ = g.Wait()

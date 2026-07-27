@@ -249,6 +249,7 @@ func TestRunOnce_StreamYieldRespectsCancel(t *testing.T) {
 	keeper.SetStreamActive(true)
 
 	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		cancel()

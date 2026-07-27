@@ -265,23 +265,29 @@ function applyNetworkHealth(net) {
 // Tick / top-up application
 // ---------------------------------------------------------------------------
 
-function applyTick(tick, { chart = true } = {}) {
-  if (!tick) return;
-
-  const key = tickKey(tick);
-  const isDup = key && key === lastTickKey;
-  lastTickKey = key || lastTickKey;
-
+/** Stream counters, state pill, and network-health row. */
+function applyStreamStats(tick) {
   const stream = tick.stream || {};
   const running = !!stream.running;
   const draining = !!stream.draining;
 
-  els.streamState.textContent = draining ? "draining" : running ? "running" : "stopped";
+  let stateLabel = "stopped";
+  if (draining) stateLabel = "draining";
+  else if (running) stateLabel = "running";
+
+  els.streamState.textContent = stateLabel;
   els.streamState.className = `value state-pill ${running ? "state-running" : "state-stopped"}`;
   els.succeeded.textContent = fmt(stream.succeeded ?? 0);
   els.failed.textContent = fmt(stream.failed ?? 0);
   els.iteration.textContent = fmt(stream.iteration ?? 0);
   applyNetworkHealth(tick.network);
+}
+
+/** Start/stop buttons, TPS input, and the workers display. */
+function applyStreamControls(tick) {
+  const stream = tick.stream || {};
+  const running = !!stream.running;
+  const draining = !!stream.draining;
 
   if (!streamBusy) {
     els.btnStart.disabled = running;
@@ -298,6 +304,7 @@ function applyTick(tick, { chart = true } = {}) {
   if (running && stream.tps) {
     els.tps.value = stream.tps;
   }
+
   // Workers are always auto-derived from TPS (server-side); show the live value
   // when running, otherwise the preview for the current TPS field.
   if (running && stream.workers) {
@@ -305,6 +312,17 @@ function applyTick(tick, { chart = true } = {}) {
   } else {
     setWorkersDisplay(workersForTPS(uiTargetTPS(tick)), false);
   }
+}
+
+function applyTick(tick, { chart = true } = {}) {
+  if (!tick) return;
+
+  const key = tickKey(tick);
+  const isDup = key && key === lastTickKey;
+  lastTickKey = key || lastTickKey;
+
+  applyStreamStats(tick);
+  applyStreamControls(tick);
 
   els.balDefault.textContent = fmt(tick.default_sats);
   els.balFuel.textContent = fmt(tick.fuel_count);

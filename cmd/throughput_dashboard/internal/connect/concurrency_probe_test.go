@@ -29,59 +29,25 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 )
 
-func TestProbeServerConcurrency(t *testing.T) {
-	serverURL := os.Getenv("PROBE_SERVER_URL")
-	if serverURL == "" {
-		t.Skip("PROBE_SERVER_URL not set; live probe skipped")
-	}
-	network, err := defs.ParseBSVNetworkStr(os.Getenv("PROBE_NETWORK"))
-	require.NoError(t, err)
+// probeMeasureWindow is how long each probe configuration is hammered.
+const probeMeasureWindow = 10 * time.Second
 
-	const measure = 10 * time.Second
+func TestProbeServerConcurrency(t *testing.T) {
+	serverURL, network := probeEnv(t)
 
 	for _, clients := range []int{1, 4, 8, 16, 32} {
 		t.Run(nameForClients(clients), func(t *testing.T) {
-			wallets := make([]*wallet.Wallet, clients)
-			for i := range wallets {
-				priv, err := ec.NewPrivateKey()
-				require.NoError(t, err)
-				w, err := connect.Wallet(context.Background(), network, priv, serverURL, nil)
-				require.NoError(t, err, "client %d connect", i)
-				t.Cleanup(w.Close)
-				wallets[i] = w
-			}
+			wallets := dialWallets(t, clients, network, serverURL)
 
-			var ops atomic.Uint64
-			ctx, cancel := context.WithTimeout(context.Background(), measure)
-			defer cancel()
-			var wg sync.WaitGroup
-			start := time.Now()
-			for _, w := range wallets {
-				wg.Add(1)
-				go func(w *wallet.Wallet) {
-					defer wg.Done()
-					for ctx.Err() == nil {
-						// Serial per client (single AuthFetch is not
-						// concurrency-safe); parallelism comes from N clients.
-						if _, err := w.ListOutputs(ctx, sdk.ListOutputsArgs{
-							Basket: "fuel",
-							Limit:  to.Ptr(uint32(1)),
-						}, "probe"); err != nil {
-							if ctx.Err() != nil {
-								return
-							}
-							t.Logf("listOutputs error: %v", err)
-							return
-						}
-						ops.Add(1)
-					}
-				}(w)
-			}
-			wg.Wait()
-			elapsed := time.Since(start)
-			rate := float64(ops.Load()) / elapsed.Seconds()
+			res := hammer(t, clients, probeMeasureWindow, func(i int) *wallet.Wallet {
+				// Serial per client (a single client is used one request at a
+				// time); parallelism comes from N distinct clients.
+				return wallets[i]
+			})
+
+			rate := float64(res.ops) / res.elapsed.Seconds()
 			t.Logf("PROBE clients=%d ops=%d elapsed=%s rate=%.1f rpc/s (%.1f rpc/s per client)",
-				clients, ops.Load(), elapsed.Round(time.Millisecond), rate, rate/float64(clients))
+				clients, res.ops, res.elapsed.Round(time.Millisecond), rate, rate/float64(clients))
 		})
 	}
 }
@@ -91,19 +57,11 @@ func nameForClients(n int) string {
 }
 
 // TestProbeSingleClientConcurrency drives ONE wallet client (one identity, one
-// AuthFetch session) from K goroutines concurrently. Upstream go-sdk v1.3.1
-// hangs here (response listener bug — see third_party/go-sdk local patch);
-// with the patch each request resolves independently, so this measures the
-// safe in-flight window for the dashboard's shared wallet.
+// AuthFetch session) from K goroutines concurrently. Before the BRC-104 auth
+// fixes released in go-sdk v1.3.2 this hung; it now measures the safe in-flight
+// window for the dashboard's shared wallet.
 func TestProbeSingleClientConcurrency(t *testing.T) {
-	serverURL := os.Getenv("PROBE_SERVER_URL")
-	if serverURL == "" {
-		t.Skip("PROBE_SERVER_URL not set; live probe skipped")
-	}
-	network, err := defs.ParseBSVNetworkStr(os.Getenv("PROBE_NETWORK"))
-	require.NoError(t, err)
-
-	const measure = 10 * time.Second
+	serverURL, network := probeEnv(t)
 
 	priv, err := ec.NewPrivateKey()
 	require.NoError(t, err)
@@ -113,37 +71,85 @@ func TestProbeSingleClientConcurrency(t *testing.T) {
 
 	for _, workers := range []int{1, 8, 16, 32} {
 		t.Run(fmt.Sprintf("goroutines_%02d", workers), func(t *testing.T) {
-			var ops, failures atomic.Uint64
-			ctx, cancel := context.WithTimeout(context.Background(), measure)
-			defer cancel()
-			var wg sync.WaitGroup
-			start := time.Now()
-			for i := 0; i < workers; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for ctx.Err() == nil {
-						if _, err := w.ListOutputs(ctx, sdk.ListOutputsArgs{
-							Basket: "fuel",
-							Limit:  to.Ptr(uint32(1)),
-						}, "probe"); err != nil {
-							if ctx.Err() != nil {
-								return
-							}
-							if failures.Add(1) <= 3 {
-								t.Logf("sample failure: %v", err)
-							}
-							continue
-						}
-						ops.Add(1)
-					}
-				}()
-			}
-			wg.Wait()
-			elapsed := time.Since(start)
-			rate := float64(ops.Load()) / elapsed.Seconds()
+			res := hammer(t, workers, probeMeasureWindow, func(int) *wallet.Wallet { return w })
+
 			t.Logf("PROBE single-client goroutines=%d ops=%d failures=%d rate=%.1f rpc/s",
-				workers, ops.Load(), failures.Load(), rate)
+				workers, res.ops, res.failures, float64(res.ops)/res.elapsed.Seconds())
 		})
 	}
+}
+
+// probeResult is the outcome of hammering a set of wallets concurrently.
+type probeResult struct {
+	ops      uint64
+	failures uint64
+	elapsed  time.Duration
+}
+
+// hammer runs `workers` goroutines for `d`, each repeatedly calling fn on the
+// wallet its index selects, and reports the aggregate throughput.
+func hammer(t *testing.T, workers int, d time.Duration, pick func(i int) *wallet.Wallet) probeResult {
+	t.Helper()
+
+	var ops, failures atomic.Uint64
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	start := time.Now()
+	for i := range workers {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			w := pick(i)
+			for ctx.Err() == nil {
+				_, err := w.ListOutputs(ctx, sdk.ListOutputsArgs{
+					Basket: "fuel",
+					Limit:  to.Ptr(uint32(1)),
+				}, "probe")
+				switch {
+				case err == nil:
+					ops.Add(1)
+				case ctx.Err() != nil:
+					return
+				default:
+					if failures.Add(1) <= 3 {
+						t.Logf("sample failure: %v", err)
+					}
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	return probeResult{ops: ops.Load(), failures: failures.Load(), elapsed: time.Since(start)}
+}
+
+// dialWallets opens n independent clients, each with its own identity key.
+func dialWallets(t *testing.T, n int, network defs.BSVNetwork, serverURL string) []*wallet.Wallet {
+	t.Helper()
+
+	wallets := make([]*wallet.Wallet, n)
+	for i := range wallets {
+		priv, err := ec.NewPrivateKey()
+		require.NoError(t, err)
+		w, err := connect.Wallet(context.Background(), network, priv, serverURL, nil)
+		require.NoError(t, err, "client %d connect", i)
+		t.Cleanup(w.Close)
+		wallets[i] = w
+	}
+	return wallets
+}
+
+// probeEnv reads the live-probe configuration, skipping when it is absent.
+func probeEnv(t *testing.T) (serverURL string, network defs.BSVNetwork) {
+	t.Helper()
+
+	serverURL = os.Getenv("PROBE_SERVER_URL")
+	if serverURL == "" {
+		t.Skip("PROBE_SERVER_URL not set; live probe skipped")
+	}
+	network, err := defs.ParseBSVNetworkStr(os.Getenv("PROBE_NETWORK"))
+	require.NoError(t, err)
+	return serverURL, network
 }
