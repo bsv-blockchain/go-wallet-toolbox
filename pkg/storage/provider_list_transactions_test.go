@@ -140,15 +140,16 @@ func TestListTransactions_FilterByLabels(t *testing.T) {
 }
 
 // TestListTransactions_AbortedTxReportedAsTerminal proves ListTransactions reports
-// an aborted tx as terminal (Failed) even though its underlying KnownTx row is left
-// in a non-terminal ProvenTxReq status ('nosend'). AbortAction only flips the
-// Transaction to 'aborted'; it never touches the (possibly shared) KnownTx row, so a
-// tx created via ProcessAction(IsNoSend:true) and then aborted keeps KnownTx at
-// 'nosend'. Before the fix, the standardized-status override in ListTransactions only
-// fired for txStatusMap[txID] == TxStatusFailed, so this case fell through to the base
-// KnownTx-derived status (nosend -> Waiting) - reporting a dead, input-released tx as
-// still in-flight. The toolbox-owned standardized-status surface must always read
-// 'aborted' as terminal; the retryable nuance lives only on the raw TxStatus.
+// an aborted tx as terminal (Aborted), not Waiting, even though its underlying KnownTx
+// row is left in a non-terminal ProvenTxReq status ('nosend'). AbortAction only flips
+// the Transaction to 'aborted'; it never touches the (possibly shared) KnownTx row, so
+// a tx created via ProcessAction(IsNoSend:true) and then aborted keeps KnownTx at
+// 'nosend'. Without the standardized-status override in ListTransactions, this case
+// would fall through to the base KnownTx-derived status (nosend -> Waiting) - reporting
+// a dead, input-released tx as still in-flight. Aborted is reported as its own
+// standardized status, distinct from Failed: unlike a broadcast rejection, an aborted
+// tx was never sent to the network, so callers polling ListTransactions for idempotency
+// can tell it's safe to rebuild and retry from scratch.
 func TestListTransactions_AbortedTxReportedAsTerminal(t *testing.T) {
 	// Given:
 	ctx := t.Context()
@@ -193,10 +194,10 @@ func TestListTransactions_AbortedTxReportedAsTerminal(t *testing.T) {
 	}
 	result, err := activeStorage.ListTransactions(ctx, testusers.Alice.AuthID(), args)
 
-	// Then: reported as terminal (Failed), NOT Waiting, despite the KnownTx row
-	// still sitting at the non-terminal 'nosend' status
+	// Then: reported as terminal (Aborted), NOT Waiting or Failed, despite the KnownTx
+	// row still sitting at the non-terminal 'nosend' status
 	require.NoError(t, err)
 	require.Len(t, result.Transactions, 1)
 	assert.Equal(t, txID, result.Transactions[0].TxID)
-	assert.Equal(t, wdk.TxUpdateStatusFailed, result.Transactions[0].Status)
+	assert.Equal(t, wdk.TxUpdateStatusAborted, result.Transactions[0].Status)
 }
