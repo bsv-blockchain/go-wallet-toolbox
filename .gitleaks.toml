@@ -19,15 +19,5 @@ paths = [
 [[allowlists]]
 description = "Docker throughput live-test example config (dev-only keys)"
 paths = [
-    '''infra-config-docker-throughput(-[a-z0-9]+)?\.yaml''',
-]
-
-# Vendored upstream sources. Their test files carry public test vectors and
-# example keys, which are not our secrets and are not reviewed here. A
-# short-lived vendored go-sdk copy under this path — since replaced by the
-# tagged v1.3.2 release — is what prompted the rule.
-[[allowlists]]
-description = "Vendored third-party sources (public test vectors, not our secrets)"
-paths = [
-    '''third_party/.*''',
+    '''infra-config-docker-throughput\.yaml''',
 ]
