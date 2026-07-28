@@ -129,12 +129,20 @@ func TestBackgroundBroadcaster_PostsParentAndChildOfSameBatchWithoutWaiting(t *t
 func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) {
 	t.Parallel()
 
-	const postDuration = 100 * time.Millisecond
+	const (
+		postDuration  = 100 * time.Millisecond
+		maxParentWait = 30 * time.Millisecond
+	)
 
 	rec := &orderRecordingBroadcaster{delay: postDuration}
 	logger, _ := loggerForTestBroadcaster()
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil,
-		service.Sizing{Workers: 1, MaxParentWait: 30 * time.Millisecond})
+	// The sweeper is parked out of the way: this test is about the wait not being
+	// consumed while queued, not about what happens once it runs out.
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:       1,
+		MaxParentWait: maxParentWait,
+		SweepInterval: time.Minute,
+	})
 	bb.Start()
 	defer bb.Stop()
 
@@ -156,7 +164,7 @@ func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) 
 	require.True(t, bb.Add(parentBeef, []string{parent.ID().String()}))
 
 	// Queue for longer than MaxParentWait before the worker gets to the child.
-	time.Sleep(2 * 30 * time.Millisecond)
+	time.Sleep(2 * maxParentWait)
 
 	rec.waitFor(t, 3)
 	require.Equal(t,
@@ -165,18 +173,53 @@ func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) 
 		"a queued child must still wait for its parent")
 }
 
-// Posted txids are pruned after their retention window, so the set cannot grow
-// with lifetime volume. A child of a forgotten parent is then held only until its
-// parent-wait deadline and force-posted.
-func TestBackgroundBroadcaster_ForcePostsChildOfForgottenParent(t *testing.T) {
+// A child whose unconfirmed parent was never handed to this pool — posted by the
+// non-delayed path, by the cron fallback, or by another wallet — must not stall
+// waiting for a POST that is never going to happen here.
+func TestBackgroundBroadcaster_DoesNotStallOnParentItWillNeverPost(t *testing.T) {
+	t.Parallel()
+
+	rec := &orderRecordingBroadcaster{}
+	logger, _ := loggerForTestBroadcaster()
+	// A MaxParentWait far beyond the test's patience: reaching the assertion proves
+	// the child was held under the unknown-parent grace instead.
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: 20 * time.Millisecond,
+		SweepInterval:     10 * time.Millisecond,
+	})
+	bb.Start()
+	defer bb.Stop()
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	childID := child.ID().String()
+
+	// The beef carries the unconfirmed parent, but only the child is broadcast here.
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(childBeef, []string{childID}))
+
+	rec.waitFor(t, 1)
+	require.Equal(t, []string{childID}, rec.snapshot())
+}
+
+// Remembered txids are pruned after their retention window, so they cannot grow
+// with lifetime volume. A child of a forgotten parent is then held only for the
+// unknown-parent grace and posted.
+func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
 	t.Parallel()
 
 	rec := &orderRecordingBroadcaster{}
 	logger, _ := loggerForTestBroadcaster()
 	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
-		Workers:         1,
-		MaxParentWait:   50 * time.Millisecond,
-		PostedRetention: time.Millisecond,
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: 20 * time.Millisecond,
+		PostedRetention:   time.Millisecond,
+		SweepInterval:     10 * time.Millisecond,
 	})
 	bb.Start()
 	defer bb.Stop()
@@ -191,8 +234,8 @@ func TestBackgroundBroadcaster_ForcePostsChildOfForgottenParent(t *testing.T) {
 	require.True(t, bb.Add(parentBeef, []string{parent.ID().String()}))
 	rec.waitFor(t, 1)
 
-	// Give the sweeper a tick to forget the posted parent.
-	time.Sleep(2 * parentWaitSweepIntervalForTest)
+	// Let the sweeper forget the parent.
+	time.Sleep(100 * time.Millisecond)
 
 	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
 	rec.waitFor(t, 2)
@@ -201,7 +244,3 @@ func TestBackgroundBroadcaster_ForcePostsChildOfForgottenParent(t *testing.T) {
 		rec.snapshot(),
 		"the child of a forgotten parent must still be posted")
 }
-
-// parentWaitSweepIntervalForTest mirrors the broadcaster's unexported sweep
-// interval so timing-dependent tests do not hard-code it in several places.
-const parentWaitSweepIntervalForTest = time.Second

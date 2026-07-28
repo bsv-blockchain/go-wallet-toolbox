@@ -35,26 +35,33 @@ const (
 	// broadcast channel. Add() drops to the cron fallback once it is full.
 	BackgroundBroadcasterChannelSize = 1000
 
-	// defaultMaxParentWait bounds how long a child waits for its unconfirmed
-	// parent to be posted to the broadcaster before it is posted anyway. It is a
-	// safety net against a parent that is never broadcast here (e.g. an external
-	// unconfirmed source): the child is not held forever. In steady state the
-	// parent posts within milliseconds and the child is released immediately, so
-	// this deadline is rarely reached.
+	// defaultMaxParentWait bounds how long a child waits for an unconfirmed parent
+	// that this pool has itself been asked to broadcast. Such a parent is going to
+	// be posted here, so the wait is generous; it only guards against a parent
+	// whose own POST keeps failing. In steady state the parent posts within
+	// milliseconds and the child is released immediately.
 	defaultMaxParentWait = 30 * time.Second
 
-	// defaultPostedRetention is how long a successfully posted txid is remembered
-	// so that a later child spending it need not wait. It only has to cover the
+	// defaultUnknownParentWait bounds how long a child waits for an unconfirmed
+	// parent this pool has never been asked to broadcast. Such a parent is not
+	// coming: it was posted by the non-delayed path, by the send_waiting cron
+	// (which is where Add's overflow goes), by a previous process lifetime, or by
+	// another wallet entirely. The wait is therefore only long enough to cover the
+	// race this gating exists for — parent and child enqueued concurrently, child
+	// first — after which the child is posted rather than stalled.
+	defaultUnknownParentWait = 500 * time.Millisecond
+
+	// defaultPostedRetention is how long posted and enqueued txids are remembered
+	// for the benefit of children that reference them. It only has to cover the
 	// gap between a parent's POST and the arrival of a child that spends it —
-	// normally milliseconds — so a generous window still bounds the posted set to
-	// the transactions of that window rather than the process lifetime. Forgetting
-	// a parent too early costs a child at most MaxParentWait of latency, never
-	// correctness.
+	// normally milliseconds — so a generous window still bounds those sets to the
+	// transactions of that window rather than the process lifetime. Forgetting a
+	// parent early costs a child a short wait, never correctness.
 	defaultPostedRetention = 2 * time.Hour
 
-	// parentWaitSweepInterval is how often parked children are re-checked for an
-	// expired parent-wait deadline (and the posted set pruned).
-	parentWaitSweepInterval = time.Second
+	// defaultSweepInterval is how often parked children are re-checked for an
+	// expired parent wait (and the posted/enqueued sets pruned).
+	defaultSweepInterval = 250 * time.Millisecond
 )
 
 // Sizing configures the broadcaster's capacity. Zero values select the
@@ -62,12 +69,18 @@ const (
 type Sizing struct {
 	Workers     int
 	ChannelSize int
-	// MaxParentWait bounds how long a child is held waiting for its unconfirmed
-	// parent to be posted before being force-posted. Zero selects the default.
+	// MaxParentWait bounds how long a child is held waiting for an unconfirmed
+	// parent that this pool is going to post. Zero selects the default.
 	MaxParentWait time.Duration
-	// PostedRetention bounds how long posted txids are remembered for the benefit
-	// of children that arrive later. Zero selects the default.
+	// UnknownParentWait bounds how long a child is held waiting for an unconfirmed
+	// parent that this pool has not been asked to post. Zero selects the default.
+	UnknownParentWait time.Duration
+	// PostedRetention bounds how long posted and enqueued txids are remembered for
+	// the benefit of children that arrive later. Zero selects the default.
 	PostedRetention time.Duration
+	// SweepInterval is how often parked children are re-checked. Zero selects the
+	// default.
+	SweepInterval time.Duration
 }
 
 func (s Sizing) workers() int {
@@ -91,11 +104,25 @@ func (s Sizing) maxParentWait() time.Duration {
 	return s.MaxParentWait
 }
 
+func (s Sizing) unknownParentWait() time.Duration {
+	if s.UnknownParentWait <= 0 {
+		return defaultUnknownParentWait
+	}
+	return s.UnknownParentWait
+}
+
 func (s Sizing) postedRetention() time.Duration {
 	if s.PostedRetention <= 0 {
 		return defaultPostedRetention
 	}
 	return s.PostedRetention
+}
+
+func (s Sizing) sweepInterval() time.Duration {
+	if s.SweepInterval <= 0 {
+		return defaultSweepInterval
+	}
+	return s.SweepInterval
 }
 
 type broadcaster interface {
@@ -121,13 +148,12 @@ type BackgroundBroadcaster struct {
 	// concurrent items drained by many workers, we gate here: a child is held
 	// until every unconfirmed parent it spends has been posted.
 	depMu sync.Mutex
-	// posted maps a txid whose Arcade POST returned successfully to when that
-	// happened; postedOrder holds the same txids in insertion (i.e. ascending
-	// time) order so the sweeper can prune expired entries from its front instead
-	// of scanning the whole map.
-	posted      map[string]time.Time
-	postedOrder []postedTxID
-	waiting     map[string][]broadcastItem // children parked under an unposted parent txid
+	// enqueued holds txids this pool has been asked to broadcast, posted those
+	// whose Arcade POST returned successfully. Together they answer "will this
+	// parent be posted here, and has it been?" — the two questions gating a child.
+	enqueued txidSet
+	posted   txidSet
+	waiting  map[string][]broadcastItem // children parked under an unposted parent txid
 
 	// requeueQueue holds items whose parent has been posted (or whose wait
 	// expired) until the dispatcher can put them back on broadcastChannel.
@@ -138,25 +164,65 @@ type BackgroundBroadcaster struct {
 	stopOnce sync.Once
 }
 
-// postedTxID is a posted txid together with the time it was posted, kept for
-// retention pruning.
-type postedTxID struct {
+// txidSet remembers txids for a bounded time window. Entries are appended in
+// ascending time order, so pruning walks the front of the slice and costs only
+// what it removes instead of scanning everything remembered — the set must not
+// grow with the lifetime transaction volume of a long-lived storage service.
+type txidSet struct {
+	at    map[string]time.Time
+	order []txidAt
+}
+
+type txidAt struct {
 	txID string
 	at   time.Time
+}
+
+func newTxidSet() txidSet {
+	return txidSet{at: make(map[string]time.Time)}
+}
+
+func (s *txidSet) add(txID string, now time.Time) {
+	s.at[txID] = now
+	s.order = append(s.order, txidAt{txID: txID, at: now})
+}
+
+func (s *txidSet) has(txID string) bool {
+	_, ok := s.at[txID]
+	return ok
+}
+
+// prune drops every txid added at or before cutoff.
+func (s *txidSet) prune(cutoff time.Time) {
+	pruned := 0
+	for ; pruned < len(s.order); pruned++ {
+		entry := s.order[pruned]
+		if entry.at.After(cutoff) {
+			break
+		}
+		// A re-added txid has a newer map timestamp and a later order entry; drop it
+		// only when this entry is the newest one for that txid.
+		if at, ok := s.at[entry.txID]; ok && !at.After(entry.at) {
+			delete(s.at, entry.txID)
+		}
+	}
+	if pruned > 0 {
+		s.order = append(s.order[:0], s.order[pruned:]...)
+	}
 }
 
 type broadcastItem struct {
 	beef  *transaction.Beef
 	txIDs []string
-	// deadline is when a parked item may be posted regardless of unposted
-	// parents. It stays zero until the item is first parked: the parent wait must
-	// measure time spent waiting for a parent, not time spent queued behind other
-	// work. Starting it at Add() time would let a backlog (posts slower than
-	// creates — the high-TPS regime this gating exists for) expire the wait before
-	// a worker ever inspects the item, force-posting the child out of order.
-	deadline time.Time
+	// parkedAt is when the item was first held for a parent, and zero until then:
+	// the parent wait must measure time spent waiting for a parent, not time spent
+	// queued behind other work. Starting the clock at Add() time would let a
+	// backlog (posts slower than creates — the high-TPS regime this gating exists
+	// for) expire the wait before a worker ever inspects the item, force-posting
+	// the child out of order.
+	parkedAt time.Time
 	// force skips parent gating entirely. Only the sweeper sets it, on items whose
-	// parent-wait deadline has passed.
+	// parent wait has run out.
 	force bool
 }
 
@@ -171,7 +237,8 @@ func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, br
 		logger:               logger,
 		broadcastHandler:     broadcastHandler,
 		txBroadcastedChannel: txBroadcastedChannel,
-		posted:               make(map[string]time.Time),
+		enqueued:             newTxidSet(),
+		posted:               newTxidSet(),
 		waiting:              make(map[string][]broadcastItem),
 		requeueWake:          make(chan struct{}, 1),
 	}
@@ -201,9 +268,21 @@ func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (ad
 	item := broadcastItem{beef: beef, txIDs: parentsFirst(beef, txIDs)}
 	select {
 	case bb.broadcastChannel <- item:
+		// Only an accepted item is remembered: what overflows to the cron fallback is
+		// not going to be posted here, and children must not wait for it.
+		bb.markEnqueued(item.txIDs)
 		return true
 	default:
 		return false
+	}
+}
+
+func (bb *BackgroundBroadcaster) markEnqueued(txIDs []string) {
+	now := time.Now()
+	bb.depMu.Lock()
+	defer bb.depMu.Unlock()
+	for _, txID := range txIDs {
+		bb.enqueued.add(txID, now)
 	}
 }
 
@@ -240,9 +319,8 @@ func (bb *BackgroundBroadcaster) process(item broadcastItem) {
 }
 
 // park holds the item under the first unconfirmed parent it spends that has not
-// been posted yet, reporting whether it was parked. The parent-wait deadline
-// starts on the first park, so an item re-parked under a second parent still
-// waits at most MaxParentWait in total.
+// been posted yet, reporting whether it was parked. The wait clock starts on the
+// first park, so an item re-parked under a second parent does not start over.
 func (bb *BackgroundBroadcaster) park(item *broadcastItem) bool {
 	bb.depMu.Lock()
 	parent := bb.firstUnpostedParentLocked(*item)
@@ -250,8 +328,8 @@ func (bb *BackgroundBroadcaster) park(item *broadcastItem) bool {
 		bb.depMu.Unlock()
 		return false
 	}
-	if item.deadline.IsZero() {
-		item.deadline = time.Now().Add(bb.sizing.maxParentWait())
+	if item.parkedAt.IsZero() {
+		item.parkedAt = time.Now()
 	}
 	bb.waiting[parent] = append(bb.waiting[parent], *item)
 	bb.depMu.Unlock()
@@ -265,9 +343,9 @@ func (bb *BackgroundBroadcaster) park(item *broadcastItem) bool {
 //
 // Note that posted is local to this broadcaster's delayed pool, not global
 // network state: a parent posted by the non-delayed path, by the send_waiting
-// cron fallback (which is what happens when this pool's channel is full), or by a
-// previous process lifetime is absent from it. A child of such a parent waits out
-// MaxParentWait and is then force-posted, which costs latency, never correctness.
+// cron fallback, or by a previous process lifetime is absent from it. Such a
+// parent is also absent from enqueued, so parentWaitLocked holds its children for
+// the short unknown-parent grace only rather than stalling them.
 //
 // Caller must hold depMu.
 func (bb *BackgroundBroadcaster) firstUnpostedParentLocked(item broadcastItem) string {
@@ -307,7 +385,7 @@ func (bb *BackgroundBroadcaster) firstUnpostedParentOfLocked(beef *transaction.B
 		if _, ok := subjects[parentID]; ok {
 			continue // posted by this very item, ahead of this child
 		}
-		if _, ok := bb.posted[parentID]; ok {
+		if bb.posted.has(parentID) {
 			continue
 		}
 		parentBeefTx := beef.Transactions[*in.SourceTXID]
@@ -391,8 +469,7 @@ func (bb *BackgroundBroadcaster) markPostedAndRelease(txIDs []string) {
 	bb.depMu.Lock()
 	var released []broadcastItem
 	for _, txID := range txIDs {
-		bb.posted[txID] = now
-		bb.postedOrder = append(bb.postedOrder, postedTxID{txID: txID, at: now})
+		bb.posted.add(txID, now)
 		if children, ok := bb.waiting[txID]; ok {
 			released = append(released, children...)
 			delete(bb.waiting, txID)
@@ -460,12 +537,12 @@ func (bb *BackgroundBroadcaster) drainRequeue() bool {
 	}
 }
 
-// parentWaitSweeper force-posts children whose parent-wait deadline has passed so
-// a never-posted parent cannot hold them forever, and prunes the posted set so it
-// cannot grow with lifetime transaction volume.
+// parentWaitSweeper force-posts children whose parent wait has run out so a
+// never-posted parent cannot hold them forever, and prunes the remembered txids
+// so they cannot grow with lifetime transaction volume.
 func (bb *BackgroundBroadcaster) parentWaitSweeper() {
 	defer bb.wg.Done()
-	ticker := time.NewTicker(parentWaitSweepInterval)
+	ticker := time.NewTicker(bb.sizing.sweepInterval())
 	defer ticker.Stop()
 	for {
 		select {
@@ -480,25 +557,27 @@ func (bb *BackgroundBroadcaster) parentWaitSweeper() {
 func (bb *BackgroundBroadcaster) sweep(now time.Time) {
 	bb.depMu.Lock()
 	expired := bb.takeExpiredLocked(now)
-	bb.prunePostedLocked(now)
+	cutoff := now.Add(-bb.sizing.postedRetention())
+	bb.enqueued.prune(cutoff)
+	bb.posted.prune(cutoff)
 	bb.depMu.Unlock()
 
 	if len(expired) == 0 {
 		return
 	}
-	bb.logger.WarnContext(bb.ctx, "parent-wait deadline reached, force-posting children", "count", len(expired))
+	bb.logger.WarnContext(bb.ctx, "parent wait ran out, force-posting children", "count", len(expired))
 	bb.requeue(expired)
 }
 
-// takeExpiredLocked removes and returns the parked items whose parent-wait
-// deadline has passed, flagged to skip gating on their next attempt. Caller must
-// hold depMu.
+// takeExpiredLocked removes and returns the parked items whose parent wait has
+// run out, flagged to skip gating on their next attempt. Caller must hold depMu.
 func (bb *BackgroundBroadcaster) takeExpiredLocked(now time.Time) []broadcastItem {
 	var expired []broadcastItem
 	for parent, children := range bb.waiting {
+		wait := bb.parentWaitLocked(parent)
 		kept := children[:0]
 		for _, item := range children {
-			if now.After(item.deadline) {
+			if now.Sub(item.parkedAt) > wait {
 				item.force = true
 				expired = append(expired, item)
 				continue
@@ -514,27 +593,19 @@ func (bb *BackgroundBroadcaster) takeExpiredLocked(now time.Time) []broadcastIte
 	return expired
 }
 
-// prunePostedLocked drops posted txids older than the retention window.
-// postedOrder is in ascending time order, so pruning stops at the first entry
-// still inside the window and costs only what it removes. Caller must hold depMu.
-func (bb *BackgroundBroadcaster) prunePostedLocked(now time.Time) {
-	cutoff := now.Add(-bb.sizing.postedRetention())
-
-	pruned := 0
-	for ; pruned < len(bb.postedOrder); pruned++ {
-		entry := bb.postedOrder[pruned]
-		if entry.at.After(cutoff) {
-			break
-		}
-		// A re-posted txid has a newer map timestamp and a later order entry; drop
-		// it only when this entry is the newest one for that txid.
-		if at, ok := bb.posted[entry.txID]; ok && !at.After(entry.at) {
-			delete(bb.posted, entry.txID)
-		}
+// parentWaitLocked is how long a child may be held for this parent: the full
+// MaxParentWait once the parent is known to this pool, because it was enqueued
+// here and so will be posted here, and only the short UnknownParentWait grace
+// otherwise. An unknown parent is not coming — it went out by another path, in an
+// earlier process, or from another wallet — and its children must not stall
+// waiting for a POST that will never happen here. The grace still covers a parent
+// enqueued moments after its child, which is the race this gating exists for.
+// Caller must hold depMu.
+func (bb *BackgroundBroadcaster) parentWaitLocked(parentID string) time.Duration {
+	if bb.enqueued.has(parentID) {
+		return bb.sizing.maxParentWait()
 	}
-	if pruned > 0 {
-		bb.postedOrder = append(bb.postedOrder[:0], bb.postedOrder[pruned:]...)
-	}
+	return bb.sizing.unknownParentWait()
 }
 
 func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
