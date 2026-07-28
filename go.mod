@@ -15,7 +15,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jarcoal/httpmock v1.4.1
+	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1

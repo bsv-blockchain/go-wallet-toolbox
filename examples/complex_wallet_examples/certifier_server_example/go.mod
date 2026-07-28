@@ -3,8 +3,8 @@ module github.com/bsv-blockchain/certifier-server-example
 go 1.26.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.3.1
-	github.com/bsv-blockchain/go-wallet-toolbox v0.184.0
+	github.com/bsv-blockchain/go-sdk v1.3.2
+	github.com/bsv-blockchain/go-wallet-toolbox v0.184.3
 	github.com/go-softwarelab/common v1.8.0
 	gopkg.in/yaml.v3 v3.0.1
 )
