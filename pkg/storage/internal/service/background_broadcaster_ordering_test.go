@@ -90,3 +90,118 @@ func TestBackgroundBroadcaster_PostsUnconfirmedParentBeforeChild(t *testing.T) {
 	require.Equal(t, []string{parentID, childID}, rec.snapshot(),
 		"parent must be posted to Arcade before its child")
 }
+
+// A batch that carries both an unconfirmed parent and the child spending it goes
+// upstream in one request, parent first — it must not park waiting for a parent it
+// is itself responsible for posting.
+func TestBackgroundBroadcaster_PostsParentAndChildOfSameBatchWithoutWaiting(t *testing.T) {
+	t.Parallel()
+
+	rec := &orderRecordingBroadcaster{}
+	logger, _ := loggerForTestBroadcaster()
+	// A long parent wait would dominate the test if the batch parked, so reaching
+	// the assertion at all proves the batch was posted without waiting.
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil,
+		service.Sizing{Workers: 1, MaxParentWait: time.Minute})
+	bb.Start()
+	defer bb.Stop()
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	parentID := parent.ID().String()
+	childID := child.ID().String()
+
+	// The child's beef carries its unconfirmed parent as a raw transaction.
+	beef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+
+	// Worst case: the child is named before its parent in the same batch.
+	require.True(t, bb.Add(beef, []string{childID, parentID}))
+
+	rec.waitFor(t, 2)
+	require.Equal(t, []string{parentID, childID}, rec.snapshot(),
+		"a same-batch parent must be posted first, not waited for")
+}
+
+// The parent wait must measure time spent waiting for a parent, not time spent
+// queued: a child that sat in the channel behind other work for longer than
+// MaxParentWait must still be posted after its parent.
+func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) {
+	t.Parallel()
+
+	const postDuration = 100 * time.Millisecond
+
+	rec := &orderRecordingBroadcaster{delay: postDuration}
+	logger, _ := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil,
+		service.Sizing{Workers: 1, MaxParentWait: 30 * time.Millisecond})
+	bb.Start()
+	defer bb.Stop()
+
+	// An unrelated transaction occupies the single worker while parent and child
+	// queue up behind it.
+	filler := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	fillerBeef, err := transaction.NewBeefFromTransaction(filler.TX())
+	require.NoError(t, err)
+
+	parent := testvectors.GivenTX().WithInput(200).WithP2PKHOutput(199)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(150)
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+	parentBeef, err := transaction.NewBeefFromTransaction(parent.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(fillerBeef, []string{filler.ID().String()}))
+	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
+	require.True(t, bb.Add(parentBeef, []string{parent.ID().String()}))
+
+	// Queue for longer than MaxParentWait before the worker gets to the child.
+	time.Sleep(2 * 30 * time.Millisecond)
+
+	rec.waitFor(t, 3)
+	require.Equal(t,
+		[]string{filler.ID().String(), parent.ID().String(), child.ID().String()},
+		rec.snapshot(),
+		"a queued child must still wait for its parent")
+}
+
+// Posted txids are pruned after their retention window, so the set cannot grow
+// with lifetime volume. A child of a forgotten parent is then held only until its
+// parent-wait deadline and force-posted.
+func TestBackgroundBroadcaster_ForcePostsChildOfForgottenParent(t *testing.T) {
+	t.Parallel()
+
+	rec := &orderRecordingBroadcaster{}
+	logger, _ := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:         1,
+		MaxParentWait:   50 * time.Millisecond,
+		PostedRetention: time.Millisecond,
+	})
+	bb.Start()
+	defer bb.Stop()
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	parentBeef, err := transaction.NewBeefFromTransaction(parent.TX())
+	require.NoError(t, err)
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(parentBeef, []string{parent.ID().String()}))
+	rec.waitFor(t, 1)
+
+	// Give the sweeper a tick to forget the posted parent.
+	time.Sleep(2 * parentWaitSweepIntervalForTest)
+
+	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
+	rec.waitFor(t, 2)
+	require.Equal(t,
+		[]string{parent.ID().String(), child.ID().String()},
+		rec.snapshot(),
+		"the child of a forgotten parent must still be posted")
+}
+
+// parentWaitSweepIntervalForTest mirrors the broadcaster's unexported sweep
+// interval so timing-dependent tests do not hard-code it in several places.
+const parentWaitSweepIntervalForTest = time.Second
