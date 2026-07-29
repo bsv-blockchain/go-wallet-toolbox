@@ -147,7 +147,8 @@ func (d *Daemon) applyBroadcastEvent(ctx context.Context, ev wdk.BroadcastStatus
 		}
 	}
 	if err != nil {
-		d.logger.ErrorContext(ctx, "ProcessExternalTxStatusUpdate failed",
+		d.logger.ErrorContext(
+			ctx, "ProcessExternalTxStatusUpdate failed",
 			slog.String("txID", ev.TxID),
 			slog.String("eventID", ev.EventID),
 			slog.Any("error", err),
@@ -194,7 +195,8 @@ func (d *Daemon) applyBroadcastEventBatch(ctx context.Context, batch []wdk.Broad
 		// Keep the old in-memory cursor on persist failure so reconnects resume
 		// from the last durably persisted position instead of a position the
 		// durable cursor never reached.
-		d.logger.ErrorContext(ctx, "Failed to persist SSE replay cursor",
+		d.logger.ErrorContext(
+			ctx, "Failed to persist SSE replay cursor",
 			slog.String("eventID", cursorID),
 			slog.Any("error", persistErr),
 		)

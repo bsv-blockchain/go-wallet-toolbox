@@ -71,7 +71,7 @@ func VerifyReturnedTxIDOnlyAtomicBEEF(bp *wdk.BeefParty, txID chainhash.Hash, be
 // verifyReturnedTxIDOnly resolves TxIDOnly entries in beef against the shared
 // party graph. partyBeef must only be accessed under the BeefParty lock (see
 // wdk.BeefParty.WithLock).
-func verifyReturnedTxIDOnly(partyBeef *transaction.Beef, beef *transaction.Beef, knownTxIDs ...primitives.TXIDHexString) (*transaction.Beef, error) {
+func verifyReturnedTxIDOnly(partyBeef, beef *transaction.Beef, knownTxIDs ...primitives.TXIDHexString) (*transaction.Beef, error) {
 	for _, btx := range beef.Transactions {
 		if btx.DataFormat != transaction.TxIDOnly {
 			continue
