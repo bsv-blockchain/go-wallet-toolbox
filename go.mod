@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.5
 	github.com/bsv-blockchain/go-chaintracks v1.2.10
-	github.com/bsv-blockchain/go-sdk v1.3.2
+	github.com/bsv-blockchain/go-sdk v1.3.3
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.2.8
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.2
@@ -15,7 +15,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/jarcoal/httpmock v1.4.1
+	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
