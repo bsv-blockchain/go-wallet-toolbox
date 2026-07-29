@@ -478,7 +478,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// ancestry build re-validated every ancestor BUMP root per transaction —
 	// at high TPS that was the single largest CPU cost in the storage server
 	// (shared fuel parents re-validated for every spend).
-	beef, err := p.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(readyToSendTxIDs),
+	beef, err := p.knownTxRepo.GetBEEFForTxIDs(
+		ctx, seq.FromSlice(readyToSendTxIDs),
 		entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
 		entity.WithDirectSourcesOnly(),
 	)
