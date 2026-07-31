@@ -768,9 +768,10 @@ func (p *process) updateSingleTx(
 				return fmt.Errorf("failed to find transaction IDs for failed tx %s: %w", txID, uowErr)
 			}
 			for _, id := range transactionIDs {
-				if uowErr = repos.OutputRepo().RecreateSpentOutputs(txCtx, id); uowErr != nil {
-					return fmt.Errorf("failed to restore spent outputs for failed tx %s: %w", txID, uowErr)
-				}
+				// Spent inputs are intentionally NOT restored to spendable here: a
+				// missing-inputs/double-spend verdict can be a false positive, and
+				// re-spending an input that's actually still valid risks a real double
+				// spend. Losing access to the input is safer than that.
 				if uowErr = repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); uowErr != nil {
 					return fmt.Errorf("failed to mark created outputs as not spendable for failed tx %s: %w", txID, uowErr)
 				}
