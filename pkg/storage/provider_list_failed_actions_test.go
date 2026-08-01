@@ -53,8 +53,12 @@ func TestListFailedActionsWithUnfail_ToleratesTransactionWithoutKnownTxRow(t *te
 	require.NoError(t, err)
 
 	// and: a second failed tx whose tx_id has NO matching KnownTx row (orphan) - proven
-	// possible in production per the abort sweep's own COALESCE-based filter
-	orphanCreateResult, orphanSignedTx := given.Action(activeStorage).Created()
+	// possible in production per the abort sweep's own COALESCE-based filter.
+	// Funded with a distinct amount so its internalized parent tx (and thus its
+	// funding input) doesn't collide with the first tx's - which, following the fix
+	// that stops restoring a double-spend-failed tx's inputs to spendable, remains
+	// permanently claimed rather than being freed for reuse.
+	orphanCreateResult, orphanSignedTx := given.Action(activeStorage).WithSatoshisToInternalize(43000).Created()
 	orphanTxID := orphanSignedTx.TxID().String()
 	orphanCompetingTxID := testvectors.GivenTX().WithInput(2).WithP2PKHOutput(1).ID().String()
 	provider.ARC().WhenQueryingTx(orphanTxID).WillReturnDoubleSpending(orphanCompetingTxID)
@@ -132,7 +136,11 @@ func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
 	// the pre-existing empty-TxID skip. Without this, the aborted fixture would
 	// have TxID=="" and no KnownTx row, and the test would pass identically even
 	// if the new guard were deleted - it would not actually pin the guard.
-	abortedCreate, abortedSignedTx := given.Action(activeStorage).Created()
+	// Funded with a distinct amount so its internalized parent tx (and thus its
+	// funding input) doesn't collide with the first tx's - which, following the fix
+	// that stops restoring a double-spend-failed tx's inputs to spendable, remains
+	// permanently claimed rather than being freed for reuse.
+	abortedCreate, abortedSignedTx := given.Action(activeStorage).WithSatoshisToInternalize(43000).Created()
 	abortedTxID := abortedSignedTx.TxID().String()
 	_, err = activeStorage.ProcessAction(t.Context(), testusers.Alice.AuthID(), wdk.ProcessActionArgs{
 		IsNewTx:   true,

@@ -153,21 +153,11 @@ func (p *KnownTx) FailKnownTxAsDoubleSpend(ctx context.Context, txID string, ski
 			return fmt.Errorf("failed to update transaction status as failed: %w", txErr)
 		}
 
-		// NOTE: There can be multiple transactions with the same tx_id, so we need to restore all of them.
-		var transactionIDs []uint
-		txErr = tx.Model(&models.Transaction{}).
-			Where(p.query.Transaction.TxID.Eq(txID)).
-			Pluck(p.query.Transaction.ID.ColumnName().String(), &transactionIDs).Error
-		if txErr != nil {
-			return fmt.Errorf("failed to find transaction IDs: %w", txErr)
-		}
-
-		query := genquery.Use(tx)
-		for _, transactionID := range transactionIDs {
-			if txErr = recreateSpentOutputs(ctx, query, transactionID); txErr != nil {
-				return fmt.Errorf("failed to restore spent outputs for transaction %d: %w", transactionID, txErr)
-			}
-		}
+		// Spent inputs are intentionally NOT restored to spendable here: a confirmed
+		// double spend only proves a conflicting tx exists, not that this tx's original
+		// spend is invalid. Restoring the input risks the wallet re-spending it and
+		// creating a real double spend on top of the reported one, so the input is left
+		// claimed (and effectively lost) rather than resurrected.
 
 		return nil
 	})

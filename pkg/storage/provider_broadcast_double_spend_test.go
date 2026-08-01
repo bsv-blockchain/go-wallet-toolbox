@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
@@ -134,4 +135,26 @@ func TestBroadcastConflict_MempoolConflict_TxUnknown_StaysFailed(t *testing.T) {
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusDoubleSpend)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusFailed)
+
+	// and: the failed tx's spent inputs are NOT released back to spendable.
+	// A confirmed double spend here does not prove the ORIGINAL spend is invalid - only
+	// that a conflicting tx exists. Restoring the input to spendable risks the wallet
+	// respending it and creating a real double spend on top of the reported one, so the
+	// safer outcome is to leave the input claimed (and thus effectively lost) rather than
+	// resurrect it.
+	txRows, err := activeStorage.TransactionEntity().Read().
+		TxID().Equals(txID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.Len(t, txRows, 1)
+
+	spentOutputs, err := activeStorage.OutputsEntity().Read().
+		SpentBy().Equals(txRows[0].ID).
+		Find(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, spentOutputs, "expected the failed tx's inputs to still be claimed (spent_by unchanged)")
+	for _, output := range spentOutputs {
+		assert.False(t, output.Spendable,
+			"input vout=%d spent by the double-spend-failed tx must not be restored to spendable", output.Vout)
+	}
 }
