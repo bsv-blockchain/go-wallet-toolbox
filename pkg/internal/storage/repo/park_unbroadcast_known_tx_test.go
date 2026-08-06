@@ -1,6 +1,8 @@
 package repo_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -124,4 +126,83 @@ func TestParkUnbroadcastKnownTx_MissingRow_IsRefused(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	assert.False(t, applied)
+}
+
+// ClaimKnownTxsForBroadcast is what makes a parked KnownTx an effective stop signal: a queued
+// broadcast re-claims right before posting, and a parked (or otherwise non-claimable)
+// transaction is not returned, so it is never posted.
+
+func TestClaimKnownTxsForBroadcast_ClaimsOnlyClaimableStatuses(t *testing.T) {
+	// given:
+	db, cleanup := dbfixtures.TestDatabase(t)
+	defer cleanup()
+
+	repos := repo.NewSQLRepositories(db.DB)
+
+	claimable := map[string]wdk.ProvenTxReqStatus{
+		"1111111111111111111111111111111111111111111111111111111111111111": wdk.ProvenTxStatusUnprocessed,
+		"2222222222222222222222222222222222222222222222222222222222222222": wdk.ProvenTxStatusUnsent,
+		"3333333333333333333333333333333333333333333333333333333333333333": wdk.ProvenTxStatusSending,
+		"4444444444444444444444444444444444444444444444444444444444444444": wdk.ProvenTxStatusNoSend,
+	}
+	notClaimable := map[string]wdk.ProvenTxReqStatus{
+		"5555555555555555555555555555555555555555555555555555555555555555": wdk.ProvenTxStatusInvalid, // parked by an abort
+		"6666666666666666666666666666666666666666666666666666666666666666": wdk.ProvenTxStatusDoubleSpend,
+		"7777777777777777777777777777777777777777777777777777777777777777": wdk.ProvenTxStatusUnmined,
+		"8888888888888888888888888888888888888888888888888888888888888888": wdk.ProvenTxStatusCompleted,
+		"9999999999999999999999999999999999999999999999999999999999999999": wdk.ProvenTxStatusUnfail,
+	}
+
+	all := make([]string, 0, len(claimable)+len(notClaimable))
+	for txID, status := range claimable {
+		require.NoError(t, db.DB.Create(&models.KnownTx{TxID: txID, Status: status}).Error)
+		all = append(all, txID)
+	}
+	for txID, status := range notClaimable {
+		require.NoError(t, db.DB.Create(&models.KnownTx{TxID: txID, Status: status}).Error)
+		all = append(all, txID)
+	}
+
+	// when:
+	claimed, err := repos.ClaimKnownTxsForBroadcast(t.Context(), all)
+
+	// then:
+	require.NoError(t, err)
+	assert.ElementsMatch(t, slices.Collect(maps.Keys(claimable)), claimed)
+
+	// and: claimed rows are marked as being broadcast
+	for txID := range claimable {
+		var reloaded models.KnownTx
+		require.NoError(t, db.DB.First(&reloaded, "tx_id = ?", txID).Error)
+		assert.Equal(t, wdk.ProvenTxStatusSending, reloaded.Status)
+		assert.True(t, reloaded.WasBroadcast)
+	}
+
+	// and: the others are untouched
+	for txID, status := range notClaimable {
+		var reloaded models.KnownTx
+		require.NoError(t, db.DB.First(&reloaded, "tx_id = ?", txID).Error)
+		assert.Equal(t, status, reloaded.Status)
+	}
+}
+
+func TestClaimKnownTxsForBroadcast_ParkedTxIsNeverClaimed(t *testing.T) {
+	// given: a queued transaction that is aborted (parked) before its post runs
+	db, cleanup := dbfixtures.TestDatabase(t)
+	defer cleanup()
+
+	repos := repo.NewSQLRepositories(db.DB)
+	txID := "abababababababababababababababababababababababababababababababab"
+	require.NoError(t, db.DB.Create(&models.KnownTx{TxID: txID, Status: wdk.ProvenTxStatusUnsent}).Error)
+
+	parked, err := repos.ParkUnbroadcastKnownTx(t.Context(), txID, nil)
+	require.NoError(t, err)
+	require.True(t, parked)
+
+	// when: the queued broadcast tries to claim it
+	claimed, err := repos.ClaimKnownTxsForBroadcast(t.Context(), []string{txID})
+
+	// then: it must not be posted
+	require.NoError(t, err)
+	assert.Empty(t, claimed)
 }

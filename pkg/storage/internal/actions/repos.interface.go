@@ -70,7 +70,10 @@ type KnownTxRepo interface {
 	ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadcastAttempts uint64, statuses []wdk.ProvenTxReqStatus) ([]models.KnownTx, error)
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
-	MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error
+	// ClaimKnownTxsForBroadcast takes ownership of the given transactions for an imminent
+	// post and returns those actually claimed. Transactions that are no longer claimable
+	// (aborted/parked, terminal, or already accepted) are not returned and must not be posted.
+	ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string) ([]string, error)
 	// ParkUnbroadcastKnownTx marks a KnownTx as invalidTx, but only while it provably never
 	// reached a broadcaster (never-posted status, was_broadcast false, zero attempts).
 	// Returns applied=false (writing nothing) when the guard holds.

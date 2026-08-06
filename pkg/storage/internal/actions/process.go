@@ -304,10 +304,6 @@ func (p *process) processNewTx(ctx context.Context, userID int, rel *release, ar
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
 
-	// From here the action carries a txid and a shared KnownTx, so releasing it additionally
-	// has to park that KnownTx.
-	rel.armByTxID(txID)
-
 	return nil
 }
 
@@ -317,7 +313,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, rel *release, ar
 func (p *process) newRelease(userID int, args *wdk.ProcessActionArgs) *release {
 	rel := newRelease(p.logger, p.aborter, userID)
 	if args != nil && args.IsNewTx && args.Reference != nil {
-		rel.armByReference(*args.Reference)
+		rel.arm(*args.Reference)
 	}
 	return rel
 }
@@ -584,18 +580,31 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	}
 
 	logger.DebugContext(
-		ctx, "Marking transactions as submitting before broadcast",
+		ctx, "Claiming transactions for broadcast",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	// Point of no return: marking as submitting flags the KnownTx as broadcast, and the post
-	// follows immediately - from here the outcome of the transaction is decided by the
-	// network, not by this call.
+	// Point of no return: claiming flags the KnownTx as broadcast, and the post follows
+	// immediately - from here the outcome of the transaction is decided by the network, not
+	// by this call.
 	rel.disarm()
 
-	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
-		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
+	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim txs for broadcast: %w", err)
 	}
+	if len(claimedTxIDs) != len(readyToSendTxIDs) {
+		// Whatever could not be claimed was aborted or moved on in the meantime; posting it
+		// anyway could put a transaction on the network whose inputs are spendable again.
+		logger.WarnContext(ctx, "some transactions are no longer claimable for broadcast and will not be posted",
+			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+			slog.Int("claimedCount", len(claimedTxIDs)),
+		)
+	}
+	if len(claimedTxIDs) == 0 {
+		return &wdk.ProcessActionResult{SendWithResults: sendWithResults}, nil
+	}
+	readyToSendTxIDs = claimedTxIDs
 
 	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
 	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
@@ -979,6 +988,18 @@ func (p *process) StopBackgroundBroadcaster() {
 }
 
 func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
+	// The queued BEEF was built earlier, so re-claim right before posting: a transaction that
+	// was aborted (and had its inputs released) while sitting in the queue is no longer
+	// claimable and must not reach the network.
+	txIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, txIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim txs for background broadcast: %w", err)
+	}
+	if len(txIDs) == 0 {
+		p.logger.InfoContext(ctx, "skipping background broadcast: no transaction is claimable anymore")
+		return nil, nil
+	}
+
 	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post BEEF in background: %w", err)

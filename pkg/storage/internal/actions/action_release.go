@@ -11,13 +11,10 @@ import (
 )
 
 // actionAborter releases the inputs reserved by an action that will not be completed.
+// AbortAction refuses actions that carry any evidence of a broadcast, so callers cannot
+// release a transaction that may already be on the network.
 type actionAborter interface {
-	// AbortAction releases an action identified by its reference. Used while the action has
-	// no txid yet, i.e. before ProcessAction committed it.
 	AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
-	// AbortUnbroadcastTx releases an action that already carries a txid, parking its shared
-	// KnownTx so no broadcast pipeline can pick the transaction up afterwards.
-	AbortUnbroadcastTx(ctx context.Context, userID int, txID string) error
 }
 
 // releaseTimeout bounds a compensating release. It runs on a context detached from the
@@ -29,11 +26,11 @@ const releaseTimeout = 10 * time.Second
 // It is a state machine with exactly three transitions, so that error handling needs no
 // per-failure bookkeeping:
 //
-//	armByReference / armByTxID - the action exists and holds reserved inputs, but provably
-//	                             cannot reach the network yet
-//	disarm                     - point of no return: from here the transaction may be posted,
-//	                             so its inputs must stay spent
-//	onError                    - fires the release if (and only if) it is still armed
+//	arm     - the action exists and holds reserved inputs, and this flow is the only one that
+//	          can complete it
+//	disarm  - point of no return: from here the transaction may be posted, so its inputs must
+//	          stay spent
+//	onError - fires the release if (and only if) it is still armed
 //
 // Entry points call onError from a single defer, which means every failure - including ones
 // added later - releases the inputs, unless it happens after the point of no return.
@@ -46,7 +43,6 @@ type release struct {
 	userID  int
 
 	reference string
-	txID      string
 	armed     bool
 }
 
@@ -54,22 +50,12 @@ func newRelease(logger *slog.Logger, aborter actionAborter, userID int) *release
 	return &release{logger: logger, aborter: aborter, userID: userID}
 }
 
-// armByReference arms the release for an action that has no txid yet.
-func (r *release) armByReference(reference string) {
+// arm marks the action as releasable.
+func (r *release) arm(reference string) {
 	if r == nil || reference == "" {
 		return
 	}
 	r.reference = reference
-	r.armed = true
-}
-
-// armByTxID arms the release for an action that already carries a txid, which additionally
-// requires parking its shared KnownTx.
-func (r *release) armByTxID(txID string) {
-	if r == nil || txID == "" {
-		return
-	}
-	r.txID = txID
 	r.armed = true
 }
 
@@ -90,12 +76,7 @@ func (r *release) onError(ctx context.Context, cause error) {
 	}
 	r.armed = false
 
-	logger := r.logger.With(logging.UserID(r.userID))
-	if r.txID != "" {
-		logger = logger.With(slog.String("txID", r.txID))
-	} else {
-		logger = logger.With(logging.Reference(r.reference))
-	}
+	logger := r.logger.With(logging.UserID(r.userID), logging.Reference(r.reference))
 
 	logger.InfoContext(ctx, "releasing inputs reserved by an action that cannot be completed",
 		logging.Error(cause),
@@ -117,10 +98,6 @@ func (r *release) onError(ctx context.Context, cause error) {
 }
 
 func (r *release) abort(ctx context.Context) error {
-	if r.txID != "" {
-		return r.aborter.AbortUnbroadcastTx(ctx, r.userID, r.txID)
-	}
-
 	_, err := r.aborter.AbortAction(ctx, r.userID, &wdk.AbortActionArgs{
 		Reference: primitives.Base64String(r.reference),
 	})

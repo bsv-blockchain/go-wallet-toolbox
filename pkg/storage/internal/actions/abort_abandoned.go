@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -73,7 +75,13 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 			continue
 		}
 
-		if err := a.abortTx(ctx, id); err != nil {
+		txEntity, err := a.findTransactionByID(ctx, id)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed to load transaction to abort", logging.Number("transactionID", id), logging.Error(err))
+			continue
+		}
+
+		if err := a.abortTx(ctx, txEntity); err != nil {
 			log.ErrorContext(ctx, "Failed to abort transaction", logging.Number("transactionID", id), logging.Error(err))
 		} else {
 			log.InfoContext(ctx, "Successfully aborted transaction", logging.Number("transactionID", id))
@@ -81,4 +89,18 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 	}
 
 	return nil
+}
+
+// findTransactionByID loads the row an abandoned-abort was selected for. The abort needs the
+// whole entity (txid, owner) to decide whether the shared KnownTx may be parked.
+func (a *abortAction) findTransactionByID(ctx context.Context, id uint) (*pkgentity.Transaction, error) {
+	transactions, err := a.transactionsRepo.FindTransactions(ctx, &pkgentity.TransactionReadSpecification{ID: &id})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction %d: %w", id, err)
+	}
+	if len(transactions) == 0 {
+		return nil, fmt.Errorf("transaction %d not found", id)
+	}
+
+	return transactions[0], nil
 }

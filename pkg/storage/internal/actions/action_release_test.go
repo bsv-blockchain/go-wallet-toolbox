@@ -21,7 +21,6 @@ type stubAborter struct {
 	err error
 
 	byReference []string
-	byTxID      []string
 	userIDs     []int
 	ctxErrs     []error
 }
@@ -36,26 +35,19 @@ func (s *stubAborter) AbortAction(ctx context.Context, userID int, args *wdk.Abo
 	return &wdk.AbortActionResult{Aborted: true}, nil
 }
 
-func (s *stubAborter) AbortUnbroadcastTx(ctx context.Context, userID int, txID string) error {
-	s.byTxID = append(s.byTxID, txID)
-	s.userIDs = append(s.userIDs, userID)
-	s.ctxErrs = append(s.ctxErrs, ctx.Err())
-	return s.err
-}
-
 func (s *stubAborter) calls() int {
-	return len(s.byReference) + len(s.byTxID)
+	return len(s.byReference)
 }
 
 func newTestRelease(aborter actionAborter) *release {
 	return newRelease(slog.New(slog.DiscardHandler), aborter, 42)
 }
 
-func TestRelease_ArmedByReference_ReleasesOnError(t *testing.T) {
+func TestRelease_Armed_ReleasesOnError(t *testing.T) {
 	// given:
 	aborter := &stubAborter{}
 	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
+	rel.arm("ref-1")
 
 	// when:
 	rel.onError(t.Context(), errors.New("boom"))
@@ -63,30 +55,13 @@ func TestRelease_ArmedByReference_ReleasesOnError(t *testing.T) {
 	// then:
 	assert.Equal(t, []string{"ref-1"}, aborter.byReference)
 	assert.Equal(t, []int{42}, aborter.userIDs)
-	assert.Empty(t, aborter.byTxID)
-}
-
-func TestRelease_ArmedByTxID_ParksAndReleases(t *testing.T) {
-	// given: the action already carries a txid, so the KnownTx-parking path must be used
-	aborter := &stubAborter{}
-	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
-	rel.armByTxID("tx-1")
-
-	// when:
-	rel.onError(t.Context(), errors.New("boom"))
-
-	// then:
-	assert.Equal(t, []string{"tx-1"}, aborter.byTxID)
-	assert.Empty(t, aborter.byReference)
 }
 
 func TestRelease_DoesNotFireWhenNotApplicable(t *testing.T) {
 	tests := map[string]func(rel *release){
 		"never armed":         func(_ *release) {},
-		"armed then disarmed": func(rel *release) { rel.armByReference("ref"); rel.disarm() },
-		"empty reference":     func(rel *release) { rel.armByReference("") },
-		"empty txID":          func(rel *release) { rel.armByTxID("") },
+		"armed then disarmed": func(rel *release) { rel.arm("ref"); rel.disarm() },
+		"empty reference":     func(rel *release) { rel.arm("") },
 	}
 
 	for name, setup := range tests {
@@ -109,7 +84,7 @@ func TestRelease_DoesNotFireOnSuccess(t *testing.T) {
 	// given:
 	aborter := &stubAborter{}
 	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
+	rel.arm("ref-1")
 
 	// when: the deferred call of a successful operation
 	rel.onError(t.Context(), nil)
@@ -122,7 +97,7 @@ func TestRelease_FiresOnlyOnce(t *testing.T) {
 	// given:
 	aborter := &stubAborter{}
 	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
+	rel.arm("ref-1")
 
 	// when:
 	rel.onError(t.Context(), errors.New("boom"))
@@ -136,7 +111,7 @@ func TestRelease_RunsOnCanceledContext(t *testing.T) {
 	// given:
 	aborter := &stubAborter{}
 	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
+	rel.arm("ref-1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -153,7 +128,7 @@ func TestRelease_AbortFailureIsSwallowed(t *testing.T) {
 	// given:
 	aborter := &stubAborter{err: errors.New("storage is down")}
 	rel := newTestRelease(aborter)
-	rel.armByReference("ref-1")
+	rel.arm("ref-1")
 
 	// when / then: no panic, no propagation - the caller keeps its original error
 	rel.onError(t.Context(), errors.New("boom"))
@@ -165,8 +140,7 @@ func TestRelease_NilIsPermanentlyDisarmed(t *testing.T) {
 	var rel *release
 
 	// when / then: every transition is a safe no-op
-	rel.armByReference("ref")
-	rel.armByTxID("tx")
+	rel.arm("ref")
 	rel.disarm()
 	rel.onError(t.Context(), errors.New("boom"))
 }

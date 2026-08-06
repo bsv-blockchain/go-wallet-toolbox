@@ -665,7 +665,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	// The action (and its input reservations) is committed now.
-	rel.armByReference(reference)
+	rel.arm(reference)
 
 	if useThroughput {
 		outcome := c.classifyThroughputOutcome(funding, fundedViaFallback)
