@@ -156,6 +156,7 @@ type create struct {
 	beefVerifier    wdk.BeefVerifier
 	scriptsVerifier wdk.ScriptsVerifier
 	throughput      ThroughputConfig
+	aborter         actionAborter
 }
 
 func newCreateAction(
@@ -175,6 +176,7 @@ func newCreateAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	throughput ThroughputConfig,
+	aborter actionAborter,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -194,6 +196,7 @@ func newCreateAction(
 		beefVerifier:    beefVerifier,
 		scriptsVerifier: scriptsVerifier,
 		throughput:      throughput,
+		aborter:         aborter,
 	}
 
 	if commissionCfg.Enabled() {
@@ -684,7 +687,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs, processedInputs.Inputs)
 	if err != nil {
-		return nil, err
+		return nil, c.failAfterTxSaved(ctx, userID, reference, err)
 	}
 
 	c.logger.DebugContext(
@@ -699,7 +702,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.TrustSelf && params.ReturnTXIDOnly)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
+		return nil, c.failAfterTxSaved(ctx, userID, reference, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err))
 	}
 
 	return &wdk.StorageCreateActionResult{
@@ -712,6 +715,16 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+// failAfterTxSaved handles a failure that happens after the funding transaction was already
+// committed: the action sits in the database as 'unsigned' with its inputs reserved, but the
+// caller never receives the reference, so nothing can ever sign, process or abort it. The
+// reservation is therefore released right away instead of waiting for the fail_abandoned
+// sweep. The passed error is returned unchanged.
+func (c *create) failAfterTxSaved(ctx context.Context, userID int, reference string, cause error) error {
+	releaseReservedInputs(ctx, c.logger, c.aborter, userID, reference, cause)
+	return cause
 }
 
 // FundingOutcome classifies how a throughput-mode request was funded; it feeds

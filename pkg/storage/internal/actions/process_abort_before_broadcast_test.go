@@ -7,6 +7,7 @@ import (
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // A pre-broadcast abort must only touch rows the caller owns, and must back off entirely
@@ -91,4 +92,42 @@ func TestSplitTxsForPreBroadcastAbort(t *testing.T) {
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+// Only the transaction a call introduces itself may be released when the broadcast attempt
+// fails: sendWith-only calls and the send_waiting sweep re-send transactions parked or
+// queued earlier, which must be retried rather than abandoned.
+func TestReleasableTxOfThisCall(t *testing.T) {
+	txID := primitives.TXIDHexString("1111111111111111111111111111111111111111111111111111111111111111")
+
+	tests := map[string]struct {
+		args     *wdk.ProcessActionArgs
+		expected *preBroadcastRelease
+	}{
+		"new transaction is releasable": {
+			args:     &wdk.ProcessActionArgs{IsNewTx: true, TxID: &txID},
+			expected: &preBroadcastRelease{userID: 7, txID: string(txID)},
+		},
+		"sendWith-only call releases nothing": {
+			args:     &wdk.ProcessActionArgs{IsNewTx: false, IsSendWith: true, SendWith: []primitives.HexString{txID}},
+			expected: nil,
+		},
+		"new transaction without txID releases nothing": {
+			args:     &wdk.ProcessActionArgs{IsNewTx: true},
+			expected: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			p := &process{}
+
+			// when:
+			releasable := p.releasableTxOfThisCall(7, test.args)
+
+			// then:
+			assert.Equal(t, test.expected, releasable)
+		})
+	}
 }

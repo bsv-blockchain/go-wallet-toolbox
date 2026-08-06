@@ -9,7 +9,6 @@ import (
 	"maps"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -35,10 +34,6 @@ import (
 
 const transactionBatchLength = 16
 
-// releaseUnprocessedActionTimeout bounds the compensating abort of an action that failed
-// before processing committed. It runs on a context detached from the request context.
-const releaseUnprocessedActionTimeout = 10 * time.Second
-
 type process struct {
 	logger                *slog.Logger
 	commissionCfg         defs.Commission
@@ -55,11 +50,6 @@ type process struct {
 	scriptsVerifier       wdk.ScriptsVerifier
 	uow                   UnitOfWork
 	aborter               actionAborter
-}
-
-// actionAborter releases the inputs reserved by an action that will not be processed.
-type actionAborter interface {
-	AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 }
 
 func newProcessAction(
@@ -142,6 +132,11 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 
 	txIDs := p.txIDsToBroadcast(args)
 
+	// Only the transaction this call introduces may be released when the broadcast attempt
+	// fails before anything is posted. The sendWith companions were created (and parked,
+	// usually as noSend) by earlier calls - they are not this call's to abandon.
+	releasable := p.releasableTxOfThisCall(userID, args)
+
 	logger.DebugContext(
 		ctx, "Preparing transactions for broadcast",
 		slog.Int("txIDsCount", len(txIDs)),
@@ -155,6 +150,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		)
 
 		if err = p.setBatchForTxs(ctx, txIDs); err != nil {
+			p.releaseBeforeBroadcast(ctx, releasable)
 			return nil, fmt.Errorf("failed to set batch for transactions: %w", err)
 		}
 	}
@@ -165,7 +161,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		slog.Bool("isDelayed", args.IsDelayed),
 	)
 
-	result, err := p.broadcastTxs(ctx, txIDs, args.IsDelayed, &userID)
+	result, err := p.broadcastTxs(ctx, txIDs, args.IsDelayed, releasable)
 	if err != nil {
 		return nil, err
 	}
@@ -335,38 +331,11 @@ func (p *process) failBeforeSpend(ctx context.Context, userID int, args *wdk.Pro
 // that the action is still abortable, so a transaction that already reached the network
 // is left untouched.
 func (p *process) ReleaseUnprocessedAction(ctx context.Context, userID int, args *wdk.ProcessActionArgs, cause error) {
-	if p.aborter == nil || args == nil || !args.IsNewTx || args.Reference == nil || *args.Reference == "" {
+	if args == nil || !args.IsNewTx || args.Reference == nil {
 		return
 	}
 
-	reference := *args.Reference
-	logger := p.logger.With(
-		logging.UserID(userID),
-		slog.String("reference", reference),
-	)
-
-	logger.InfoContext(ctx, "releasing inputs reserved by an action that could not be processed",
-		logging.Error(cause),
-	)
-
-	// The request context may already be canceled (that can be the very reason we are
-	// here), so detach from it - the release must still run.
-	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseUnprocessedActionTimeout)
-	defer cancel()
-
-	result, err := p.aborter.AbortAction(releaseCtx, userID, &wdk.AbortActionArgs{
-		Reference: primitives.Base64String(reference),
-	})
-	if err != nil {
-		logger.WarnContext(releaseCtx, "failed to release inputs of an unprocessed action, they stay reserved until the fail_abandoned sweep",
-			logging.Error(err),
-		)
-		return
-	}
-
-	logger.InfoContext(releaseCtx, "inputs of an unprocessed action released",
-		slog.Bool("aborted", result.Aborted),
-	)
+	releaseReservedInputs(ctx, p.logger, p.aborter, userID, *args.Reference, cause)
 }
 
 func (p *process) validateStateOfTableTx(reference string, tableTx *pkgentity.Transaction) error {
@@ -459,10 +428,11 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return txStatus, reqStatus
 }
 
-// broadcastTxs posts (or queues) the given transactions. userScope identifies the user on
-// whose behalf this runs and limits any pre-broadcast abort to that user's rows; nil means
-// the call is a storage-wide sweep.
-func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool, userScope *int) (*wdk.ProcessActionResult, error) {
+// broadcastTxs posts (or queues) the given transactions. releasable names the single
+// transaction this call may release if it fails before anything is posted; nil means
+// nothing may be released (a sendWith-only call, or the send_waiting sweep, where a failed
+// attempt must simply be retried later).
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool, releasable *preBroadcastRelease) (*wdk.ProcessActionResult, error) {
 	logger := p.logger.With(
 		slog.Int("txIDsCount", len(txIDs)),
 		slog.Bool("isDelayed", isDelayed),
@@ -470,16 +440,19 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	knownTxStatusesLookup, err := p.getKnownTxStatuses(ctx, txIDs...)
 	if err != nil {
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, err
 	}
 
 	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
 	if err != nil {
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
 	}
 
 	txLabelsLookup, err := p.txRepo.GetLabelsForTxIDs(ctx, txIDs)
 	if err != nil {
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
 	}
 
@@ -492,6 +465,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range txIDs {
 		currentStatus, ok := knownTxStatusesLookup[txID]
 		if !ok {
+			p.releaseBeforeBroadcast(ctx, releasable)
 			return nil, fmt.Errorf("transaction status not found for txID %s", txID)
 		}
 
@@ -514,6 +488,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 			err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
 			if err != nil {
+				p.releaseBeforeBroadcast(ctx, releasable)
 				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
 			}
 		} else {
@@ -542,6 +517,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		// 1. When all txs are already broadcasted, we return early.
 		// 2. If there are txs with other-then-unproven statuses, they should be in the readyToSendTxIDs.
 		// So, if we reach this point, it means that the transactions have unsupported broadcast statuses.
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", knownTxStatusesLookup)
 	}
 
@@ -561,7 +537,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		entity.WithDirectSourcesOnly(),
 	)
 	if err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
@@ -574,7 +550,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// BEEF deliberately omits grandparents, and neither script verification
 	// nor EF construction needs them.
 	if err = txutils.HydrateBEEFSubjects(beef, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -586,18 +562,18 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range readyToSendTxIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+			p.releaseBeforeBroadcast(ctx, releasable)
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
 		}
 
 		var ok bool
 		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
 		if err != nil {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+			p.releaseBeforeBroadcast(ctx, releasable)
 			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
 		}
 		if !ok {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+			p.releaseBeforeBroadcast(ctx, releasable)
 			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
 		}
 	}
@@ -629,7 +605,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
 	}
 
@@ -643,7 +619,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
+		p.releaseBeforeBroadcast(ctx, releasable)
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -1020,14 +996,35 @@ var txStatusesAbortableBeforeBroadcast = []wdk.TxStatus{
 	wdk.TxStatusUnfail,
 }
 
-// abortTxsBeforeBroadcast releases the inputs of transactions that failed on the way to the
-// broadcast, before anything was posted. userScope limits the abort to a single user's rows
-// (the ProcessAction path); nil means storage-wide (the send_waiting sweep).
-func (p *process) abortTxsBeforeBroadcast(ctx context.Context, txIDs []string, userScope *int) {
-	for _, txID := range txIDs {
-		if err := p.abortTxByStringID(ctx, txID, userScope); err != nil {
-			p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", txID), logging.Error(err))
-		}
+// preBroadcastRelease names the single transaction a failing broadcast attempt may release:
+// the one the current call introduced, together with its owner.
+type preBroadcastRelease struct {
+	userID int
+	txID   string
+}
+
+// releasableTxOfThisCall returns the transaction this ProcessAction call is introducing, or
+// nil when it only re-sends transactions created earlier (sendWith-only calls). Those were
+// parked deliberately by their own createAction, so a failure here must leave them alone.
+func (p *process) releasableTxOfThisCall(userID int, args *wdk.ProcessActionArgs) *preBroadcastRelease {
+	if !args.IsNewTx || args.TxID == nil || *args.TxID == "" {
+		return nil
+	}
+
+	return &preBroadcastRelease{userID: userID, txID: string(*args.TxID)}
+}
+
+// releaseBeforeBroadcast releases the inputs of a transaction that failed on the way to the
+// broadcast, before anything was posted. It is a no-op when the current call owns no
+// releasable transaction (sendWith-only calls, and the send_waiting sweep, where a failed
+// attempt is retried on the next run instead of being abandoned).
+func (p *process) releaseBeforeBroadcast(ctx context.Context, releasable *preBroadcastRelease) {
+	if releasable == nil {
+		return
+	}
+
+	if err := p.abortTxByStringID(ctx, releasable.txID, &releasable.userID); err != nil {
+		p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", releasable.txID), logging.Error(err))
 	}
 }
 

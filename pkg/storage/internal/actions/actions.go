@@ -111,6 +111,7 @@ func New(
 			beefVerifier,
 			scriptsVerifier,
 			throughput,
+			abortAction,
 		),
 		internalize: newInternalizeAction(
 			logger,
