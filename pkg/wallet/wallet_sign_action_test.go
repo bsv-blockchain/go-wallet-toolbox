@@ -1,8 +1,8 @@
 package wallet_test
 
 import (
-	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -20,15 +20,42 @@ import (
 )
 
 func TestSignAction_ValidationError(t *testing.T) {
-	RunOriginatorValidationErrorTests(
-		t,
-		func(w *wallet.Wallet, ctx context.Context, originator string) (*sdk.SignActionResult, error) {
-			args := sdk.SignActionArgs{
-				Reference: []byte(fixtures.Reference),
-			}
-			return w.SignAction(ctx, args, originator)
+	// NOTE: SignAction cannot reuse RunOriginatorValidationErrorTests: a rejected sign
+	// action leaves the action created by CreateAction parked as 'unsigned' in storage,
+	// so the wallet compensates by aborting it, which is a storage interaction.
+	originatorErrorTestCases := map[string]struct {
+		originator string
+	}{
+		"too long originator": {
+			originator: strings.Repeat("a", 251),
 		},
-	)
+		"too long originator part": {
+			originator: "a." + strings.Repeat("b", 64) + ".c",
+		},
+		"empty originator part": {
+			originator: "a..c",
+		},
+	}
+
+	for name, test := range originatorErrorTestCases {
+		t.Run(name, func(t *testing.T) {
+			// given: real storage, because the rejected sign action triggers a
+			// compensating abort of the referenced action
+			given, then, cleanup := testabilities.New(t)
+			defer cleanup()
+
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeSQLite)
+
+			// when:
+			result, err := aliceWallet.SignAction(t.Context(), sdk.SignActionArgs{
+				Reference: []byte(fixtures.Reference),
+			}, test.originator)
+
+			// then:
+			then.Result(result).HasError(err)
+			require.ErrorContains(t, err, "invalid originator")
+		})
+	}
 
 	t.Run("empty args", func(t *testing.T) {
 		given, _, cleanup := testabilities.New(t)
@@ -245,32 +272,23 @@ func (s *WalletTestSuite) TestWalletSignAction_SignSingleInput() {
 		require.Error(t, err)
 		require.Nil(t, signActionResult)
 
-		// and check db state:
+		// and check db state: the action could not be signed and was never processed,
+		// so the wallet aborted it - it is gone from the active actions and the funding
+		// output it had reserved is spendable again.
 		thenState := testabilities.ThenWalletState(t, aliceWallet)
 		thenState.
-			HasActionsCount(2).
-			HasActionsCount(1, fixtures.CreateActionTestLabel)
+			HasActionsCount(1).
+			HasActionsCount(0, fixtures.CreateActionTestLabel)
 
 		thenState.ActionAtIndex(0).
 			WithTxID(txFromFaucet.ID().String()).
 			WithSatoshis(topUpValue)
 
-		const fee = 1
-		thenCreatedAction := thenState.ActionAtIndex(1)
-		thenCreatedAction.
-			WithoutTxID().
-			WithDescription(args.Description).
-			WithLabels(fixtures.CreateActionTestLabel).
-			WithSatoshis(-int64(args.Outputs[0].Satoshis) + inputValue - fee) //nolint:gosec // safe: satoshis fit in int64
-
-		thenCreatedAction.OutputAtIndex(0).
-			WithSatoshis(args.Outputs[0].Satoshis).
-			WithLockingScript(args.Outputs[0].LockingScript).
-			WithOutputIndex(0).
-			WithTags(fixtures.CreateActionTestTag).
-			WithCustomInstructions(fixtures.CreateActionTestCustomInstructions).
-			WithSpendable(true).
-			WithBasket("")
+		outputs, err := aliceWallet.ListOutputs(t.Context(), fixtures.DefaultWalletListOutputsArgs(), fixtures.DefaultOriginator)
+		require.NoError(t, err)
+		require.Len(t, outputs.Outputs, 1, "the funding output should be released by the abort")
+		require.True(t, outputs.Outputs[0].Spendable)
+		require.EqualValues(t, topUpValue, outputs.Outputs[0].Satoshis)
 	})
 
 	s.Run("sign action of tx with provided unlocking script length only, with client-side sign", func() {

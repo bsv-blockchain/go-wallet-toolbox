@@ -27,13 +27,18 @@ import (
 type SignAction struct {
 	Logger                  *slog.Logger
 	PendingSignActionsCache pending.SignActionsRepository
-	Storage                 WalletStorageProcessAction
+	Storage                 WalletStorageProcessAndAbortAction
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	reference  string
 	tx         *assembler.AssembledTransaction
 	txID       *chainhash.Hash
 	originator string
+
+	// processActionAttempted records whether the signed transaction was already handed
+	// to storage.ProcessAction. Once it was, the action may carry broadcast evidence and
+	// must not be aborted by this wallet as a compensating action.
+	processActionAttempted bool
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (*wallet.SignActionResult, error) {
@@ -49,12 +54,12 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	err = s.validate()
 	if err != nil {
-		return nil, err
+		return nil, s.failBeforeProcess(ctx, err)
 	}
 
 	pendingSignAction, err := s.PendingSignActionsCache.Get(s.reference)
 	if err != nil {
-		return nil, fmt.Errorf("get pending sign action failed: %w", err)
+		return nil, s.failBeforeProcess(ctx, fmt.Errorf("get pending sign action failed: %w", err))
 	}
 
 	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
@@ -63,12 +68,12 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	s.attachUnlockingScripts(args)
 	if err = s.allInputsCanBeUnlocked(); err != nil {
-		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
+		return nil, s.failBeforeProcess(ctx, fmt.Errorf("not all inputs can be unlocked: %w", err))
 	}
 
 	err = s.tx.Sign()
 	if err != nil {
-		return nil, fmt.Errorf("sign transaction failed: %w", err)
+		return nil, s.failBeforeProcess(ctx, fmt.Errorf("sign transaction failed: %w", err))
 	}
 
 	s.txID = s.tx.TxID()
@@ -116,6 +121,38 @@ func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
 	}
 }
 
+// failBeforeProcess handles a SignAction failure that happened before the transaction
+// reached storage.ProcessAction. The action created by CreateAction is still parked in
+// storage as 'unsigned' and nobody will complete it now, so its reserved inputs are
+// released right away instead of waiting for the fail_abandoned sweep. The pending sign
+// action is dropped as well, so the dead reference cannot be retried.
+// The passed error is returned unchanged.
+func (s *SignAction) failBeforeProcess(ctx context.Context, err error) error {
+	if s.reference == "" {
+		// Nothing identifies the action (rejected by validate), so there is nothing to abort.
+		return err
+	}
+
+	if s.processActionAttempted {
+		// Defensive: the transaction may already carry broadcast evidence, releasing its
+		// inputs here could double-spend it.
+		s.Logger.WarnContext(ctx, "skipping compensating abort: action was already sent to ProcessAction",
+			slog.String("reference", s.reference),
+			logging.Error(err))
+		return err
+	}
+
+	abortActionAfterFailure(ctx, s.Logger, s.Storage, s.reference, err)
+
+	if deleteErr := s.PendingSignActionsCache.Delete(s.reference); deleteErr != nil {
+		s.Logger.WarnContext(ctx, "failed to delete pending sign action from cache after abort",
+			slog.String("reference", s.reference),
+			logging.Error(deleteErr))
+	}
+
+	return err
+}
+
 func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction-handleProcessAction")
@@ -124,6 +161,8 @@ func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActio
 	}()
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
+
+	s.processActionAttempted = true
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

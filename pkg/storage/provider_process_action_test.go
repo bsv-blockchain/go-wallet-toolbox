@@ -489,11 +489,13 @@ func TestProcessAction_ResendAfterError(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, scriptsVerifyMockError)
 
-	// and db state: transaction is automatically aborted on pre-broadcast failure
+	// and db state: transaction is automatically aborted on pre-broadcast failure, and the
+	// shared KnownTx is parked so that no pipeline (sendWith, send_waiting, background
+	// broadcaster) can post a transaction whose inputs were just released.
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.HasKnownTX(txID).
 		NotMined().
-		WithStatus(wdk.ProvenTxStatusUnprocessed).
+		WithStatus(wdk.ProvenTxStatusInvalid).
 		WithAttempts(0).
 		HasRawTx()
 

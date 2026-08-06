@@ -114,7 +114,9 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 func (p *process) broadcastDelayedTransaction(ctx context.Context, log *slog.Logger, txIDs []string) (*wdk.ProcessActionResult, error) {
 	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
-	result, err := p.broadcastTxs(ctx, txIDs, false)
+	// Storage-wide sweep: it runs for no particular user, so a pre-broadcast abort is not
+	// limited to a single owner's rows.
+	result, err := p.broadcastTxs(ctx, txIDs, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("broadcast of waiting batch %v failed: %w", txIDs, err)
 	}

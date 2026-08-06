@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -34,6 +35,10 @@ import (
 
 const transactionBatchLength = 16
 
+// releaseUnprocessedActionTimeout bounds the compensating abort of an action that failed
+// before processing committed. It runs on a context detached from the request context.
+const releaseUnprocessedActionTimeout = 10 * time.Second
+
 type process struct {
 	logger                *slog.Logger
 	commissionCfg         defs.Commission
@@ -49,6 +54,12 @@ type process struct {
 	beefVerifier          wdk.BeefVerifier
 	scriptsVerifier       wdk.ScriptsVerifier
 	uow                   UnitOfWork
+	aborter               actionAborter
+}
+
+// actionAborter releases the inputs reserved by an action that will not be processed.
+type actionAborter interface {
+	AbortAction(ctx context.Context, userID int, args *wdk.AbortActionArgs) (*wdk.AbortActionResult, error)
 }
 
 func newProcessAction(
@@ -67,6 +78,7 @@ func newProcessAction(
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 	broadcasterSizing service.Sizing,
+	aborter actionAborter,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -82,6 +94,7 @@ func newProcessAction(
 		randomizer:      randomizer,
 		beefVerifier:    beefVerifier,
 		scriptsVerifier: scriptsVerifier,
+		aborter:         aborter,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel, broadcasterSizing)
@@ -152,7 +165,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		slog.Bool("isDelayed", args.IsDelayed),
 	)
 
-	result, err := p.broadcastTxs(ctx, txIDs, args.IsDelayed)
+	result, err := p.broadcastTxs(ctx, txIDs, args.IsDelayed, &userID)
 	if err != nil {
 		return nil, err
 	}
@@ -197,12 +210,12 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	tx, err := transaction.NewTransactionFromBytes(args.RawTx)
 	if err != nil {
-		return fmt.Errorf("failed to build transaction object from raw tx bytes: %w", err)
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("failed to build transaction object from raw tx bytes: %w", err))
 	}
 
 	txID := tx.TxID().String()
 	if txID != string(*args.TxID) {
-		return fmt.Errorf("txID mismatch: provided %s, calculated from raw tx: %s", *args.TxID, txID)
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("txID mismatch: provided %s, calculated from raw tx: %s", *args.TxID, txID))
 	}
 
 	txlogger.DebugContext(
@@ -212,19 +225,23 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	isFinal, err := p.services.NLockTimeIsFinal(ctx, tx)
 	if err != nil {
-		return fmt.Errorf("failed to check nLockTime finality: %w", err)
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("failed to check nLockTime finality: %w", err))
 	}
 	if !isFinal {
-		return fmt.Errorf("transaction nLockTime is not final")
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("transaction nLockTime is not final"))
 	}
 
 	txlogger.DebugContext(ctx, "Finding transaction by reference")
 
 	txEntity, err := p.txRepo.FindTransactionByReference(ctx, userID, *args.Reference)
 	if err != nil {
-		return fmt.Errorf("failed to find transaction by reference: %w", err)
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("failed to find transaction by reference: %w", err))
 	}
 
+	// NOTE: deliberately not released. A transaction that is missing, not outgoing, or no
+	// longer in a processable status is not an action this call may abort - it either
+	// belongs to another flow or was already processed, and aborting it would discard
+	// state this call never created.
 	err = p.validateStateOfTableTx(*args.Reference, txEntity)
 	if err != nil {
 		return err
@@ -238,7 +255,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	outputs, err := p.outputRepo.FindOutputsByTransactionID(ctx, txEntity.ID)
 	if err != nil {
-		return fmt.Errorf("failed to find inputs and outputs of transaction: %w", err)
+		return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("failed to find inputs and outputs of transaction: %w", err))
 	}
 
 	txlogger.DebugContext(
@@ -249,7 +266,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 
 	err = p.validateNewTxOutputs(tx, outputs)
 	if err != nil {
-		return err
+		return p.failBeforeSpend(ctx, userID, args, err)
 	}
 
 	if p.commissionCfg.Satoshis > 0 {
@@ -261,7 +278,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 		)
 
 		if err = p.validateCommission(ctx, userID, txEntity.ID, outputs); err != nil {
-			return fmt.Errorf("commission validation failed: %w", err)
+			return p.failBeforeSpend(ctx, userID, args, fmt.Errorf("commission validation failed: %w", err))
 		}
 	}
 
@@ -293,6 +310,63 @@ func (p *process) processNewTx(ctx context.Context, userID int, args *wdk.Proces
 	}
 
 	return nil
+}
+
+// failBeforeSpend handles a failure that happened before SpendTransaction committed the
+// action: the transaction is still 'unsigned' with no txid, no KnownTx row and no
+// broadcast, while its inputs stay reserved. Nothing will complete it now, so they are
+// released right away instead of waiting for the fail_abandoned sweep.
+//
+// The release is best-effort - failures are logged and the original error is returned
+// unchanged. It must never be called once SpendTransaction succeeded, because from that
+// point on the transaction can reach the network and releasing its inputs would risk a
+// double-spend.
+func (p *process) failBeforeSpend(ctx context.Context, userID int, args *wdk.ProcessActionArgs, cause error) error {
+	p.ReleaseUnprocessedAction(ctx, userID, args, cause)
+	return cause
+}
+
+// ReleaseUnprocessedAction aborts the action referenced by args, releasing the inputs it
+// reserved. It is meant for failures that happen before processing mutates any state -
+// including argument validation, which runs before Process is even called.
+//
+// It is a no-op for calls that carry no new transaction (sendWith-only) or no reference,
+// and it is best-effort: problems are logged, never returned. The abort itself re-checks
+// that the action is still abortable, so a transaction that already reached the network
+// is left untouched.
+func (p *process) ReleaseUnprocessedAction(ctx context.Context, userID int, args *wdk.ProcessActionArgs, cause error) {
+	if p.aborter == nil || args == nil || !args.IsNewTx || args.Reference == nil || *args.Reference == "" {
+		return
+	}
+
+	reference := *args.Reference
+	logger := p.logger.With(
+		logging.UserID(userID),
+		slog.String("reference", reference),
+	)
+
+	logger.InfoContext(ctx, "releasing inputs reserved by an action that could not be processed",
+		logging.Error(cause),
+	)
+
+	// The request context may already be canceled (that can be the very reason we are
+	// here), so detach from it - the release must still run.
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseUnprocessedActionTimeout)
+	defer cancel()
+
+	result, err := p.aborter.AbortAction(releaseCtx, userID, &wdk.AbortActionArgs{
+		Reference: primitives.Base64String(reference),
+	})
+	if err != nil {
+		logger.WarnContext(releaseCtx, "failed to release inputs of an unprocessed action, they stay reserved until the fail_abandoned sweep",
+			logging.Error(err),
+		)
+		return
+	}
+
+	logger.InfoContext(releaseCtx, "inputs of an unprocessed action released",
+		slog.Bool("aborted", result.Aborted),
+	)
 }
 
 func (p *process) validateStateOfTableTx(reference string, tableTx *pkgentity.Transaction) error {
@@ -385,7 +459,10 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return txStatus, reqStatus
 }
 
-func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool) (*wdk.ProcessActionResult, error) {
+// broadcastTxs posts (or queues) the given transactions. userScope identifies the user on
+// whose behalf this runs and limits any pre-broadcast abort to that user's rows; nil means
+// the call is a storage-wide sweep.
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool, userScope *int) (*wdk.ProcessActionResult, error) {
 	logger := p.logger.With(
 		slog.Int("txIDsCount", len(txIDs)),
 		slog.Bool("isDelayed", isDelayed),
@@ -484,7 +561,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		entity.WithDirectSourcesOnly(),
 	)
 	if err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
 
@@ -497,7 +574,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// BEEF deliberately omits grandparents, and neither script verification
 	// nor EF construction needs them.
 	if err = txutils.HydrateBEEFSubjects(beef, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
@@ -509,18 +586,18 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	for _, txID := range readyToSendTxIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 			return nil, fmt.Errorf("transaction %s not found in beef", txID)
 		}
 
 		var ok bool
 		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
 		if err != nil {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
 		}
 		if !ok {
-			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+			p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
 		}
 	}
@@ -552,7 +629,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.MarkKnownTxsAsSubmitting(ctx, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 		return nil, fmt.Errorf("failed to mark txs as submitting: %w", err)
 	}
 
@@ -566,7 +643,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	)
 
 	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
-		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs)
+		p.abortTxsBeforeBroadcast(ctx, readyToSendTxIDs, userScope)
 		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
 	}
 
@@ -932,21 +1009,68 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
 }
 
-func (p *process) abortTxsBeforeBroadcast(ctx context.Context, txIDs []string) {
+// txStatusesAbortableBeforeBroadcast are the user-transaction statuses a pre-broadcast
+// abort may act on. 'sending' is deliberately absent: it means the transaction is queued
+// for (or already went through) a post attempt whose outcome is unknown.
+var txStatusesAbortableBeforeBroadcast = []wdk.TxStatus{
+	wdk.TxStatusUnsigned,
+	wdk.TxStatusUnprocessed,
+	wdk.TxStatusNoSend,
+	wdk.TxStatusNonFinal,
+	wdk.TxStatusUnfail,
+}
+
+// abortTxsBeforeBroadcast releases the inputs of transactions that failed on the way to the
+// broadcast, before anything was posted. userScope limits the abort to a single user's rows
+// (the ProcessAction path); nil means storage-wide (the send_waiting sweep).
+func (p *process) abortTxsBeforeBroadcast(ctx context.Context, txIDs []string, userScope *int) {
 	for _, txID := range txIDs {
-		if err := p.abortTxByStringID(ctx, txID); err != nil {
+		if err := p.abortTxByStringID(ctx, txID, userScope); err != nil {
 			p.logger.ErrorContext(ctx, "failed to abort tx before broadcast", slog.String("txID", txID), logging.Error(err))
 		}
 	}
 }
 
-func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
-	transactionIDs, err := p.txRepo.FindTransactionIDsByTxID(ctx, txID)
+func (p *process) abortTxByStringID(ctx context.Context, txID string, userScope *int) error {
+	logger := p.logger.With(slog.String("txID", txID))
+
+	transactions, err := p.txRepo.FindTransactions(ctx, &pkgentity.TransactionReadSpecification{
+		TxID: &pkgentity.Comparable[string]{Value: txID, Cmp: pkgentity.Equal},
+	})
 	if err != nil {
-		return fmt.Errorf("failed to find transaction IDs for txID %s: %w", txID, err)
+		return fmt.Errorf("failed to find transactions for txID %s: %w", txID, err)
 	}
 
-	for _, id := range transactionIDs {
+	toAbort, othersStillActive := p.splitTxsForPreBroadcastAbort(transactions, userScope)
+	if len(toAbort) == 0 {
+		logger.DebugContext(ctx, "skipping abort before broadcast: no transaction in an abortable status")
+		return nil
+	}
+
+	// Another owner still has this transaction in flight, so the shared KnownTx must stay
+	// broadcastable - and then our inputs must stay spent, or that broadcast becomes a
+	// double spend.
+	if othersStillActive {
+		logger.WarnContext(ctx, "skipping abort before broadcast: transaction is still active for another user")
+		return nil
+	}
+
+	// Park the shared KnownTx FIRST. It is the guard that decides whether this abort may
+	// happen at all: it only applies while the tx provably never reached a broadcaster, and
+	// once applied no pipeline (send_waiting, background broadcaster re-queue) can pick the
+	// tx up again.
+	note := history.NewBuilder().AbortBeforeBroadcast(wdk.ProvenTxStatusInvalid)
+
+	parked, err := p.knownTxRepo.ParkUnbroadcastKnownTx(ctx, txID, []history.Builder{note})
+	if err != nil {
+		return fmt.Errorf("failed to park known tx %s before abort: %w", txID, err)
+	}
+	if !parked {
+		logger.WarnContext(ctx, "skipping abort before broadcast: known tx may have already been handed to a broadcaster")
+		return nil
+	}
+
+	for _, id := range toAbort {
 		if checkErr := p.outputRepo.ShouldTxOutputsBeUnspent(ctx, id); checkErr != nil {
 			p.logger.WarnContext(ctx, "skipping abort: tx outputs already spent", logging.Number("transactionID", id), logging.Error(checkErr))
 			continue
@@ -962,7 +1086,9 @@ func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
 			if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
 				return fmt.Errorf("failed to mark created outputs as not spendable: %w", err)
 			}
-			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusAborted); err != nil {
+			// Positive CAS: only abort a row that is still in a pre-broadcast status. A row
+			// that advanced concurrently wins and rolls this unit of work back.
+			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusAborted, txStatusesAbortableBeforeBroadcast...); err != nil {
 				return fmt.Errorf("failed to update transaction status to aborted: %w", err)
 			}
 			return nil
@@ -970,7 +1096,29 @@ func (p *process) abortTxByStringID(ctx context.Context, txID string) error {
 			return fmt.Errorf("failed to abort transaction %d before broadcast: %w", id, uowErr)
 		}
 	}
+
+	logger.InfoContext(ctx, "aborted transaction before broadcast", slog.Int("abortedRows", len(toAbort)))
 	return nil
+}
+
+// splitTxsForPreBroadcastAbort returns the ids this call may abort and reports whether any
+// other row for the same txID (another user, or a row that already advanced) is still live.
+func (p *process) splitTxsForPreBroadcastAbort(transactions []*pkgentity.Transaction, userScope *int) (toAbort []uint, othersStillActive bool) {
+	for _, tx := range transactions {
+		inScope := userScope == nil || tx.UserID == *userScope
+		abortable := slices.Contains(txStatusesAbortableBeforeBroadcast, tx.Status)
+
+		switch {
+		case inScope && abortable:
+			toAbort = append(toAbort, tx.ID)
+		case tx.Status == wdk.TxStatusAborted || tx.Status == wdk.TxStatusFailed:
+			// already gone, nothing keeps the tx alive
+		default:
+			othersStillActive = true
+		}
+	}
+
+	return toAbort, othersStillActive
 }
 
 func (p *process) StopBackgroundBroadcaster() {

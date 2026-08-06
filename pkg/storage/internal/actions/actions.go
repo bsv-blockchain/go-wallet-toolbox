@@ -72,6 +72,8 @@ func New(
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 	throughput ThroughputConfig,
 ) *Actions {
+	abortAction := newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx, uow)
+
 	processAction := newProcessAction(
 		ctx,
 		logger,
@@ -88,6 +90,7 @@ func New(
 		scriptsVerifier,
 		txBroadcastedChannel,
 		throughput.broadcasterSizing(),
+		abortAction,
 	)
 
 	return &Actions{
@@ -126,7 +129,7 @@ func New(
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
 		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions, repos.Outputs, uow),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
-		abortAction:           newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx, uow),
+		abortAction:           abortAction,
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),
 	}
 }

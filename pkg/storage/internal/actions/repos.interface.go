@@ -71,6 +71,10 @@ type KnownTxRepo interface {
 	FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[string][]byte, error)
 	UpdateKnownTxStatus(ctx context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) error
 	MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error
+	// ParkUnbroadcastKnownTx marks a KnownTx as invalidTx, but only while it provably never
+	// reached a broadcaster (never-posted status, was_broadcast false, zero attempts).
+	// Returns applied=false (writing nothing) when the guard holds.
+	ParkUnbroadcastKnownTx(ctx context.Context, txID string, txNotes []history.Builder) (bool, error)
 	SetBatchForKnownTxs(ctx context.Context, txIDs []string, batch string) error
 	// FailKnownTxAsDoubleSpend atomically applies the terminal double-spend failure
 	// (KnownTx -> doubleSpend guarded by skipForStatuses FIRST; Transactions -> failed and
