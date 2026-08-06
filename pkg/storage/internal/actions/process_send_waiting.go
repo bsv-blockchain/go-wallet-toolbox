@@ -114,9 +114,9 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 func (p *process) broadcastDelayedTransaction(ctx context.Context, log *slog.Logger, txIDs []string) (*wdk.ProcessActionResult, error) {
 	log.InfoContext(ctx, "Attempting to broadcast transactions", "txIDs", txIDs)
 
-	// The sweep introduces no transaction of its own: these are queued transactions whose
-	// broadcast is being retried, so a failure here must leave them queued for the next run
-	// rather than abandon them.
+	// nil release: the sweep introduces no transaction of its own. These are queued
+	// transactions whose broadcast is being retried, so a failure must leave them queued for
+	// the next run rather than abandon them.
 	result, err := p.broadcastTxs(ctx, txIDs, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("broadcast of waiting batch %v failed: %w", txIDs, err)

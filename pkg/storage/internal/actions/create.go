@@ -206,12 +206,17 @@ func newCreateAction(
 	return c
 }
 
-func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (*wdk.StorageCreateActionResult, error) {
-	var err error
+func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (result *wdk.StorageCreateActionResult, err error) {
 	ctx, span := tracing.StartTracing(ctx, "StorageActions-Create", attribute.Int("userID", userID))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
+
+	// Armed the moment the action is persisted: from then on it holds reserved inputs, while
+	// a failure means the caller never learns its reference and nothing could ever complete
+	// or abort it.
+	rel := newRelease(c.logger, c.aborter, userID)
+	defer func() { rel.onError(ctx, err) }()
 
 	reference, err := c.randomReference()
 	if err != nil {
@@ -659,6 +664,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	// The action (and its input reservations) is committed now.
+	rel.armByReference(reference)
+
 	if useThroughput {
 		outcome := c.classifyThroughputOutcome(funding, fundedViaFallback)
 		metrics.RecordFundingOutcome(ctx, string(outcome))
@@ -687,7 +695,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	resultInputs, err := c.resultInputs(ctx, funding.AllocatedUTXOs, params.IncludeInputSourceRawTxs, processedInputs.Inputs)
 	if err != nil {
-		return nil, c.failAfterTxSaved(ctx, userID, reference, err)
+		return nil, err
 	}
 
 	c.logger.DebugContext(
@@ -702,7 +710,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 
 	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.TrustSelf && params.ReturnTXIDOnly)
 	if err != nil {
-		return nil, c.failAfterTxSaved(ctx, userID, reference, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err))
+		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}
 
 	return &wdk.StorageCreateActionResult{
@@ -715,16 +723,6 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
-}
-
-// failAfterTxSaved handles a failure that happens after the funding transaction was already
-// committed: the action sits in the database as 'unsigned' with its inputs reserved, but the
-// caller never receives the reference, so nothing can ever sign, process or abort it. The
-// reservation is therefore released right away instead of waiting for the fail_abandoned
-// sweep. The passed error is returned unchanged.
-func (c *create) failAfterTxSaved(ctx context.Context, userID int, reference string, cause error) error {
-	releaseReservedInputs(ctx, c.logger, c.aborter, userID, reference, cause)
-	return cause
 }
 
 // FundingOutcome classifies how a throughput-mode request was funded; it feeds

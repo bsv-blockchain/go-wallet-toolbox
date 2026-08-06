@@ -35,14 +35,11 @@ type SignAction struct {
 	txID       *chainhash.Hash
 	originator string
 
-	// processActionAttempted records whether the signed transaction was already handed
-	// to storage.ProcessAction. Once it was, the action may carry broadcast evidence and
-	// must not be aborted by this wallet as a compensating action.
-	processActionAttempted bool
+	// rel releases the storage-side action if this flow cannot complete it.
+	rel *release
 }
 
-func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (*wallet.SignActionResult, error) {
-	var err error
+func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (result *wallet.SignActionResult, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction", attribute.String("originator", originator))
 	defer func() {
 		tracing.EndTracing(span, err)
@@ -52,14 +49,21 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
 
-	err = s.validate()
-	if err != nil {
-		return nil, s.failBeforeProcess(ctx, err)
+	// The action was created (and its inputs reserved) by an earlier CreateAction and only
+	// this flow can complete it, so any failure before it reaches ProcessAction releases it.
+	// The cached pending action goes with it: the reference is dead afterwards.
+	s.rel = newRelease(s.Logger, s.Storage)
+	s.rel.onRelease = s.dropPendingSignAction
+	s.rel.arm(s.reference)
+	defer func() { s.rel.onError(ctx, err) }()
+
+	if err = s.validate(); err != nil {
+		return nil, err
 	}
 
 	pendingSignAction, err := s.PendingSignActionsCache.Get(s.reference)
 	if err != nil {
-		return nil, s.failBeforeProcess(ctx, fmt.Errorf("get pending sign action failed: %w", err))
+		return nil, fmt.Errorf("get pending sign action failed: %w", err)
 	}
 
 	s.mergeArgs(pendingSignAction.CreateActionArgs, args)
@@ -68,12 +72,11 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 
 	s.attachUnlockingScripts(args)
 	if err = s.allInputsCanBeUnlocked(); err != nil {
-		return nil, s.failBeforeProcess(ctx, fmt.Errorf("not all inputs can be unlocked: %w", err))
+		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
 	}
 
-	err = s.tx.Sign()
-	if err != nil {
-		return nil, s.failBeforeProcess(ctx, fmt.Errorf("sign transaction failed: %w", err))
+	if err = s.tx.Sign(); err != nil {
+		return nil, fmt.Errorf("sign transaction failed: %w", err)
 	}
 
 	s.txID = s.tx.TxID()
@@ -82,7 +85,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 		return nil, err
 	}
 
-	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
+	result, err = mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing signed action: %w",
 			pkgerrors.NewTransactionError(*s.txID).
@@ -99,9 +102,10 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	}
 
 	if result.Tx != nil && s.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
+		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx)
+		if verifyErr != nil {
+			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
+			return nil, err
 		}
 
 		result.Tx = tx
@@ -121,36 +125,14 @@ func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
 	}
 }
 
-// failBeforeProcess handles a SignAction failure that happened before the transaction
-// reached storage.ProcessAction. The action created by CreateAction is still parked in
-// storage as 'unsigned' and nobody will complete it now, so its reserved inputs are
-// released right away instead of waiting for the fail_abandoned sweep. The pending sign
-// action is dropped as well, so the dead reference cannot be retried.
-// The passed error is returned unchanged.
-func (s *SignAction) failBeforeProcess(ctx context.Context, err error) error {
-	if s.reference == "" {
-		// Nothing identifies the action (rejected by validate), so there is nothing to abort.
-		return err
-	}
-
-	if s.processActionAttempted {
-		// Defensive: the transaction may already carry broadcast evidence, releasing its
-		// inputs here could double-spend it.
-		s.Logger.WarnContext(ctx, "skipping compensating abort: action was already sent to ProcessAction",
+// dropPendingSignAction removes the cached pending action after its storage-side action was
+// released: the reference is dead, so a retry with it can only fail.
+func (s *SignAction) dropPendingSignAction() {
+	if err := s.PendingSignActionsCache.Delete(s.reference); err != nil {
+		s.Logger.Warn("failed to delete pending sign action from cache after abort",
 			slog.String("reference", s.reference),
 			logging.Error(err))
-		return err
 	}
-
-	abortActionAfterFailure(ctx, s.Logger, s.Storage, s.reference, err)
-
-	if deleteErr := s.PendingSignActionsCache.Delete(s.reference); deleteErr != nil {
-		s.Logger.WarnContext(ctx, "failed to delete pending sign action from cache after abort",
-			slog.String("reference", s.reference),
-			logging.Error(deleteErr))
-	}
-
-	return err
 }
 
 func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
@@ -162,7 +144,9 @@ func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActio
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
 
-	s.processActionAttempted = true
+	// Point of no return: storage takes over from here and may broadcast the transaction, so
+	// this wallet must not release its inputs anymore.
+	s.rel.disarm()
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

@@ -32,39 +32,43 @@ type CreateAction struct {
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
-	reference  string
 
-	// processActionAttempted records whether the assembled transaction was already
-	// handed to storage.ProcessAction. Once it was, the action may carry broadcast
-	// evidence and must not be aborted by this wallet as a compensating action.
-	processActionAttempted bool
+	// rel releases the storage-side action if this flow cannot complete it.
+	rel *release
 }
 
-func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (*wallet.CreateActionResult, error) {
+func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (result *wallet.CreateActionResult, err error) {
 	a.Logger = logging.Child(a.Logger, "CreateAction")
 	a.originator = originator
+
+	// storage.CreateAction reserves inputs for the action it creates. Until this flow hands
+	// the action to ProcessAction, it is the only one that can complete it - so any failure
+	// in between must give those inputs back.
+	a.rel = newRelease(a.Logger, a.Storage)
+	defer func() { a.rel.onError(ctx, err) }()
 	a.wdkArgs = mapping.MapCreateActionArgs(args, *a.WalletOpts)
 	if a.WdkArgsMutator != nil {
 		a.WdkArgsMutator(&a.wdkArgs)
 	}
 
 	if a.wdkArgs.Options.KnownTxids == nil {
-		knownTxIDs, err := wp.GetKnownTxIDs()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", err)
+		knownTxIDs, knownErr := wp.GetKnownTxIDs()
+		if knownErr != nil {
+			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", knownErr)
 		}
 
 		a.wdkArgs.Options.KnownTxids = knownTxIDs
 	}
 
-	if err := a.validate(); err != nil {
+	if err = a.validate(); err != nil {
 		return nil, err
 	}
 
 	if a.isNotNewTX() {
 		return a.handleNotNewTX(ctx)
 	}
-	result, err := a.handleNewTX(ctx, args)
+
+	result, err = a.handleNewTX(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -73,18 +77,14 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return result, nil
 	}
 
-	err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx)
-	if err != nil {
-		err = fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
-		a.abortAfterFailure(ctx, a.reference, err)
-		return nil, err
+	if err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx); err != nil {
+		return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
 	}
 
 	if a.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
-		if err != nil {
-			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
-			a.abortAfterFailure(ctx, a.reference, err)
+		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
+		if verifyErr != nil {
+			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
 			return nil, err
 		}
 
@@ -120,37 +120,16 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action: %w", err)
 	}
-	a.reference = storageCreateActionResult.Reference
+
+	// The action now exists in storage with its inputs reserved.
+	a.rel.arm(storageCreateActionResult.Reference)
 
 	createActionResult, err := a.handleCreatedNewTx(ctx, args, storageCreateActionResult)
 	if err != nil {
-		// storage.CreateAction already reserved the inputs (custom inputs included) and
-		// parked the transaction in status 'unsigned' with no txid. Nothing downstream
-		// will complete it now, so release the reservation immediately instead of
-		// waiting for the fail_abandoned sweep - otherwise those inputs stay locked and
-		// leak into queries as rows without an outpoint.
-		a.abortAfterFailure(ctx, storageCreateActionResult.Reference, err)
 		return nil, pkgerrors.NewCreateActionError(storageCreateActionResult.Reference).Wrap(err)
 	}
 
 	return createActionResult, nil
-}
-
-// abortAfterFailure releases the inputs reserved by a created action that will never be
-// signed or processed.
-func (a *CreateAction) abortAfterFailure(ctx context.Context, reference string, cause error) {
-	if a.processActionAttempted {
-		// The transaction was already submitted to storage for processing, so it may
-		// have broadcast evidence. Releasing its inputs here could double-spend it;
-		// leave the decision to the caller / monitor.
-		a.Logger.WarnContext(ctx, "skipping compensating abort: action was already sent to ProcessAction",
-			slog.String("reference", reference),
-			logging.Error(cause),
-		)
-		return
-	}
-
-	abortActionAfterFailure(ctx, a.Logger, a.Storage, reference, cause)
 }
 
 func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.CreateActionArgs, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
@@ -211,7 +190,9 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)
 
-	a.processActionAttempted = true
+	// Point of no return: storage takes over from here and may broadcast the transaction, so
+	// this wallet must not release its inputs anymore.
+	a.rel.disarm()
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

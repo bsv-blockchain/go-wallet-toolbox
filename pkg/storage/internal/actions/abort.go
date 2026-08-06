@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -209,4 +211,111 @@ func abortableKnownTxStatus(status wdk.ProvenTxReqStatus) bool {
 	default:
 		return false
 	}
+}
+
+// txStatusesAbortableBeforeBroadcast are the user-transaction statuses a pre-broadcast
+// abort may act on. 'sending' is deliberately absent: it means the transaction is queued
+// for (or already went through) a post attempt whose outcome is unknown.
+var txStatusesAbortableBeforeBroadcast = []wdk.TxStatus{
+	wdk.TxStatusUnsigned,
+	wdk.TxStatusUnprocessed,
+	wdk.TxStatusNoSend,
+	wdk.TxStatusNonFinal,
+	wdk.TxStatusUnfail,
+}
+
+// AbortUnbroadcastTx releases the inputs of a transaction that already carries a txid (it
+// passed SpendTransaction) but provably never reached a broadcaster. The shared KnownTx is
+// parked FIRST: that guarded transition is the authority for the whole abort - it only
+// applies while the transaction was never posted, and once applied no pipeline can pick the
+// transaction up again. Only rows owned by userID are aborted, and the abort backs off
+// entirely when any other row keeps the transaction alive.
+func (a *abortAction) AbortUnbroadcastTx(ctx context.Context, userID int, txID string) error {
+	logger := a.logger.With(slog.String("txID", txID))
+
+	transactions, err := a.transactionsRepo.FindTransactions(ctx, &pkgentity.TransactionReadSpecification{
+		TxID: &pkgentity.Comparable[string]{Value: txID, Cmp: pkgentity.Equal},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to find transactions for txID %s: %w", txID, err)
+	}
+
+	toAbort, othersStillActive := a.splitTxsForPreBroadcastAbort(transactions, &userID)
+	if len(toAbort) == 0 {
+		logger.DebugContext(ctx, "skipping abort before broadcast: no transaction in an abortable status")
+		return nil
+	}
+
+	// Another owner still has this transaction in flight, so the shared KnownTx must stay
+	// broadcastable - and then our inputs must stay spent, or that broadcast becomes a
+	// double spend.
+	if othersStillActive {
+		logger.WarnContext(ctx, "skipping abort before broadcast: transaction is still active for another user")
+		return nil
+	}
+
+	// Park the shared KnownTx FIRST. It is the guard that decides whether this abort may
+	// happen at all: it only applies while the tx provably never reached a broadcaster, and
+	// once applied no pipeline (send_waiting, background broadcaster re-queue) can pick the
+	// tx up again.
+	note := history.NewBuilder().AbortBeforeBroadcast(wdk.ProvenTxStatusInvalid)
+
+	parked, err := a.knownTxRepo.ParkUnbroadcastKnownTx(ctx, txID, []history.Builder{note})
+	if err != nil {
+		return fmt.Errorf("failed to park known tx %s before abort: %w", txID, err)
+	}
+	if !parked {
+		logger.WarnContext(ctx, "skipping abort before broadcast: known tx may have already been handed to a broadcaster")
+		return nil
+	}
+
+	for _, id := range toAbort {
+		if checkErr := a.outputsRepo.ShouldTxOutputsBeUnspent(ctx, id); checkErr != nil {
+			a.logger.WarnContext(ctx, "skipping abort: tx outputs already spent", logging.Number("transactionID", id), logging.Error(checkErr))
+			continue
+		}
+
+		if uowErr := a.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+			if err := repos.UTXORepo().UnreserveUTXOsByTransactionID(txCtx, id); err != nil {
+				return fmt.Errorf("failed to unreserve UTXOs: %w", err)
+			}
+			if err := repos.OutputRepo().RecreateSpentOutputs(txCtx, id); err != nil {
+				return fmt.Errorf("failed to recreate spent outputs: %w", err)
+			}
+			if err := repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); err != nil {
+				return fmt.Errorf("failed to mark created outputs as not spendable: %w", err)
+			}
+			// Positive CAS: only abort a row that is still in a pre-broadcast status. A row
+			// that advanced concurrently wins and rolls this unit of work back.
+			if err := repos.TransactionsRepo().UpdateTransactionStatusByID(txCtx, id, wdk.TxStatusAborted, txStatusesAbortableBeforeBroadcast...); err != nil {
+				return fmt.Errorf("failed to update transaction status to aborted: %w", err)
+			}
+			return nil
+		}); uowErr != nil {
+			return fmt.Errorf("failed to abort transaction %d before broadcast: %w", id, uowErr)
+		}
+	}
+
+	logger.InfoContext(ctx, "aborted transaction before broadcast", slog.Int("abortedRows", len(toAbort)))
+	return nil
+}
+
+// splitTxsForPreBroadcastAbort returns the ids this call may abort and reports whether any
+// other row for the same txID (another user, or a row that already advanced) is still live.
+func (a *abortAction) splitTxsForPreBroadcastAbort(transactions []*pkgentity.Transaction, userScope *int) (toAbort []uint, othersStillActive bool) {
+	for _, tx := range transactions {
+		inScope := userScope == nil || tx.UserID == *userScope
+		abortable := slices.Contains(txStatusesAbortableBeforeBroadcast, tx.Status)
+
+		switch {
+		case inScope && abortable:
+			toAbort = append(toAbort, tx.ID)
+		case tx.Status == wdk.TxStatusAborted || tx.Status == wdk.TxStatusFailed:
+			// already gone, nothing keeps the tx alive
+		default:
+			othersStillActive = true
+		}
+	}
+
+	return toAbort, othersStillActive
 }
