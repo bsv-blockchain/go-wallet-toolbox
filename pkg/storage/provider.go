@@ -647,7 +647,11 @@ func (p *Provider) ProcessAction(ctx context.Context, auth wdk.AuthID, args wdk.
 		return nil, ErrAuthorization
 	}
 	if err = validate.ProcessActionArgs(&args); err != nil {
-		return nil, fmt.Errorf("invalid processAction args: %w", err)
+		err = fmt.Errorf("invalid processAction args: %w", err)
+		// The action referenced here was created by an earlier CreateAction and still holds
+		// its reserved inputs. Nothing was processed, so release them right away.
+		p.actions.ReleaseUnprocessedAction(ctx, *auth.UserID, &args, err)
+		return nil, err
 	}
 
 	res, err := p.actions.Process(ctx, *auth.UserID, &args)

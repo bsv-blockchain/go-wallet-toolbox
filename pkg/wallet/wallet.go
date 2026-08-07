@@ -373,6 +373,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	start := time.Now()
 	defer func() { w.logger.DebugContext(ctx, "CreateAction done", slog.Duration("duration", time.Since(start))) }()
 	action := &actions.CreateAction{
+		Logger:                  w.logger,
 		KeyDeriver:              w.keyDeriver,
 		Storage:                 w.storage,
 		WalletOpts:              w.flags,
@@ -401,6 +402,7 @@ func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, origina
 	}()
 
 	action := &actions.CreateAction{
+		Logger:                  w.logger,
 		KeyDeriver:              w.keyDeriver,
 		Storage:                 w.storage,
 		WalletOpts:              w.flags,
