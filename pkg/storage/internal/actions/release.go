@@ -47,7 +47,14 @@ type release struct {
 }
 
 func newRelease(logger *slog.Logger, aborter actionAborter, userID int) *release {
-	return &release{logger: logger, aborter: aborter, userID: userID}
+	return &release{
+		logger:  logger,
+		aborter: aborter,
+		userID:  userID,
+		// Disarmed until the action is actually persisted: there is nothing to give back
+		// before that, and a failure on the way there must not abort anything.
+		armed: false,
+	}
 }
 
 // arm marks the action as releasable.

@@ -39,7 +39,13 @@ type release struct {
 }
 
 func newRelease(logger *slog.Logger, storage WalletStorageAbortAction) *release {
-	return &release{logger: logger, storage: storage}
+	return &release{
+		logger:  logger,
+		storage: storage,
+		// Disarmed until storage confirms it created the action: there is nothing to give
+		// back before that, and a failure on the way there must not abort anything.
+		armed: false,
+	}
 }
 
 // arm marks the action as releasable. Calling it without a reference is a no-op: without one

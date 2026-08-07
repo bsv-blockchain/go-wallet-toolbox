@@ -35,8 +35,8 @@ type SignAction struct {
 	txID       *chainhash.Hash
 	originator string
 
-	// rel releases the storage-side action if this flow cannot complete it.
-	rel *release
+	// release releases the storage-side action if this flow cannot complete it.
+	release *release
 }
 
 func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (result *wallet.SignActionResult, err error) {
@@ -52,10 +52,10 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	// The action was created (and its inputs reserved) by an earlier CreateAction and only
 	// this flow can complete it, so any failure before it reaches ProcessAction releases it.
 	// The cached pending action goes with it: the reference is dead afterwards.
-	s.rel = newRelease(s.Logger, s.Storage)
-	s.rel.onRelease = s.dropPendingSignAction
-	s.rel.arm(s.reference)
-	defer func() { s.rel.onError(ctx, err) }()
+	s.release = newRelease(s.Logger, s.Storage)
+	s.release.onRelease = s.dropPendingSignAction
+	s.release.arm(s.reference)
+	defer func() { s.release.onError(ctx, err) }()
 
 	if err = s.validate(); err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActio
 
 	// Point of no return: storage takes over from here and may broadcast the transaction, so
 	// this wallet must not release its inputs anymore.
-	s.rel.disarm()
+	s.release.disarm()
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

@@ -33,8 +33,8 @@ type CreateAction struct {
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
 
-	// rel releases the storage-side action if this flow cannot complete it.
-	rel *release
+	// release releases the storage-side action if this flow cannot complete it.
+	release *release
 }
 
 func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (result *wallet.CreateActionResult, err error) {
@@ -44,8 +44,8 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 	// storage.CreateAction reserves inputs for the action it creates. Until this flow hands
 	// the action to ProcessAction, it is the only one that can complete it - so any failure
 	// in between must give those inputs back.
-	a.rel = newRelease(a.Logger, a.Storage)
-	defer func() { a.rel.onError(ctx, err) }()
+	a.release = newRelease(a.Logger, a.Storage)
+	defer func() { a.release.onError(ctx, err) }()
 	a.wdkArgs = mapping.MapCreateActionArgs(args, *a.WalletOpts)
 	if a.WdkArgsMutator != nil {
 		a.WdkArgsMutator(&a.wdkArgs)
@@ -122,7 +122,7 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	}
 
 	// The action now exists in storage with its inputs reserved.
-	a.rel.arm(storageCreateActionResult.Reference)
+	a.release.arm(storageCreateActionResult.Reference)
 
 	createActionResult, err := a.handleCreatedNewTx(ctx, args, storageCreateActionResult)
 	if err != nil {
@@ -192,7 +192,7 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 
 	// Point of no return: storage takes over from here and may broadcast the transaction, so
 	// this wallet must not release its inputs anymore.
-	a.rel.disarm()
+	a.release.disarm()
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

@@ -102,8 +102,8 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 	// transaction provably cannot reach the network, so any failure - wherever it happens -
 	// gives its reserved inputs back. Only the transaction introduced here is covered; the
 	// sendWith companions were parked by their own createAction.
-	rel := p.newRelease(userID, args)
-	defer func() { rel.onError(ctx, err) }()
+	release := p.newRelease(userID, args)
+	defer func() { release.onError(ctx, err) }()
 
 	logger := p.logger.With(logging.UserID(userID))
 
@@ -122,7 +122,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 			slog.String("reference", to.Value(args.Reference)),
 			slog.Int("rawTxSize", len(args.RawTx)),
 		)
-		if err = p.processNewTx(ctx, userID, rel, args); err != nil {
+		if err = p.processNewTx(ctx, userID, release, args); err != nil {
 			return nil, err
 		}
 	}
@@ -161,7 +161,7 @@ func (p *process) Process(ctx context.Context, userID int, args *wdk.ProcessActi
 		slog.Bool("isDelayed", args.IsDelayed),
 	)
 
-	result, err = p.broadcastTxs(ctx, txIDs, args.IsDelayed, rel)
+	result, err = p.broadcastTxs(ctx, txIDs, args.IsDelayed, release)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (p *process) txIDsToBroadcast(args *wdk.ProcessActionArgs) []string {
 	return result
 }
 
-func (p *process) processNewTx(ctx context.Context, userID int, rel *release, args *wdk.ProcessActionArgs) error {
+func (p *process) processNewTx(ctx context.Context, userID int, release *release, args *wdk.ProcessActionArgs) error {
 	txlogger := p.logger.With(
 		logging.UserID(userID),
 		slog.String("reference", to.Value(args.Reference)),
@@ -238,7 +238,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, rel *release, ar
 		// A transaction that is missing, not outgoing, or no longer in a processable status
 		// is not an action this call may release - it either belongs to another flow or was
 		// already processed, and releasing it would discard state this call never created.
-		rel.disarm()
+		release.disarm()
 		return err
 	}
 
@@ -311,11 +311,11 @@ func (p *process) processNewTx(ctx context.Context, userID int, rel *release, ar
 // that introduce a transaction of their own: sendWith-only calls re-send transactions parked
 // by earlier calls, which must be retried rather than abandoned.
 func (p *process) newRelease(userID int, args *wdk.ProcessActionArgs) *release {
-	rel := newRelease(p.logger, p.aborter, userID)
+	release := newRelease(p.logger, p.aborter, userID)
 	if args != nil && args.IsNewTx && args.Reference != nil {
-		rel.arm(*args.Reference)
+		release.arm(*args.Reference)
 	}
-	return rel
+	return release
 }
 
 // ReleaseUnprocessedAction releases the inputs reserved by the action args refer to. It is
@@ -415,11 +415,11 @@ func (p *process) newStatuses(args *wdk.ProcessActionArgs) (txStatus wdk.TxStatu
 	return txStatus, reqStatus
 }
 
-// broadcastTxs posts (or queues) the given transactions. rel is the caller's compensation:
+// broadcastTxs posts (or queues) the given transactions. release is the caller's compensation:
 // it stays armed until the point of no return, so any failure on the way there gives the
 // reserved inputs back. The send_waiting sweep passes a never-armed release, because a
 // failed retry of an already queued transaction must be retried again, not abandoned.
-func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool, rel *release) (*wdk.ProcessActionResult, error) {
+func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bool, release *release) (*wdk.ProcessActionResult, error) {
 	logger := p.logger.With(
 		slog.Int("txIDsCount", len(txIDs)),
 		slog.Bool("isDelayed", isDelayed),
@@ -564,7 +564,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 		// Point of no return: queueing hands the transaction to the background broadcaster,
 		// which may post it at any moment.
-		rel.disarm()
+		release.disarm()
 
 		var resultsForDelayedTxs []wdk.SendWithResult
 		resultsForDelayedTxs, err = p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
@@ -587,7 +587,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// Point of no return: claiming flags the KnownTx as broadcast, and the post follows
 	// immediately - from here the outcome of the transaction is decided by the network, not
 	// by this call.
-	rel.disarm()
+	release.disarm()
 
 	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
 	if err != nil {

@@ -215,8 +215,8 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// Armed the moment the action is persisted: from then on it holds reserved inputs, while
 	// a failure means the caller never learns its reference and nothing could ever complete
 	// or abort it.
-	rel := newRelease(c.logger, c.aborter, userID)
-	defer func() { rel.onError(ctx, err) }()
+	release := newRelease(c.logger, c.aborter, userID)
+	defer func() { release.onError(ctx, err) }()
 
 	reference, err := c.randomReference()
 	if err != nil {
@@ -665,7 +665,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	// The action (and its input reservations) is committed now.
-	rel.arm(reference)
+	release.arm(reference)
 
 	if useThroughput {
 		outcome := c.classifyThroughputOutcome(funding, fundedViaFallback)
