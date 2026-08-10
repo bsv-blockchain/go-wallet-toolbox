@@ -287,6 +287,14 @@ require (
 
 tool go.uber.org/mock/mockgen
 
+// The go-libp2p / quic-go / webtransport-go trio below is pinned because the
+// latest go-libp2p (v0.49.0) does not compile against the latest
+// quic-go/webtransport-go (v0.12.0): it references a webtransport.Dialer type
+// that v0.12.0 removed. These replaces only apply when this module is built
+// standalone — Go ignores replace directives from dependencies, so consumers
+// importing this module as a library must copy the same three replace lines
+// into their own go.mod. See README.md "Consuming as a library" and
+// https://github.com/bsv-blockchain/go-wallet-toolbox/issues/983.
 replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
 
 replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
