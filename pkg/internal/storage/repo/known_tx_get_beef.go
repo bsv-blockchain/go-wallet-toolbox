@@ -31,7 +31,7 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 		beef = options.MergeToBEEF
 	}
 
-	err = p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options)
+	err = p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -52,12 +52,37 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], o
 		beef = options.MergeToBEEF
 	}
 
+	var missingTxIDs []string
 	for txID := range txIDs {
 		if beef.FindTransaction(txID) != nil {
 			continue
 		}
+		missingTxIDs = append(missingTxIDs, txID)
+	}
 
-		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options); err != nil {
+	var preFetched map[string]models.KnownTx
+	if len(missingTxIDs) > 0 {
+		var modelsBatch []models.KnownTx
+		query := p.db.WithContext(ctx).
+			Model(&models.KnownTx{}).
+			Select("tx_id, raw_tx, input_beef, merkle_path")
+
+		if len(options.StatusesToFilterOut) > 0 {
+			query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+		}
+
+		if err := query.Where("tx_id IN ?", missingTxIDs).Find(&modelsBatch).Error; err != nil {
+			return nil, fmt.Errorf("failed to pre-fetch known txs: %w", err)
+		}
+
+		preFetched = make(map[string]models.KnownTx, len(modelsBatch))
+		for _, m := range modelsBatch {
+			preFetched[m.TxID] = m
+		}
+	}
+
+	for _, txID := range missingTxIDs {
+		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, preFetched); err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txID, err)
 		}
 	}
@@ -71,6 +96,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	mergeToBeef *transaction.Beef,
 	txID string,
 	options entity.GetBEEFOptions,
+	preFetched map[string]models.KnownTx,
 ) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
@@ -86,16 +112,23 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	}
 
 	var model models.KnownTx
-	query := p.db.WithContext(ctx).
-		Model(&model).
-		Select("raw_tx, input_beef, merkle_path")
+	var err error
 
-	if len(options.StatusesToFilterOut) > 0 {
-		query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+	if cachedModel, ok := preFetched[txID]; ok {
+		model = cachedModel
+	} else {
+		query := p.db.WithContext(ctx).
+			Model(&model).
+			Select("raw_tx, input_beef, merkle_path")
+
+		if len(options.StatusesToFilterOut) > 0 {
+			query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+		}
+
+		err = query.First(&model, "tx_id = ? ", txID).Error
 	}
 
-	err := query.First(&model, "tx_id = ? ", txID).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 		if options.TxGetterFcn == nil {
 			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.ErrNotFoundError)
 		}
@@ -201,7 +234,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	for _, input := range tx.Inputs {
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options)
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options, preFetched)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
 			}
