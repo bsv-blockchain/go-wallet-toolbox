@@ -86,4 +86,19 @@ func main() {
 - Auth stubs: `IsAuthenticated`, `WaitForAuthentication`
 - Lifecycle: `Close`, `Destroy`
 
-> **Note:** Certificate APIs (`AcquireCertificate`, `ListCertificates`, `ProveCertificate`, `RelinquishCertificate`, `Discover*`) are placeholders and not yet implemented.
+### Certificates and identity
+
+`AcquireCertificate` (both `issuance` and `direct` acquisition protocols),
+`ListCertificates`, `ProveCertificate`, `RelinquishCertificate`, `DiscoverByIdentityKey`,
+and `DiscoverByAttributes` are implemented in `pkg/wallet/wallet.go`. The discovery
+methods query overlay services and cache results; they do not persist certificates.
+
+> **Note:** The privileged keyring is not yet wired up. Methods accepting `privileged`
+> derive through the standard key deriver regardless; see the TODOs in
+> `pkg/wallet/wallet.go` referencing `PrivilegedKeyManager`.
+
+### Transaction lifecycle
+
+For the full UTXO lifecycle — repository calls per method, the two-phase reservation, the
+release compensation machine, status vocabularies, and known parity gaps against the
+TypeScript implementation — see [`docs/utxo-lifecycle.md`](./utxo-lifecycle.md).
