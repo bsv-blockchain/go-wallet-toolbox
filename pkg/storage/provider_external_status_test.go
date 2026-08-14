@@ -26,6 +26,7 @@ const (
 	externalEventBlockHeight = 2000
 	externalEventBlockHash   = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b1234"
 	externalNoteWhat         = "externalBroadcastStatus"
+	minedStatus              = "MINED"
 )
 
 // A MINED event carrying a valid merkle path must complete the transaction
@@ -52,7 +53,7 @@ func TestExternalStatusMinedWithMerklePathInEvent(t *testing.T) {
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		EventID:     "1000",
 		TxID:        txID,
-		Status:      "MINED",
+		Status:      minedStatus,
 		BlockHash:   externalEventBlockHash,
 		BlockHeight: externalEventBlockHeight,
 		MerklePath:  merklePath.Hex(),
@@ -100,7 +101,7 @@ func TestExternalStatusMinedWithInvalidMerkleRootIsRejected(t *testing.T) {
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:        txID,
-		Status:      "MINED",
+		Status:      minedStatus,
 		BlockHash:   externalEventBlockHash,
 		BlockHeight: externalEventBlockHeight,
 		MerklePath:  merklePath.Hex(),
@@ -137,7 +138,7 @@ func TestExternalStatusMinedWithoutPathFallsBackToServices(t *testing.T) {
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   txID,
-		Status: "MINED",
+		Status: minedStatus,
 	})
 
 	// then:
@@ -269,7 +270,7 @@ func TestExternalStatusMinedSSEFrameWithBUMPCompletesTx(t *testing.T) {
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		EventID:     "1745870512987654321",
 		TxID:        txID,
-		Status:      "MINED",
+		Status:      minedStatus,
 		BlockHash:   externalEventBlockHash,
 		BlockHeight: externalEventBlockHeight,
 		MerklePath:  merklePath.Hex(),
@@ -376,7 +377,7 @@ func TestExternalStatusMinedWithoutPathAndNoProofIsLeftToPolling(t *testing.T) {
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   txID,
-		Status: "MINED",
+		Status: minedStatus,
 	})
 
 	// then: no error and no result - nothing was applied:
@@ -413,7 +414,7 @@ func TestExternalStatusMinedWithPathButNoBlockHashFallsBackToServices(t *testing
 	merklePath := testutils.MockValidMerklePath(t, txID, externalEventBlockHeight)
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:        txID,
-		Status:      "MINED",
+		Status:      minedStatus,
 		BlockHeight: externalEventBlockHeight,
 		MerklePath:  merklePath.Hex(),
 	})
@@ -582,7 +583,7 @@ func TestExternalStatusUnknownTxIDIsNoOp(t *testing.T) {
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   "27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e",
-		Status: "MINED",
+		Status: minedStatus,
 	})
 
 	// then:
@@ -610,7 +611,7 @@ func TestExternalStatusTerminalStatusIsNoOp(t *testing.T) {
 
 	_, err = activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:        txID,
-		Status:      "MINED",
+		Status:      minedStatus,
 		BlockHash:   externalEventBlockHash,
 		BlockHeight: externalEventBlockHeight,
 		MerklePath:  merklePath.Hex(),
@@ -667,7 +668,7 @@ func TestExternalStatusRejectedRacingCompletionLeavesCompletedTxUntouched(t *tes
 				completedConcurrently = true
 				_, minedErr := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 					TxID:        txID,
-					Status:      "MINED",
+					Status:      minedStatus,
 					BlockHash:   externalEventBlockHash,
 					BlockHeight: externalEventBlockHeight,
 					MerklePath:  merklePath.Hex(),
@@ -742,7 +743,7 @@ func TestExternalStatusRejectedWithoutEvidenceRacingCompletionLeavesCompletedTxU
 				completedConcurrently = true
 				_, minedErr := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 					TxID:        txID,
-					Status:      "MINED",
+					Status:      minedStatus,
 					BlockHash:   externalEventBlockHash,
 					BlockHeight: externalEventBlockHeight,
 					MerklePath:  merklePath.Hex(),
