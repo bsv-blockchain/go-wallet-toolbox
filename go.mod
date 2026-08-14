@@ -2,6 +2,8 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 
 go 1.26.3
 
+toolchain go1.26.6
+
 require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.13.6
 	github.com/bsv-blockchain/go-chaintracks v1.2.11
