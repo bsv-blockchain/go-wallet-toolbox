@@ -121,6 +121,22 @@ go get -u github.com/bsv-blockchain/go-wallet-toolbox
 
 <br/>
 
+### Consuming as a library
+
+This module's `go.mod` pins three transitive dependencies via `replace` directives:
+
+```
+replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
+replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
+replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
+```
+
+They exist because the latest `go-libp2p` release doesn't build against the latest `quic-go`/`webtransport-go` releases (an upstream API break), and other dependencies in the graph pull in those newer, incompatible versions.
+
+Go only applies `replace` directives from the **main module** being built — they are ignored when this module is imported as a dependency. If you import `go-wallet-toolbox` from your own module, `go build` may fail with an error such as `undefined: webtransport.Dialer` unless you copy the same three `replace` lines above into your own `go.mod`.
+
+<br/>
+
 ### Quick Start: Storage Server
 
 Run a local storage server for development/testing.
