@@ -72,7 +72,8 @@ func (r *release) onError(ctx context.Context, cause error) {
 	r.armed = false
 
 	logger := r.logger.With(slog.String("reference", r.reference))
-	logger.InfoContext(ctx, "aborting action that cannot be completed, to release its reserved inputs",
+	logger.InfoContext(
+		ctx, "aborting action that cannot be completed, to release its reserved inputs",
 		logging.Error(cause),
 	)
 
@@ -85,7 +86,8 @@ func (r *release) onError(ctx context.Context, cause error) {
 		Reference: primitives.Base64String(r.reference),
 	})
 	if err != nil {
-		logger.ErrorContext(abortCtx, "failed to abort action, its inputs stay reserved until the fail_abandoned sweep",
+		logger.ErrorContext(
+			abortCtx, "failed to abort action, its inputs stay reserved until the fail_abandoned sweep",
 			logging.Error(err),
 		)
 	} else {

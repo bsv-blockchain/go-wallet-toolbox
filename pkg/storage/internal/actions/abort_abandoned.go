@@ -7,7 +7,6 @@ import (
 	"time"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
-
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"

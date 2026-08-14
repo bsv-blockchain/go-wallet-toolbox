@@ -85,7 +85,8 @@ func (r *release) onError(ctx context.Context, cause error) {
 
 	logger := r.logger.With(logging.UserID(r.userID), logging.Reference(r.reference))
 
-	logger.InfoContext(ctx, "releasing inputs reserved by an action that cannot be completed",
+	logger.InfoContext(
+		ctx, "releasing inputs reserved by an action that cannot be completed",
 		logging.Error(cause),
 	)
 
@@ -95,7 +96,8 @@ func (r *release) onError(ctx context.Context, cause error) {
 	defer cancel()
 
 	if err := r.abort(releaseCtx); err != nil {
-		logger.WarnContext(releaseCtx, "failed to release reserved inputs, they stay reserved until the fail_abandoned sweep",
+		logger.WarnContext(
+			releaseCtx, "failed to release reserved inputs, they stay reserved until the fail_abandoned sweep",
 			logging.Error(err),
 		)
 		return
