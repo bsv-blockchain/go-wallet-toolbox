@@ -262,9 +262,25 @@ Four tasks are registered in `pkg/monitor/all_tasks.go`:
 | `fail_abandoned` | `AbortAbandoned` — sweeps aged non-terminal transactions to `aborted` |
 | `un_fail` | `UnFail` — retries operator-flagged failures |
 
-The TypeScript implementation ships nineteen tasks. Statuses that only its
-review-status cascade, double-spend review, reorg handling, `nosend` settlement, or UTXO
-review advance do not advance here.
+Scheduled tasks are only part of the picture here, and comparing their count against the
+TypeScript implementation's nineteen is misleading. Two other mechanisms carry work that
+TypeScript schedules:
+
+- **Event consumers.** `pkg/monitor` runs an SSE broadcast-event pipeline with a persisted
+  replay cursor (`arcade_sse_last_event_id`), plus reorg and new-tip consumers
+  (`monitor.go` `handleReorgEvents` / `handleNewTipEvents`). Reorg handling is real —
+  `Provider.HandleReorg` invalidates merkle proofs for transactions in orphaned blocks —
+  it is event-driven rather than polled.
+- **Inline verification.** `confirmDoubleSpends`
+  (`pkg/storage/internal/actions/process_confirm_double_spends.go`) re-verifies every
+  aggregated double-spend verdict before it becomes terminal, downgrading false positives
+  to `serviceError` for retry. TypeScript does the equivalent in a scheduled
+  `TaskReviewDoubleSpends`.
+
+What is genuinely not reproduced here is the TypeScript `reviewStatus` cascade, which
+reconciles transaction rows against their proof requests; statuses that only that cascade
+advances do not advance here. Purge and action-batch cleanup also have no counterpart, the
+latter because there is no action batching in this implementation.
 
 ### Known parity gaps
 
