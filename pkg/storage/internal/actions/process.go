@@ -596,7 +596,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if len(claimedTxIDs) != len(readyToSendTxIDs) {
 		// Whatever could not be claimed was aborted or moved on in the meantime; posting it
 		// anyway could put a transaction on the network whose inputs are spendable again.
-		logger.WarnContext(ctx, "some transactions are no longer claimable for broadcast and will not be posted",
+		logger.WarnContext(
+			ctx, "some transactions are no longer claimable for broadcast and will not be posted",
 			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 			slog.Int("claimedCount", len(claimedTxIDs)),
 		)
