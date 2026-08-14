@@ -219,7 +219,7 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		// then:
 		require.NoError(t, err, "a second call must not fail resolving known transactions")
 		require.NotEmpty(t, second.BEEF, "BEEF should still be returned once transactions are known")
-		assert.Equal(t, len(first.Outputs), len(second.Outputs))
+		assert.Len(t, second.Outputs, len(first.Outputs))
 
 		// and: every returned outpoint is backed by a full transaction, not a stub
 		beef, err := transaction.NewBeefFromBytes(second.BEEF)

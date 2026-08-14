@@ -73,7 +73,7 @@ func TestGetBEEFForTxIDs_DirectSourcesOnly_StorageKnownParents(t *testing.T) {
 	repos := repo.NewSQLRepositories(db.DB)
 
 	// when:
-	beef, err := repos.KnownTx.GetBEEFForTxIDs(
+	beef, err := repos.GetBEEFForTxIDs(
 		t.Context(),
 		seq.FromSlice([]string{subject.TxID().String()}),
 		entity.WithDirectSourcesOnly(),
@@ -109,7 +109,7 @@ func TestGetBEEFForTxIDs_DirectSourcesOnly_CallerSuppliedParent(t *testing.T) {
 	repos := repo.NewSQLRepositories(db.DB)
 
 	// when:
-	beef, err := repos.KnownTx.GetBEEFForTxIDs(
+	beef, err := repos.GetBEEFForTxIDs(
 		t.Context(),
 		seq.FromSlice([]string{subject.TxID().String()}),
 		entity.WithDirectSourcesOnly(),
