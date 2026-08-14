@@ -21,8 +21,11 @@ OUT="$DIR/profiles/cpu-$TS.pb.gz"
 
 PREV="$(ls -t "$DIR"/profiles/cpu-*.pb.gz 2>/dev/null | head -n 1 || true)"
 
-echo "capturing ${SECS}s CPU profile from http://$HOST ..."
-curl -sf -o "$OUT" "http://$HOST/debug/pprof/profile?seconds=$SECS"
+# NOSONAR(shell:S5332) - net/http/pprof has no TLS variant; this hits a local dev-only
+# debug endpoint (default localhost:6060, override via PPROF_HOST), never a production
+# or public host, and carries no sensitive payload beyond CPU sample data.
+echo "capturing ${SECS}s CPU profile from http://$HOST ..." # NOSONAR(shell:S5332)
+curl -sf -o "$OUT" "http://$HOST/debug/pprof/profile?seconds=$SECS" # NOSONAR(shell:S5332)
 echo "saved: $OUT"
 echo
 
