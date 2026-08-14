@@ -81,6 +81,13 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return nil, err
 	}
 
+	// The merge above grows the shared graph whether or not this call advertised
+	// anything, so the bound is applied here rather than at advertise time -
+	// a caller supplying its own KnownTxids would otherwise never prune at all.
+	// Deferred so it runs after the reply below has been resolved and
+	// serialized, never while the graph is still needed to resolve it.
+	defer wp.BeefParty.PruneIfOversized(ctx)
+
 	tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
 	if verifyErr != nil {
 		err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)

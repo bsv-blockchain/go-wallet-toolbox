@@ -79,7 +79,11 @@ func (bp *BeefParty) resetLocked() {
 // one mutex, so a slow action is either doing too much work or queueing behind
 // something else, and only splitting the two tells you which.
 func (bp *BeefParty) WithLock(ctx context.Context, fn func(beef *transaction.Beef) error) error {
-	ctx, waitSpan := tracing.StartTracing(ctx, "BeefParty-LockWait")
+	// Deliberately not rebinding ctx: the two spans are siblings under the
+	// caller, not one inside the other. Starting the hold span from the wait
+	// span's context would nest it inside a span that has already ended, which
+	// is precisely the comparison this split exists to make readable.
+	_, waitSpan := tracing.StartTracing(ctx, "BeefParty-LockWait")
 	bp.mu.Lock()
 	tracing.EndTracing(waitSpan, nil)
 	defer bp.mu.Unlock()
@@ -272,11 +276,15 @@ func (bp *BeefParty) ValidateTransactions(ctx context.Context) *transaction.Vali
 
 // PruneIfOversized drops the accumulated graph once it grows past its bounds.
 //
-// It has to happen before a caller reads the graph to advertise it, never
-// between that and resolving the reply: storage answers with bare txids for
-// whatever was advertised, and those can only be resolved from the graph that
-// produced them. Pruning in between leaves the wallet unable to produce
-// transactions it just claimed to hold, which fails the call outright.
+// Call it once an action has finished with the graph — after the reply has been
+// resolved and serialized — and never between advertising and resolving.
+// Storage answers with bare txids for whatever was advertised, and those can
+// only be resolved from the graph that produced them, so pruning in between
+// leaves the wallet unable to produce transactions it just claimed to hold.
+//
+// Every action that merges a reply must call this, including one whose caller
+// supplied its own known-txid list and so never advertised: the merge grows the
+// graph either way, and this is the only thing that bounds it.
 func (bp *BeefParty) PruneIfOversized(ctx context.Context) {
 	_, span := tracing.StartTracing(ctx, "BeefParty-PruneIfOversized")
 	defer func() { tracing.EndTracing(span, nil) }()

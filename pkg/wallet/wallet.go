@@ -639,6 +639,10 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 			return nil, err
 		}
 
+		// Bound the graph once this reply has been resolved and serialized -
+		// see BeefParty.PruneIfOversized for why it cannot happen any earlier.
+		defer w.party.BeefParty.PruneIfOversized(ctx)
+
 		var verifiedBeef primitives.BEEF
 		verifiedBeef, err = party.VerifyReturnedTxIDOnlyBeef(ctx, w.party.BeefParty, primitives.BEEF(result.BEEF))
 		if err != nil {

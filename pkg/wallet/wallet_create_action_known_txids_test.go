@@ -1,7 +1,12 @@
 package wallet_test
 
 import (
+	"context"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -9,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 // CreateAction tells storage which transactions this wallet already holds, so
@@ -65,4 +71,67 @@ func (s *WalletTestSuite) TestCreateActionResolvesKnownTxidStubs() {
 				"%s action: input source %s missing from the returned BEEF", name, input.SourceTXID)
 		}
 	}
+}
+
+// A caller may supply its own KnownTxids, in which case the wallet does not
+// advertise and so never reads the graph. The reply is still merged into it, so
+// something else has to bound it — otherwise the graph grows on every action for
+// the whole life of the wallet, which is the leak DefaultMaxGraphTxs exists to
+// prevent.
+func (s *WalletTestSuite) TestCreateActionBoundsGraphWithCallerSuppliedKnownTxids() {
+	t := s.T()
+
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+	given.Faucet(aliceWallet).TopUp(satoshi.MustFrom(1_000_000))
+
+	// Push the shared graph past its cap up front, so one action is enough to
+	// show whether the bound is ever applied.
+	oversized := transaction.NewBeef()
+	for i := range wdk.DefaultMaxGraphTxs + 1 {
+		tx := &transaction.Transaction{Version: 1, LockTime: uint32(i)}
+		tx.Outputs = append(tx.Outputs, &transaction.TransactionOutput{
+			Satoshis:      1000,
+			LockingScript: &script.Script{},
+		})
+		_, err := oversized.MergeTransaction(tx)
+		require.NoError(t, err)
+	}
+	oversizedBytes, err := oversized.Bytes()
+	require.NoError(t, err)
+
+	beefParty := aliceWallet.GetBeefParty()
+	require.NoError(t, beefParty.MergeBeefFromParty(t.Context(), "storage-seed", oversizedBytes))
+	require.Greater(t, graphSize(t, beefParty), wdk.DefaultMaxGraphTxs, "seeding should push the graph past its cap")
+
+	// A non-empty list means the wallet uses the caller's and never advertises,
+	// so the advertise-time prune cannot fire. The txid is not in the reply, so
+	// nothing comes back as a stub and the result is unaffected.
+	args := fixtures.DefaultWalletCreateActionArgs(t,
+		walletargs.WithSignAndProcess(true),
+		walletargs.WithSatoshisAsFirstOutput(1_000),
+	)
+	if args.Options == nil {
+		args.Options = &sdk.CreateActionOptions{}
+	}
+	unrelated := &transaction.Transaction{Version: 1, LockTime: 987654}
+	args.Options.KnownTxids = []chainhash.Hash{*unrelated.TxID()}
+
+	_, err = aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+	require.NoError(t, err)
+
+	assert.LessOrEqual(t, graphSize(t, beefParty), wdk.DefaultMaxGraphTxs,
+		"the graph must be bounded even when the caller supplies its own KnownTxids")
+}
+
+func graphSize(t require.TestingT, bp *wdk.BeefParty) int {
+	var size int
+	err := bp.WithLock(context.Background(), func(beef *transaction.Beef) error {
+		size = len(beef.Transactions)
+		return nil
+	})
+	require.NoError(t, err)
+	return size
 }
