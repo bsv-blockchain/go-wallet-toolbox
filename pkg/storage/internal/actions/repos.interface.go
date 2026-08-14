@@ -82,6 +82,11 @@ type KnownTxRepo interface {
 	// UTXOs for spendable change outputs only when the guarded transition applied). Returns
 	// applied=false (and writes nothing) when the guard held.
 	AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (bool, error)
+	// RequeueKnownTxForRebroadcast atomically demotes an in-flight broadcast tx back to the
+	// rebroadcast queue (KnownTx -> unsent with rebroadcast_attempts+1, or terminal invalid
+	// when the budget is exhausted), guarded by fromStatuses inside the UPDATE. Returns the
+	// resulting status and applied=false (writing nothing) when the guard held.
+	RequeueKnownTxForRebroadcast(ctx context.Context, txID string, maxRebroadcastAttempts uint64, fromStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (wdk.ProvenTxReqStatus, bool, error)
 }
 
 type KeyValueRepo interface {

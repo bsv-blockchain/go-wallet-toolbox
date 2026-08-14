@@ -88,6 +88,7 @@ func New(
 		scriptsVerifier,
 		txBroadcastedChannel,
 		throughput.broadcasterSizing(),
+		syncTxStatusesConfig.MaxRebroadcastAttempts,
 	)
 
 	return &Actions{

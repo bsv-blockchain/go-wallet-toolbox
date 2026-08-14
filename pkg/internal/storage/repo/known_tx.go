@@ -646,6 +646,57 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 	return updatedTxs, nil
 }
 
+// RequeueKnownTxForRebroadcast atomically demotes an in-flight broadcast tx back to the
+// rebroadcast queue after an external (SSE) rejection that could not be confirmed as a
+// double spend. The guarded transition applies only while the stored status is still one
+// of fromStatuses (evaluated inside the UPDATE's WHERE clause), so a tx that completed
+// concurrently is never clobbered. The rebroadcast budget mirrors ApplyProofTimeouts:
+// within budget the tx returns to unsent (attempts reset, rebroadcast_attempts+1) for the
+// send_waiting task to pick up; with the budget exhausted it fails terminally as invalid
+// (the reviewKnownTxStatuses janitor cascades the user transaction failure).
+func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string, maxRebroadcastAttempts uint64, fromStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (newStatus wdk.ProvenTxReqStatus, applied bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-RequeueKnownTxForRebroadcast", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var candidates []*models.KnownTx
+		if findErr := tx.Model(&models.KnownTx{}).
+			Where("tx_id = ? AND status IN ?", txID, fromStatuses).
+			Select("tx_id, status, attempts, was_broadcast, rebroadcast_attempts").
+			Limit(1).
+			Find(&candidates).Error; findErr != nil {
+			return fmt.Errorf("failed to find known transaction %s for rebroadcast requeue: %w", txID, findErr)
+		}
+		if len(candidates) == 0 {
+			return nil
+		}
+
+		updates := proofTimeoutUpdates(candidates[0], maxRebroadcastAttempts)
+		newStatus = updates["status"].(wdk.ProvenTxReqStatus)
+
+		result := tx.Model(&models.KnownTx{}).
+			Where("tx_id = ? AND status IN ?", txID, fromStatuses).
+			UpdateColumns(updates)
+		if result.Error != nil {
+			return fmt.Errorf("failed to requeue known transaction %s for rebroadcast: %w", txID, result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		applied = true
+
+		return addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+			return note.Entity(txID)
+		}))
+	})
+	if err != nil {
+		return "", false, fmt.Errorf(errFmtDBTransaction, err)
+	}
+	return newStatus, applied, nil
+}
+
 func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64) map[string]any {
 	wasBroadcast := knownTx.WasBroadcast || knownTx.Status.WasBroadcastStatus()
 	if wasBroadcast && (maxRebroadcastAttempts == 0 || knownTx.RebroadcastAttempts < maxRebroadcastAttempts) {

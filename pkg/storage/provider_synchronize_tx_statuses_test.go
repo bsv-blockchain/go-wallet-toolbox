@@ -697,3 +697,58 @@ func TestSynchronizeTxFailed_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 			"output vout=%d from a sync-failed TX must not be spendable", output.Vout)
 	}
 }
+
+// A broadcast tx the network does not know at all (explicit NOT_FOUND - e.g. rejected by
+// the broadcaster after acceptance, or evicted from mempools) can never gain
+// confirmations, so it must still accumulate proof attempts and be requeued for
+// rebroadcast by ApplyProofTimeouts. Before this fix such txs were dropped by the
+// confirmation-depth filter BEFORE their attempts counter grew, so no retry or timeout
+// path could ever reach them and they stayed wedged in-flight forever.
+func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxAttempts = 3
+	activeStorage := givenProvider.
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and: a successfully broadcast transaction (status unmined, attempts=1 from the
+	// broadcast itself):
+	_, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+
+	// and: the network does not know the tx at all:
+	givenProvider.WhatsOnChain().WillRespondOnTxStatusNotFound()
+
+	// when: the first sync cycle runs:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: the absent tx accumulates a failed attempt instead of being skipped:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnmined).
+		WithAttempts(2).
+		WasBroadcast(true)
+
+	// when: the second sync cycle crosses MaxAttempts:
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: the tx is requeued for rebroadcast (send_waiting picks up unsent):
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithAttempts(0).
+		WithRebroadcastAttempts(1).
+		WasBroadcast(true).
+		NotMined()
+
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusUnproven)
+}

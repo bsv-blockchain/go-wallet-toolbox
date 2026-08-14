@@ -327,12 +327,7 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 		// False positive - the network knows the tx; make sure it's recorded as broadcast.
 		return p.advanceToBroadcastedFromExternalEvent(ctx, ev, current)
 	case wdk.AggregatedPostedTxIDServiceError:
-		p.logger.InfoContext(
-			ctx, "External REJECTED event could not be confirmed - keeping the tx retryable",
-			slog.String("txID", ev.TxID),
-			slog.String("storedStatus", string(current)),
-		)
-		return nil, nil
+		return p.requeueExternallyRejectedTx(ctx, ev, verdict, current)
 	case wdk.AggregatedPostedTxIDDoubleSpend:
 		return p.failExternallyRejectedTx(ctx, ev, verdict)
 	case wdk.AggregatedPostedTxIDInvalidTx:
@@ -340,6 +335,62 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 	default:
 		return nil, fmt.Errorf("unexpected verdict status %s while processing external REJECTED event for tx %s", verdict.Status, ev.TxID)
 	}
+}
+
+// requeueExternallyRejectedTx makes an unconfirmed external rejection actually retryable.
+//
+// Before this, the tx was left in its stored post-broadcast status (unmined) - a status
+// the send_waiting task never scans ({unsent, sending} only) and that the proof-poll
+// timeout could not reap either: a rejected tx is NOT_FOUND on the network, so the sync
+// task filtered it out before its attempts counter ever grew. "Retryable" was therefore a
+// state no retry path could reach, and the tx was dead while the wallet reported it
+// in-flight (seen in production with Arcade's ancestor-limit rejections).
+//
+// The guarded demotion to unsent puts it back in send_waiting's queue (each retry lands
+// after more ancestors mined, so an ancestor-limit rejection eventually clears); the
+// rebroadcast budget still bounds the loop, failing terminally as invalid once exhausted.
+// Transactions already queued (unsent/sending) or advanced (completed/terminal) are left
+// untouched by the fromStatuses guard.
+func (p *process) requeueExternallyRejectedTx(ctx context.Context, ev *wdk.BroadcastStatusEvent, verdict *wdk.AggregatedPostedTxID, current wdk.ProvenTxReqStatus) ([]wdk.TxSynchronizedStatus, error) {
+	fromStatuses := []wdk.ProvenTxReqStatus{
+		wdk.ProvenTxStatusUnmined,
+		wdk.ProvenTxStatusCallback,
+		wdk.ProvenTxStatusUnconfirmed,
+		wdk.ProvenTxStatusUnknown,
+	}
+	notes := p.notesForPostBEEF(wdk.ProvenTxStatusUnsent, verdict, nil, nil, nil)
+
+	newStatus, applied, err := p.knownTxRepo.RequeueKnownTxForRebroadcast(ctx, ev.TxID, p.maxRebroadcastAttempts, fromStatuses, notes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to requeue externally rejected tx %s for rebroadcast: %w", ev.TxID, err)
+	}
+	if !applied {
+		p.logger.InfoContext(
+			ctx, "External REJECTED event could not be confirmed - tx is not in a requeueable status, leaving it untouched",
+			slog.String("txID", ev.TxID),
+			slog.String("storedStatus", string(current)),
+		)
+		return nil, nil
+	}
+
+	p.logger.InfoContext(
+		ctx, "External REJECTED event could not be confirmed - requeueing the tx for rebroadcast",
+		slog.String("txID", ev.TxID),
+		slog.String("storedStatus", string(current)),
+		slog.String("newStatus", string(newStatus)),
+	)
+
+	reference, labels, err := p.referenceAndLabelsForTxID(ctx, ev.TxID)
+	if err != nil {
+		return nil, err
+	}
+
+	return []wdk.TxSynchronizedStatus{{
+		TxID:      ev.TxID,
+		Status:    newStatus,
+		Reference: reference,
+		Labels:    labels,
+	}}, nil
 }
 
 // failExternallyRejectedTx applies the confirmed double spend through the same terminal

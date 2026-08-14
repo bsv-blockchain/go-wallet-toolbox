@@ -49,6 +49,9 @@ type process struct {
 	beefVerifier          wdk.BeefVerifier
 	scriptsVerifier       wdk.ScriptsVerifier
 	uow                   UnitOfWork
+	// maxRebroadcastAttempts bounds how many times an externally rejected (but not
+	// double-spend-confirmed) tx is requeued for rebroadcast; 0 means unlimited.
+	maxRebroadcastAttempts uint64
 }
 
 func newProcessAction(
@@ -67,21 +70,23 @@ func newProcessAction(
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 	broadcasterSizing service.Sizing,
+	maxRebroadcastAttempts uint64,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
-		logger:          logger,
-		commissionCfg:   commissionCfg,
-		txRepo:          txRepo,
-		outputRepo:      outputRepo,
-		knownTxRepo:     knownTxRepo,
-		commissionRepo:  commissionRepo,
-		utxoRepo:        utxoRepo,
-		uow:             uow,
-		services:        services,
-		randomizer:      randomizer,
-		beefVerifier:    beefVerifier,
-		scriptsVerifier: scriptsVerifier,
+		logger:                 logger,
+		commissionCfg:          commissionCfg,
+		txRepo:                 txRepo,
+		outputRepo:             outputRepo,
+		knownTxRepo:            knownTxRepo,
+		commissionRepo:         commissionRepo,
+		utxoRepo:               utxoRepo,
+		uow:                    uow,
+		services:               services,
+		randomizer:             randomizer,
+		beefVerifier:           beefVerifier,
+		scriptsVerifier:        scriptsVerifier,
+		maxRebroadcastAttempts: maxRebroadcastAttempts,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel, broadcasterSizing)
