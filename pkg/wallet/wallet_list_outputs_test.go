@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
@@ -181,6 +182,56 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		assert.NotNil(t, result.Outputs, "Outputs should not be nil")
 		assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
 		assert.NotNil(t, result.BEEF, "BEEF should be included when requesting entire transactions")
+	})
+
+	s.Run("repeated list outputs with entire transactions returns resolvable BEEF", func() {
+		t := s.T()
+
+		// The first call teaches the wallet's beef party about these
+		// transactions, so the second advertises them as known and storage
+		// answers with txid-only stubs. The wallet has to resolve those back
+		// into full transactions before returning them to the caller.
+		given, cleanup := testabilities.Given(t)
+		defer cleanup()
+
+		// and:
+		aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+		// and:
+		internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
+		_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+		require.NoError(t, err, "Failed to internalize action for test setup")
+
+		// and:
+		args := fixtures.DefaultWalletListOutputsArgs()
+		args.Include = sdk.OutputIncludeEntireTransactions
+
+		// when:
+		first, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err)
+		require.NotEmpty(t, first.BEEF, "BEEF should be included when requesting entire transactions")
+
+		// when:
+		second, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+		// then:
+		require.NoError(t, err, "a second call must not fail resolving known transactions")
+		require.NotEmpty(t, second.BEEF, "BEEF should still be returned once transactions are known")
+		assert.Equal(t, len(first.Outputs), len(second.Outputs))
+
+		// and: every returned outpoint is backed by a full transaction, not a stub
+		beef, err := transaction.NewBeefFromBytes(second.BEEF)
+		require.NoError(t, err)
+		for _, output := range second.Outputs {
+			txID := output.Outpoint.Txid
+
+			btx, ok := beef.Transactions[txID]
+			require.Truef(t, ok, "returned BEEF is missing tx %s", txID)
+			assert.NotEqualf(t, transaction.TxIDOnly, btx.DataFormat,
+				"tx %s came back as a txid-only stub the caller cannot use", txID)
+		}
 	})
 
 	s.Run("list outputs with include locking scripts after internalize action", func() {

@@ -37,7 +37,7 @@ func (s *WalletTestSuite) TestWalletBeefParty() {
 		require.NotNil(t, result, "Wallet should return result")
 
 		// and:
-		txs, err := aliceWallet.GetBeefParty().GetKnownTxIDsForParty(storagePartyID)
+		txs, err := aliceWallet.GetBeefParty().GetKnownTxIDsForParty(t.Context(), storagePartyID)
 		require.NoError(t, err, "Should get known tx ids for party without error")
 		assert.NotEmpty(t, aliceWallet.GetBeefParty().Transactions, "New transactions should be added to beef party")
 		assert.Len(t, txs, 3, "There should be 3 known transactions in beef party for storage party") // Faucet tx + created action tx + change tx
@@ -60,10 +60,10 @@ func (s *WalletTestSuite) TestWalletBeefPartyGetTrimmedBeef() {
 		txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
 
 		aliceWalletParty := aliceWallet.GetBeefParty()
-		err := aliceWalletParty.AddKnownTxIDsForParty(storagePartyID, txFromFaucet.ID().String())
+		err := aliceWalletParty.AddKnownTxIDsForParty(t.Context(), storagePartyID, txFromFaucet.ID().String())
 		require.NoError(t, err)
 
-		trimmed, err := aliceWallet.GetBeefParty().GetTrimmedBeefForParty(storagePartyID)
+		trimmed, err := aliceWallet.GetBeefParty().GetTrimmedBeefForParty(t.Context(), storagePartyID)
 		require.NoError(t, err)
 
 		// then:

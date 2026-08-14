@@ -42,10 +42,10 @@ func TestBeefPartyAddParty(t *testing.T) {
 	assert.True(t, bp.IsParty(testPartyAlice))
 
 	// Re-adding should not wipe known txids
-	require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1))
+	require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1))
 	bp.AddParty(testPartyAlice)
 
-	ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+	ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 	require.NoError(t, err)
 	assert.Equal(t, []string{testTxID1}, ids)
 }
@@ -54,7 +54,7 @@ func TestBeefPartyGetKnownTxIDsForParty(t *testing.T) {
 	t.Run("returns error for unknown party", func(t *testing.T) {
 		bp := wdk.NewBeefParty(nil)
 
-		ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.Error(t, err)
 		assert.Nil(t, ids)
 		assert.Contains(t, err.Error(), "unknown party")
@@ -63,22 +63,22 @@ func TestBeefPartyGetKnownTxIDsForParty(t *testing.T) {
 	t.Run("returns empty slice for new party", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
 
-		ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		assert.Empty(t, ids)
 	})
 
 	t.Run("returns copy of known txids", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1))
 
-		ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		require.Len(t, ids, 1)
 
 		// Mutating returned slice must not affect internal state
 		ids[0] = "mutated"
-		ids2, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids2, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		assert.Equal(t, testTxID1, ids2[0])
 	})
@@ -88,10 +88,10 @@ func TestBeefPartyAddKnownTxIDsForParty(t *testing.T) {
 	t.Run("auto-creates party if missing", func(t *testing.T) {
 		bp := wdk.NewBeefParty(nil)
 
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1, testTxID2))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1, testTxID2))
 
 		assert.True(t, bp.IsParty(testPartyAlice))
-		ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		assert.Equal(t, []string{testTxID1, testTxID2}, ids)
 	})
@@ -99,10 +99,10 @@ func TestBeefPartyAddKnownTxIDsForParty(t *testing.T) {
 	t.Run("deduplicates txids", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
 
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1, testTxID1, testTxID2))
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID2, testTxID3))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1, testTxID1, testTxID2))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID2, testTxID3))
 
-		ids, err := bp.GetKnownTxIDsForParty(testPartyAlice)
+		ids, err := bp.GetKnownTxIDsForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		assert.Equal(t, []string{testTxID1, testTxID2, testTxID3}, ids)
 	})
@@ -110,7 +110,7 @@ func TestBeefPartyAddKnownTxIDsForParty(t *testing.T) {
 	t.Run("merges txid-only into embedded beef", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
 
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1))
 
 		hash, err := chainhash.NewHashFromHex(testTxID1)
 		require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestBeefPartyAddKnownTxIDsForParty(t *testing.T) {
 	t.Run("returns error for invalid hex txid", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
 
-		err := bp.AddKnownTxIDsForParty(testPartyAlice, "not-a-txid")
+		err := bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, "not-a-txid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse")
 	})
@@ -130,21 +130,21 @@ func TestBeefPartyGetTrimmedBeefForParty(t *testing.T) {
 	t.Run("returns error for unknown party", func(t *testing.T) {
 		bp := wdk.NewBeefParty(nil)
 
-		trimmed, err := bp.GetTrimmedBeefForParty(testPartyAlice)
+		trimmed, err := bp.GetTrimmedBeefForParty(t.Context(), testPartyAlice)
 		require.Error(t, err)
 		assert.Nil(t, trimmed)
 	})
 
 	t.Run("trims known txids from cloned beef", func(t *testing.T) {
 		bp := wdk.NewBeefParty([]string{testPartyAlice})
-		require.NoError(t, bp.AddKnownTxIDsForParty(testPartyAlice, testTxID1, testTxID2))
+		require.NoError(t, bp.AddKnownTxIDsForParty(t.Context(), testPartyAlice, testTxID1, testTxID2))
 
 		// Add another txid not known to the party
 		hash3, err := chainhash.NewHashFromHex(testTxID3)
 		require.NoError(t, err)
-		bp.MergeTxidOnly(hash3)
+		bp.MergeTxidOnly(t.Context(), hash3)
 
-		trimmed, err := bp.GetTrimmedBeefForParty(testPartyAlice)
+		trimmed, err := bp.GetTrimmedBeefForParty(t.Context(), testPartyAlice)
 		require.NoError(t, err)
 		require.NotNil(t, trimmed)
 

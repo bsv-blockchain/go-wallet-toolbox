@@ -51,8 +51,8 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		a.WdkArgsMutator(&a.wdkArgs)
 	}
 
-	if a.wdkArgs.Options.KnownTxids == nil {
-		knownTxIDs, knownErr := wp.GetKnownTxIDs()
+	if len(a.wdkArgs.Options.KnownTxids) == 0 {
+		knownTxIDs, knownErr := wp.GetKnownTxIDs(ctx)
 		if knownErr != nil {
 			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", knownErr)
 		}
@@ -77,19 +77,17 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return result, nil
 	}
 
-	if err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx); err != nil {
-		return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+	if err = party.MergeFromStorage(ctx, wp, result.Tx); err != nil {
+		return nil, err
 	}
 
-	if a.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
-		if verifyErr != nil {
-			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
-			return nil, err
-		}
-
-		result.Tx = tx
+	tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
+	if verifyErr != nil {
+		err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
+		return nil, err
 	}
+
+	result.Tx = tx
 
 	return result, nil
 }
