@@ -59,6 +59,12 @@ storage.*.sqlite-shm
 
 # Example config
 examples/examples-config.yaml
+examples/perf_torture/perf-torture-config.yaml
+examples/perf_torture/results-*.csv
+examples/perf_torture/profiles/
+examples/perf_torture/benchresults/
+examples/perf_torture/beefbench/cpu.out
+/perf_torture
 
 # Manual tests
 manual_tests/*.sqlite

@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
@@ -27,6 +29,7 @@ const (
 	externalEventBlockHash   = "000000000000000001885e0c6c302cbbacf927e1b5cf7884588973e72f8b1234"
 	externalNoteWhat         = "externalBroadcastStatus"
 	minedStatus              = "MINED"
+	rejectedStatus           = "REJECTED"
 )
 
 // A MINED event carrying a valid merkle path must complete the transaction
@@ -482,7 +485,7 @@ func TestExternalStatusRejectedButTxKnownToNetworkIsNotFailed(t *testing.T) {
 	// when:
 	_, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:         txID,
-		Status:       "REJECTED",
+		Status:       rejectedStatus,
 		ExtraInfo:    "double spend attempted",
 		CompetingTxs: []string{"27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e"},
 	})
@@ -516,7 +519,7 @@ func TestExternalStatusRejectedWithCompetingTxsConfirmedIsFailed(t *testing.T) {
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:         txID,
-		Status:       "REJECTED",
+		Status:       rejectedStatus,
 		ExtraInfo:    "double spend attempted",
 		CompetingTxs: []string{"27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e"},
 	})
@@ -534,11 +537,11 @@ func TestExternalStatusRejectedWithCompetingTxsConfirmedIsFailed(t *testing.T) {
 
 // A REJECTED event without competing transactions carries no positive evidence of a
 // double spend - even when the network does not (yet) know the tx, it must not be
-// terminally failed. Since the tx had already advanced past Sending (to unmined), it
-// must also be pulled back to Sending: SendWaitingTransactions only rebroadcasts
-// Unsent/Sending, so a tx left at "unmined" would be retryable in name only, with no
-// path back to a retry.
-func TestExternalStatusRejectedWithoutEvidenceIsMadeRetryableAgain(t *testing.T) {
+// terminally failed. It also must not stay in a post-broadcast status (unmined): the
+// send_waiting task only scans {unsent, sending}, and the proof-poll timeout never fires
+// for a network-absent tx, so leaving it unmined wedges it in-flight forever. The fix
+// requeues it for rebroadcast instead.
+func TestExternalStatusRejectedWithoutEvidenceIsRequeuedForRebroadcast(t *testing.T) {
 	// given:
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -556,18 +559,119 @@ func TestExternalStatusRejectedWithoutEvidenceIsMadeRetryableAgain(t *testing.T)
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   txID,
-		Status: "REJECTED",
+		Status: rejectedStatus,
 	})
 
-	// then:
+	// then: the tx is NOT failed, and is queued where send_waiting will actually retry it:
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Equal(t, wdk.ProvenTxStatusSending, results[0].Status)
+	require.Equal(t, wdk.ProvenTxStatusUnsent, results[0].Status)
 
-	// and: the tx is NOT failed, but pulled back to Sending so the retry sweep can reach it:
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
-	thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithAttempts(0).
+		WithRebroadcastAttempts(1).
+		WasBroadcast(true)
 	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusUnproven)
+}
+
+// A repeated REJECTED event for a tx already requeued (unsent) must be a no-op: the
+// fromStatuses guard only demotes post-broadcast in-flight statuses, never a tx that is
+// already waiting in the rebroadcast queue.
+func TestExternalStatusRejectedWhileAlreadyQueuedIsNoOp(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and: a successfully broadcast transaction, requeued by a first REJECTED event:
+	_, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+	given.Provider().WhatsOnChain().WillRespondOnTxStatusNotFound()
+
+	_, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+		TxID:   txID,
+		Status: rejectedStatus,
+	})
+	require.NoError(t, err)
+
+	// when: a second REJECTED event arrives while the tx sits in the queue:
+	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+		TxID:   txID,
+		Status: rejectedStatus,
+	})
+
+	// then: nothing changes (no double budget burn):
+	require.NoError(t, err)
+	require.Empty(t, results)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithRebroadcastAttempts(1)
+}
+
+// External rejections respect the rebroadcast budget: once MaxRebroadcastAttempts full
+// rebroadcast cycles are exhausted, the next unconfirmed REJECTED event fails the tx
+// terminally (invalid) instead of looping forever, and the next sync cycle cascades the
+// user transaction to failed.
+func TestExternalStatusRejectedExhaustsRebroadcastBudget(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.MaxRebroadcastAttempts = 1
+	activeStorage := givenProvider.
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		WithSynchronizeTxStatuses(cfg).
+		GORM()
+
+	// and: a successfully broadcast transaction:
+	_, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatusNotFound()
+
+	// and: the single budgeted rebroadcast cycle is used up (REJECTED -> requeue -> resend):
+	_, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+		TxID:   txID,
+		Status: rejectedStatus,
+	})
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnsent).
+		WithRebroadcastAttempts(1)
+
+	_, err = activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusUnmined)
+
+	// when: the rebroadcast is rejected again with the budget exhausted:
+	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
+		TxID:   txID,
+		Status: rejectedStatus,
+	})
+
+	// then: the tx fails terminally instead of looping:
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, wdk.ProvenTxStatusInvalid, results[0].Status)
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusInvalid).
+		WithRebroadcastAttempts(1)
+
+	// and: the next sync cycle cascades the terminal failure to the user transaction:
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+	testabilities.ThenDBState(t, activeStorage).
+		HasUserTransactionByTxID(testusers.Alice, txID).
+		WithStatus(wdk.TxStatusFailed)
 }
 
 // An event for a txid this storage never stored is a no-op (SSE is instance scoped,
@@ -621,7 +725,7 @@ func TestExternalStatusTerminalStatusIsNoOp(t *testing.T) {
 	// when: a late REJECTED event arrives for the completed tx:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:         txID,
-		Status:       "REJECTED",
+		Status:       rejectedStatus,
 		CompetingTxs: []string{"27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e"},
 	})
 
@@ -695,7 +799,7 @@ func TestExternalStatusRejectedRacingCompletionLeavesCompletedTxUntouched(t *tes
 	// when: the REJECTED event (with double-spend evidence) finishes its verification:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:         txID,
-		Status:       "REJECTED",
+		Status:       rejectedStatus,
 		ExtraInfo:    "double spend attempted",
 		CompetingTxs: []string{"27a53423aa3e5d5c46bf30be53a9998dd247daf758847f244f82d430be71de6e"},
 	})
@@ -770,7 +874,7 @@ func TestExternalStatusRejectedWithoutEvidenceRacingCompletionLeavesCompletedTxU
 	// when: the REJECTED event (without double-spend evidence) finishes its verification:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   txID,
-		Status: "REJECTED",
+		Status: rejectedStatus,
 	})
 
 	// then: the race actually happened and the rejection was swallowed without changes:
