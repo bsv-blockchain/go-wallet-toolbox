@@ -1,17 +1,26 @@
 package party
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 // VerifyReturnedTxIDOnlyBeef verify for not known TxIDOnly txs
-func VerifyReturnedTxIDOnlyBeef(bp *wdk.BeefParty, beef primitives.BEEF) (primitives.BEEF, error) {
+func VerifyReturnedTxIDOnlyBeef(ctx context.Context, bp *wdk.BeefParty, beef primitives.BEEF) (primitives.BEEF, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "BeefParty-VerifyReturnedTxIDOnly",
+		attribute.Int("beef.bytes", len(beef)),
+	)
+	defer func() { tracing.EndTracing(span, err) }()
+
 	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
@@ -22,7 +31,7 @@ func VerifyReturnedTxIDOnlyBeef(bp *wdk.BeefParty, beef primitives.BEEF) (primit
 	// reference objects inside the shared Beef, so serialization must not
 	// interleave with concurrent merges.
 	var bytes []byte
-	err = bp.WithLock(func(partyBeef *transaction.Beef) error {
+	err = bp.WithLock(ctx, func(partyBeef *transaction.Beef) error {
 		verified, verifyErr := verifyReturnedTxIDOnly(partyBeef, b)
 		if verifyErr != nil {
 			return fmt.Errorf("failed to verify returned beef txid only: %w", verifyErr)
@@ -41,7 +50,13 @@ func VerifyReturnedTxIDOnlyBeef(bp *wdk.BeefParty, beef primitives.BEEF) (primit
 }
 
 // VerifyReturnedTxIDOnlyAtomicBEEF verify for not known TxIDOnly txs
-func VerifyReturnedTxIDOnlyAtomicBEEF(bp *wdk.BeefParty, txID chainhash.Hash, beef primitives.BEEF, knownTxIDs ...primitives.TXIDHexString) (primitives.BEEF, error) {
+func VerifyReturnedTxIDOnlyAtomicBEEF(ctx context.Context, bp *wdk.BeefParty, txID chainhash.Hash, beef primitives.BEEF, knownTxIDs ...primitives.TXIDHexString) (primitives.BEEF, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "BeefParty-VerifyReturnedTxIDOnlyAtomic",
+		attribute.Int("beef.bytes", len(beef)),
+	)
+	defer func() { tracing.EndTracing(span, err) }()
+
 	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
@@ -50,7 +65,7 @@ func VerifyReturnedTxIDOnlyAtomicBEEF(bp *wdk.BeefParty, txID chainhash.Hash, be
 	// See VerifyReturnedTxIDOnlyBeef for why resolution + serialization share
 	// one lock over the party graph.
 	var bytes []byte
-	err = bp.WithLock(func(partyBeef *transaction.Beef) error {
+	err = bp.WithLock(ctx, func(partyBeef *transaction.Beef) error {
 		verified, verifyErr := verifyReturnedTxIDOnly(partyBeef, b, knownTxIDs...)
 		if verifyErr != nil {
 			return fmt.Errorf("failed to verify returned beef txid only: %w", verifyErr)

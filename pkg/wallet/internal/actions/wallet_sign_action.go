@@ -102,7 +102,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	}
 
 	if result.Tx != nil && s.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx)
+		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx)
 		if verifyErr != nil {
 			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
 			return nil, err

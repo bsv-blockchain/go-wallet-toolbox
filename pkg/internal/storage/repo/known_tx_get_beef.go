@@ -62,22 +62,17 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], o
 
 	var preFetched map[string]models.KnownTx
 	if len(missingTxIDs) > 0 {
-		var modelsBatch []models.KnownTx
-		query := p.db.WithContext(ctx).
-			Model(&models.KnownTx{}).
-			Select("tx_id, raw_tx, input_beef, merkle_path")
-
-		if len(options.StatusesToFilterOut) > 0 {
-			query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+		preFetched = make(map[string]models.KnownTx)
+		if err := p.preFetchInto(ctx, preFetched, missingTxIDs, options); err != nil {
+			return nil, err
 		}
 
-		if err := query.Where("tx_id IN ?", missingTxIDs).Find(&modelsBatch).Error; err != nil {
-			return nil, fmt.Errorf("failed to pre-fetch known txs: %w", err)
-		}
-
-		preFetched = make(map[string]models.KnownTx, len(modelsBatch))
-		for _, m := range modelsBatch {
-			preFetched[m.TxID] = m
+		// Every build descends into the subjects' direct parents, so read them
+		// in one query rather than one per input.
+		if parentIDs := directParentIDs(preFetched, options); len(parentIDs) > 0 {
+			if err := p.preFetchInto(ctx, preFetched, parentIDs, options); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -88,6 +83,102 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], o
 	}
 
 	return beef, nil
+}
+
+// preFetchInto reads the given known txs in one query and adds them to dst,
+// leaving entries already present untouched.
+func (p *KnownTx) preFetchInto(ctx context.Context, dst map[string]models.KnownTx, txIDs []string, options entity.GetBEEFOptions) error {
+	wanted := make([]string, 0, len(txIDs))
+	for _, txID := range txIDs {
+		if _, ok := dst[txID]; !ok {
+			wanted = append(wanted, txID)
+		}
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
+
+	query := p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Select("tx_id, raw_tx, input_beef, merkle_path")
+
+	if len(options.StatusesToFilterOut) > 0 {
+		query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+	}
+
+	var modelsBatch []models.KnownTx
+	if err := query.Where("tx_id IN ?", wanted).Find(&modelsBatch).Error; err != nil {
+		return fmt.Errorf("failed to pre-fetch known txs: %w", err)
+	}
+
+	for _, m := range modelsBatch {
+		dst[m.TxID] = m
+	}
+	return nil
+}
+
+// needsInputBEEF reports whether the stored input beef has to be merged to
+// build this transaction.
+//
+// That blob is the whole ancestry the transaction was submitted with, and for
+// busy wallets it reaches hundreds of kilobytes. A DirectSourcesOnly build only
+// wants the immediate parents, so when every one of them is a known tx in its
+// own right they can be read individually instead — far cheaper than parsing
+// the blob to reach the same few rows.
+//
+// It is not optional in general: inputs supplied by the caller are recorded
+// only inside this blob, never as known txs, so dropping it would lose them.
+func needsInputBEEF(tx *transaction.Transaction, options entity.GetBEEFOptions, preFetched map[string]models.KnownTx) bool {
+	if !options.DirectSourcesOnly {
+		return true
+	}
+	for _, input := range tx.Inputs {
+		if input.SourceTXID == nil {
+			return true
+		}
+		if _, known := preFetched[input.SourceTXID.String()]; !known {
+			return true
+		}
+	}
+	return false
+}
+
+// directParentIDs returns the txids spent by the already-fetched transactions.
+// A raw tx that cannot be parsed is skipped: the build reports that properly.
+func directParentIDs(fetched map[string]models.KnownTx, options entity.GetBEEFOptions) []string {
+	// A proved transaction ends the walk, so its parents are never read - unless
+	// MinProofLevel deliberately withholds the proof and forces the walk on.
+	provenIsTerminal := options.MinProofLevel == 0
+
+	seen := make(map[string]struct{}, len(fetched))
+	var parents []string
+	for _, model := range fetched {
+		if model.RawTx == nil {
+			continue
+		}
+		if provenIsTerminal && model.HasMerklePath() {
+			continue
+		}
+		tx, err := transaction.NewTransactionFromBytes(model.RawTx)
+		if err != nil {
+			continue
+		}
+		for _, input := range tx.Inputs {
+			if input.SourceTXID == nil {
+				continue
+			}
+			sourceID := input.SourceTXID.String()
+			if _, ok := fetched[sourceID]; ok {
+				continue
+			}
+			if _, dup := seen[sourceID]; dup {
+				continue
+			}
+			seen[sourceID] = struct{}{}
+			parents = append(parents, sourceID)
+		}
+	}
+	return parents
 }
 
 func (p *KnownTx) recursiveBuildValidBEEF(
@@ -214,7 +305,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
 	}
 
-	if len(model.InputBeef) > 0 {
+	if len(model.InputBeef) > 0 && needsInputBEEF(tx, options, preFetched) {
 		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
 		if err != nil {
 			return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)

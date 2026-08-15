@@ -204,10 +204,16 @@ func (s *synchronizeTxStatuses) setLastBlock(ctx context.Context, height uint, h
 
 // filterTxsByConfirmationDepth filters transactions to only those that have at least BlocksDelay confirmations.
 // This prevents unnecessary MerklePath calls for transactions that are not yet sufficiently confirmed.
-// If the status service is unavailable, it returns an empty slice to skip synchronization.
-func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, error) { //nolint:unparam // error return reserved for future validation
+// If the status service is unavailable, it returns empty results to skip synchronization.
+//
+// The second return value lists candidate txs the network does NOT know at all (explicit
+// NOT_FOUND, as opposed to known-but-unconfirmed). Such txs can never gain confirmations -
+// e.g. an externally rejected or mempool-evicted tx - so the caller must count them as
+// failed proof attempts; otherwise their attempts counter never grows and ApplyProofTimeouts
+// can never requeue (or terminally fail) them, leaving them wedged in-flight forever.
+func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context, txs []*entity.KnownTxForStatusSync) ([]*entity.KnownTxForStatusSync, []string, error) { //nolint:unparam // error return reserved for future validation
 	if len(txs) == 0 {
-		return txs, nil
+		return txs, nil, nil
 	}
 
 	txIDs := slices.Map(txs, func(tx *entity.KnownTxForStatusSync) string {
@@ -221,12 +227,17 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 			slog.Any("err", err),
 			slog.Int("count", len(txs)),
 		)
-		// Return empty slice to skip synchronization when we can't get the status
-		return nil, nil
+		// Return empty results to skip synchronization when we can't get the status
+		return nil, nil, nil
 	}
 
 	depthByTxID := make(map[string]int, len(statusResult.Results))
+	var absentTxIDs []string
 	for _, result := range statusResult.Results {
+		if result.Status == wdk.ResultStatusForTxIDNotFound.String() {
+			absentTxIDs = append(absentTxIDs, result.TxID)
+			continue
+		}
 		if result.Depth == nil {
 			continue
 		}
@@ -262,10 +273,11 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 		ctx, "filtered transactions by confirmation depth",
 		slog.Int("total", len(txs)),
 		slog.Int("filtered", len(filtered)),
+		slog.Int("absent", len(absentTxIDs)),
 		slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)),
 	)
 
-	return filtered, nil
+	return filtered, absentTxIDs, nil
 }
 
 func (s *synchronizeTxStatuses) synchronizeTxStatusesInternal(ctx context.Context, heightForCheck uint, hashForCheck string) ([]wdk.TxSynchronizedStatus, error) {
@@ -336,12 +348,13 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, nil
 	}
 
-	txsToSync, err = s.filterTxsByConfirmationDepth(ctx, txsToSync)
+	var absentTxIDs []string
+	txsToSync, absentTxIDs, err = s.filterTxsByConfirmationDepth(ctx, txsToSync)
 	if err != nil {
 		return nil, fmt.Errorf("failed to filter txs by confirmation depth: %w", err)
 	}
 
-	if len(txsToSync) == 0 {
+	if len(txsToSync) == 0 && len(absentTxIDs) == 0 {
 		s.logger.InfoContext(ctx, "no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
 		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
 			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
@@ -352,14 +365,17 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	txIDs := slices.Map(txsToSync, func(tx *entity.KnownTxForStatusSync) string {
 		return tx.TxID
 	})
-	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, txIDs)
+	// Absent (network-NOT_FOUND) txs are not proof candidates, but their emitted status
+	// updates (from ApplyProofTimeouts below) still need references and labels.
+	lookupTxIDs := append(stdslices.Clone(txIDs), absentTxIDs...)
+	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, lookupTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
 	}
 
 	s.logger.InfoContext(ctx, "synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
 
-	txLabelsLookup, err := s.transactionRepo.GetLabelsForTxIDs(ctx, txIDs)
+	txLabelsLookup, err := s.transactionRepo.GetLabelsForTxIDs(ctx, lookupTxIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
 	}
@@ -435,6 +451,11 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			Labels:      txLabelsLookup[txToSync.TxID],
 		})
 	}
+
+	// Count network-NOT_FOUND txs as failed attempts too: they can never be found by the
+	// MerklePath poll, and without a growing attempts counter ApplyProofTimeouts would
+	// never requeue or terminally fail them (the "rejected but wedged in-flight" bug).
+	failedAttempts = append(failedAttempts, absentTxIDs...)
 
 	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
 	if err != nil {

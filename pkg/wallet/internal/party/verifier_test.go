@@ -47,7 +47,7 @@ func TestVerifyReturnedTxIDOnlyBeef(t *testing.T) {
 		require.NoError(t, err)
 
 		// when: returned beef only has txid
-		result, err := party.VerifyReturnedTxIDOnlyBeef(bp, beefWithTxIDOnly(t, txid))
+		result, err := party.VerifyReturnedTxIDOnlyBeef(t.Context(), bp, beefWithTxIDOnly(t, txid))
 
 		// then:
 		require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestVerifyReturnedTxIDOnlyBeef(t *testing.T) {
 
 		bp := wdk.NewBeefParty(nil)
 
-		result, err := party.VerifyReturnedTxIDOnlyBeef(bp, beefWithTxIDOnly(t, txid))
+		result, err := party.VerifyReturnedTxIDOnlyBeef(t.Context(), bp, beefWithTxIDOnly(t, txid))
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -76,7 +76,7 @@ func TestVerifyReturnedTxIDOnlyBeef(t *testing.T) {
 		fullTx := newSimpleTx(7)
 		bp := wdk.NewBeefParty(nil)
 
-		result, err := party.VerifyReturnedTxIDOnlyBeef(bp, beefWithRawTx(t, fullTx))
+		result, err := party.VerifyReturnedTxIDOnlyBeef(t.Context(), bp, beefWithRawTx(t, fullTx))
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -85,7 +85,7 @@ func TestVerifyReturnedTxIDOnlyBeef(t *testing.T) {
 	t.Run("errors on invalid beef bytes", func(t *testing.T) {
 		bp := wdk.NewBeefParty(nil)
 
-		result, err := party.VerifyReturnedTxIDOnlyBeef(bp, primitives.BEEF{0x00, 0x01})
+		result, err := party.VerifyReturnedTxIDOnlyBeef(t.Context(), bp, primitives.BEEF{0x00, 0x01})
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -101,7 +101,7 @@ func TestVerifyReturnedTxIDOnlyAtomicBEEF(t *testing.T) {
 		_, err := bp.MergeTransaction(fullTx)
 		require.NoError(t, err)
 
-		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(bp, *txid, beefWithTxIDOnly(t, txid))
+		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(t.Context(), bp, *txid, beefWithTxIDOnly(t, txid))
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -125,7 +125,7 @@ func TestVerifyReturnedTxIDOnlyAtomicBEEF(t *testing.T) {
 		require.NoError(t, err)
 
 		known := primitives.TXIDHexString(txid.String())
-		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(bp, *txid, beefWithTxIDOnly(t, txid), known)
+		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(t.Context(), bp, *txid, beefWithTxIDOnly(t, txid), known)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -136,7 +136,7 @@ func TestVerifyReturnedTxIDOnlyAtomicBEEF(t *testing.T) {
 		txid := unknown.TxID()
 		bp := wdk.NewBeefParty(nil)
 
-		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(bp, *txid, beefWithTxIDOnly(t, txid))
+		result, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(t.Context(), bp, *txid, beefWithTxIDOnly(t, txid))
 
 		require.Error(t, err)
 		assert.Nil(t, result)

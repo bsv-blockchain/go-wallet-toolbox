@@ -51,8 +51,8 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		a.WdkArgsMutator(&a.wdkArgs)
 	}
 
-	if a.wdkArgs.Options.KnownTxids == nil {
-		knownTxIDs, knownErr := wp.GetKnownTxIDs()
+	if len(a.wdkArgs.Options.KnownTxids) == 0 {
+		knownTxIDs, knownErr := wp.GetKnownTxIDs(ctx)
 		if knownErr != nil {
 			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", knownErr)
 		}
@@ -77,19 +77,24 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return result, nil
 	}
 
-	if err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx); err != nil {
-		return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+	if err = party.MergeFromStorage(ctx, wp, result.Tx); err != nil {
+		return nil, err
 	}
 
-	if a.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
-		if verifyErr != nil {
-			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
-			return nil, err
-		}
+	// The merge above grows the shared graph whether or not this call advertised
+	// anything, so the bound is applied here rather than at advertise time -
+	// a caller supplying its own KnownTxids would otherwise never prune at all.
+	// Deferred so it runs after the reply below has been resolved and
+	// serialized, never while the graph is still needed to resolve it.
+	defer wp.BeefParty.PruneIfOversized(ctx)
 
-		result.Tx = tx
+	tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
+	if verifyErr != nil {
+		err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
+		return nil, err
 	}
+
+	result.Tx = tx
 
 	return result, nil
 }
