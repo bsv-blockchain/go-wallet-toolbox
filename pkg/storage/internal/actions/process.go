@@ -447,45 +447,12 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	notDelayedResults := make([]wdk.ReviewActionResult, 0, to.IfThen(!isDelayed, len(txIDs)).ElseThen(0))
-	var readyToSendTxIDs []string
 
 	logger.DebugContext(ctx, "Categorizing transactions by status")
 
-	for _, txID := range txIDs {
-		currentStatus, ok := knownTxStatusesLookup[txID]
-		if !ok {
-			return nil, fmt.Errorf("transaction status not found for txID %s", txID)
-		}
-
-		if currentStatus.AlreadySent() {
-			logger.DebugContext(
-				ctx, "Transaction already sent - adding to results",
-				slog.String("txID", txID),
-				slog.String("status", string(currentStatus)),
-			)
-
-			sendWithResults = append(sendWithResults, wdk.SendWithResult{
-				TxID:   primitives.TXIDHexString(txID),
-				Status: currentStatus.SendWithResultStatus(),
-			})
-
-			logger.DebugContext(
-				ctx, "Creating spendable UTXOs",
-				slog.String("txID", txID),
-			)
-
-			err = p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
-			}
-		} else {
-			logger.DebugContext(
-				ctx, "Transaction ready to send",
-				slog.String("txID", txID),
-				slog.String("status", string(currentStatus)),
-			)
-			readyToSendTxIDs = append(readyToSendTxIDs, txID)
-		}
+	readyToSendTxIDs, sendWithResults, err := p.partitionBroadcastTxIDs(ctx, logger, txIDs, knownTxStatusesLookup, sendWithResults)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(sendWithResults) == len(txIDs) {
@@ -538,25 +505,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
-	// Verify scripts for each transaction before broadcasting.
-	// We use scripts-only verification (not full BEEF verification) because:
-	// 1. We're sending EF format to ARC, not BEEF
-	// 2. Merkle path validation can fail during block reorgs
-	// 3. Input BEEF was validated when creating action with external inputs or during internalization, so there's no need to validate it again
-	for _, txID := range readyToSendTxIDs {
-		tx := beef.FindTransaction(txID)
-		if tx == nil {
-			return nil, fmt.Errorf("transaction %s not found in beef", txID)
-		}
-
-		var ok bool
-		ok, err = p.scriptsVerifier.VerifyScripts(ctx, tx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
-		}
-		if !ok {
-			return nil, fmt.Errorf("scripts validation failed for tx %s", txID)
-		}
+	if err = p.verifyScriptsForReadyTxs(ctx, beef, readyToSendTxIDs); err != nil {
+		return nil, err
 	}
 
 	if isDelayed {
@@ -635,68 +585,156 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, fmt.Errorf("failed to post BEEF: %w", err)
 	}
 
-	var (
-		sendWithResult     wdk.SendWithResult
-		reviewActionResult wdk.ReviewActionResult
-	)
-
 	aggregated := results.Aggregated(txIDs)
 	p.confirmDoubleSpends(ctx, aggregated)
 
+	return p.collectPostedBroadcastResults(ctx, logger, postedBroadcast{
+		readyToSendTxIDs:   readyToSendTxIDs,
+		aggregated:         aggregated,
+		serviceErrors:      results.ServiceErrors(),
+		beef:               beef,
+		txReferencesLookup: txReferencesLookup,
+		txLabelsLookup:     txLabelsLookup,
+		sendWithResults:    sendWithResults,
+		notDelayedResults:  notDelayedResults,
+	})
+}
+
+type postedBroadcast struct {
+	readyToSendTxIDs   []string
+	aggregated         map[string]*wdk.AggregatedPostedTxID
+	serviceErrors      map[string]error
+	beef               *transaction.Beef
+	txReferencesLookup map[string]string
+	txLabelsLookup     map[string][]string
+	sendWithResults    []wdk.SendWithResult
+	notDelayedResults  []wdk.ReviewActionResult
+}
+
+func (p *process) partitionBroadcastTxIDs(
+	ctx context.Context,
+	logger *slog.Logger,
+	txIDs []string,
+	knownTxStatusesLookup map[string]wdk.ProvenTxReqStatus,
+	sendWithResults []wdk.SendWithResult,
+) ([]string, []wdk.SendWithResult, error) {
+	readyToSendTxIDs := make([]string, 0, len(txIDs))
+	for _, txID := range txIDs {
+		currentStatus, ok := knownTxStatusesLookup[txID]
+		if !ok {
+			return nil, nil, fmt.Errorf("transaction status not found for txID %s", txID)
+		}
+
+		if !currentStatus.AlreadySent() {
+			logger.DebugContext(
+				ctx, "Transaction ready to send",
+				slog.String("txID", txID),
+				slog.String("status", string(currentStatus)),
+			)
+			readyToSendTxIDs = append(readyToSendTxIDs, txID)
+			continue
+		}
+
+		logger.DebugContext(
+			ctx, "Transaction already sent - adding to results",
+			slog.String("txID", txID),
+			slog.String("status", string(currentStatus)),
+		)
+		sendWithResults = append(sendWithResults, wdk.SendWithResult{
+			TxID:   primitives.TXIDHexString(txID),
+			Status: currentStatus.SendWithResultStatus(),
+		})
+		logger.DebugContext(ctx, "Creating spendable UTXOs", slog.String("txID", txID))
+		if err := p.utxoRepo.CreateUTXOForSpendableOutputsByTxID(ctx, txID); err != nil {
+			return nil, nil, fmt.Errorf("failed to make outputs spendable for txID %s: %w", txID, err)
+		}
+	}
+	return readyToSendTxIDs, sendWithResults, nil
+}
+
+func (p *process) verifyScriptsForReadyTxs(ctx context.Context, beef *transaction.Beef, readyToSendTxIDs []string) error {
+	// Scripts-only verification (not full BEEF verification) because:
+	// 1. We're sending EF format to ARC, not BEEF
+	// 2. Merkle path validation can fail during block reorgs
+	// 3. Input BEEF was validated when creating action with external inputs or during internalization
+	for _, txID := range readyToSendTxIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return fmt.Errorf("transaction %s not found in beef", txID)
+		}
+		ok, err := p.scriptsVerifier.VerifyScripts(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("failed to verify scripts for tx %s: %w", txID, err)
+		}
+		if !ok {
+			return fmt.Errorf("scripts validation failed for tx %s", txID)
+		}
+	}
+	return nil
+}
+
+func (p *process) collectPostedBroadcastResults(ctx context.Context, logger *slog.Logger, posted postedBroadcast) (*wdk.ProcessActionResult, error) {
 	logger.DebugContext(
 		ctx, "Processing individual transaction results",
-		slog.Int("aggregatedResultsCount", len(aggregated)),
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+		slog.Int("aggregatedResultsCount", len(posted.aggregated)),
+		slog.Int("readyToSendCount", len(posted.readyToSendTxIDs)),
 	)
 
-	for _, broadcastedTxID := range readyToSendTxIDs {
-		aggBroadcastResult, ok := aggregated[broadcastedTxID]
-		if !ok {
-			logger.DebugContext(
-				ctx, "No broadcast result found for transaction - using failed result",
-				slog.String("txID", broadcastedTxID),
-			)
-			sendWithResult, reviewActionResult = p.failedResultForTxID(broadcastedTxID)
-		} else {
-			logger.DebugContext(
-				ctx, "Processing broadcast result for transaction",
-				slog.String("txID", broadcastedTxID),
-				slog.String("aggregatedStatus", string(aggBroadcastResult.Status)),
-			)
-
-			sendWithResult, reviewActionResult, err = p.updateSingleTx(
-				ctx,
-				broadcastedTxID,
-				aggBroadcastResult,
-				results.ServiceErrors(),
-				beef,
-				readyToSendTxIDs,
-				txReferencesLookup[broadcastedTxID],
-				txLabelsLookup[broadcastedTxID],
-			)
-			if err != nil {
-				return nil, fmt.Errorf(
-					"cannot update single tx after broadcast: %w",
-					pkgerrors.NewProcessActionError(sendWithResults, notDelayedResults).
-						Wrap(pkgerrors.NewTransactionErrorFromTxIDHex(broadcastedTxID)),
-				)
-			}
+	for _, broadcastedTxID := range posted.readyToSendTxIDs {
+		sendWithResult, reviewActionResult, err := p.resultForPostedTx(ctx, logger, broadcastedTxID, posted)
+		if err != nil {
+			return nil, err
 		}
 
 		logger.DebugContext(
 			ctx, "BroadcastTxs completed successfully",
-			slog.Int("totalSendWithResults", len(sendWithResults)),
-			slog.Int("totalNotDelayedResults", len(notDelayedResults)),
+			slog.Int("totalSendWithResults", len(posted.sendWithResults)+1),
+			slog.Int("totalNotDelayedResults", len(posted.notDelayedResults)+1),
 		)
-
-		sendWithResults = append(sendWithResults, sendWithResult)
-		notDelayedResults = append(notDelayedResults, reviewActionResult)
+		posted.sendWithResults = append(posted.sendWithResults, sendWithResult)
+		posted.notDelayedResults = append(posted.notDelayedResults, reviewActionResult)
 	}
 
 	return &wdk.ProcessActionResult{
-		SendWithResults:   sendWithResults,
-		NotDelayedResults: notDelayedResults,
+		SendWithResults:   posted.sendWithResults,
+		NotDelayedResults: posted.notDelayedResults,
 	}, nil
+}
+
+func (p *process) resultForPostedTx(ctx context.Context, logger *slog.Logger, broadcastedTxID string, posted postedBroadcast) (wdk.SendWithResult, wdk.ReviewActionResult, error) {
+	aggBroadcastResult, ok := posted.aggregated[broadcastedTxID]
+	if !ok {
+		logger.DebugContext(
+			ctx, "No broadcast result found for transaction - using failed result",
+			slog.String("txID", broadcastedTxID),
+		)
+		sendWithResult, reviewActionResult := p.failedResultForTxID(broadcastedTxID)
+		return sendWithResult, reviewActionResult, nil
+	}
+
+	logger.DebugContext(
+		ctx, "Processing broadcast result for transaction",
+		slog.String("txID", broadcastedTxID),
+		slog.String("aggregatedStatus", string(aggBroadcastResult.Status)),
+	)
+	sendWithResult, reviewActionResult, err := p.updateSingleTx(
+		ctx,
+		broadcastedTxID,
+		aggBroadcastResult,
+		posted.serviceErrors,
+		posted.beef,
+		posted.readyToSendTxIDs,
+		posted.txReferencesLookup[broadcastedTxID],
+		posted.txLabelsLookup[broadcastedTxID],
+	)
+	if err != nil {
+		return sendWithResult, reviewActionResult, fmt.Errorf(
+			"cannot update single tx after broadcast: %w",
+			pkgerrors.NewProcessActionError(posted.sendWithResults, posted.notDelayedResults).
+				Wrap(pkgerrors.NewTransactionErrorFromTxIDHex(broadcastedTxID)),
+		)
+	}
+	return sendWithResult, reviewActionResult, nil
 }
 
 func (p *process) setBatchForTxs(ctx context.Context, txIDs []string) error {

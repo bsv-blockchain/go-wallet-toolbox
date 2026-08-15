@@ -128,7 +128,10 @@ func main() {
 
 	userWallet, err := wallet.NewWithStorageFactory(infraCfg.BSVNetwork, privateKey,
 		func(_ sdk.Interface) (wdk.WalletStorageProvider, func(), error) {
-			return activeStorage, func() {}, nil
+			return activeStorage, func() {
+				// Storage lifetime is owned by main() via storageCleanup.
+				// The factory cleanup must be a no-op so Wallet.Close() does not double-close it.
+			}, nil
 		})
 	if err != nil {
 		fatal(logger, "failed to create wallet", err)
@@ -157,7 +160,14 @@ func main() {
 		return
 	}
 
-	runTortureTest(ctx, logger, userWallet, *n, *interval, *minedTimeout, *pollEvery, *listBEEF)
+	runTortureTest(ctx, logger, tortureRun{
+		wallet:       userWallet,
+		n:            *n,
+		interval:     *interval,
+		minedTimeout: *minedTimeout,
+		pollEvery:    *pollEvery,
+		listBEEF:     *listBEEF,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -364,54 +374,64 @@ func opReturnDeadbeef() []byte {
 	return s.Bytes()
 }
 
-func runTortureTest(ctx context.Context, logger *slog.Logger, userWallet *wallet.Wallet, n int, interval, minedTimeout, pollEvery time.Duration, listBEEF bool) {
+type tortureRun struct {
+	wallet       *wallet.Wallet
+	n            int
+	interval     time.Duration
+	minedTimeout time.Duration
+	pollEvery    time.Duration
+	listBEEF     bool
+}
+
+func runTortureTest(ctx context.Context, logger *slog.Logger, run tortureRun) {
 	runLabel := fmt.Sprintf("%s-%d", baseLabel, time.Now().Unix())
 	lockingScript := opReturnDeadbeef()
-	records := make([]*txRecord, 0, n)
+	records := make([]*txRecord, 0, run.n)
 	start := time.Now()
 
-	logger.Info("starting torture run", "n", n, "label", runLabel, "interval", interval.String())
+	logger.Info("starting torture run", "n", run.n, "label", runLabel, "interval", run.interval.String())
 
-	for i := 0; i < n; i++ {
+	for i := 0; i < run.n; i++ {
 		if ctx.Err() != nil {
 			logger.Warn("interrupted during creation", "created", len(records))
 			break
 		}
 
-		createArgs := sdk.CreateActionArgs{
-			Description: fmt.Sprintf("perf torture %d/%d", i+1, n),
-			Outputs: []sdk.CreateActionOutput{{
-				LockingScript:     lockingScript,
-				Satoshis:          0,
-				OutputDescription: "OP_FALSE OP_RETURN deadbeef",
-			}},
-			Labels: []string{baseLabel, runLabel},
-			Options: &sdk.CreateActionOptions{
-				AcceptDelayedBroadcast: to.Ptr(false),
-			},
+		rec, created := createTortureTx(ctx, logger, run.wallet, i+1, run.n, runLabel, lockingScript)
+		if created {
+			records = append(records, rec)
 		}
+		maybeListOutputsWithBEEF(ctx, logger, run, i+1)
+		paceTortureLoop(ctx, run.interval)
+	}
 
-		attempt := 0
-		for {
-			attempt++
-			createStart := time.Now()
-			result, err := userWallet.CreateAction(ctx, createArgs, originator)
-			createDur := time.Since(createStart)
+	logger.Info("creation phase done", "created", len(records), "elapsed", time.Since(start).String())
 
-			if err != nil {
-				logger.Error("createAction failed", "index", i+1, "attempt", attempt, "took", createDur.String(), "error", err)
-				if ctx.Err() != nil {
-					break
-				}
-				select {
-				case <-ctx.Done():
-				case <-time.After(5 * time.Second):
-				}
-				continue
-			}
+	waitForMined(ctx, logger, run.wallet, runLabel, records, run.minedTimeout, run.pollEvery)
+	writeResults(logger, runLabel, records, start)
+}
 
+func createTortureTx(ctx context.Context, logger *slog.Logger, userWallet *wallet.Wallet, index, total int, runLabel string, lockingScript []byte) (*txRecord, bool) {
+	createArgs := sdk.CreateActionArgs{
+		Description: fmt.Sprintf("perf torture %d/%d", index, total),
+		Outputs: []sdk.CreateActionOutput{{
+			LockingScript:     lockingScript,
+			Satoshis:          0,
+			OutputDescription: "OP_FALSE OP_RETURN deadbeef",
+		}},
+		Labels: []string{baseLabel, runLabel},
+		Options: &sdk.CreateActionOptions{
+			AcceptDelayedBroadcast: to.Ptr(false),
+		},
+	}
+
+	for attempt := 1; ; attempt++ {
+		createStart := time.Now()
+		result, err := userWallet.CreateAction(ctx, createArgs, originator)
+		createDur := time.Since(createStart)
+		if err == nil {
 			rec := &txRecord{
-				Index:          i + 1,
+				Index:          index,
 				TxID:           result.Txid.String(),
 				CreatedAt:      createStart,
 				CreateDuration: createDur,
@@ -419,38 +439,50 @@ func runTortureTest(ctx context.Context, logger *slog.Logger, userWallet *wallet
 			if len(result.SendWithResults) > 0 {
 				rec.BroadcastStatus = string(result.SendWithResults[0].Status)
 			}
-			records = append(records, rec)
-			logger.Info("created", "index", i+1, "txid", rec.TxID, "took", createDur.String(), "broadcast", rec.BroadcastStatus)
-			break
+			logger.Info("created", "index", index, "txid", rec.TxID, "took", createDur.String(), "broadcast", rec.BroadcastStatus)
+			return rec, true
 		}
 
-		if listBEEF {
-			listStart := time.Now()
-			limit := uint32(100)
-			_, err := userWallet.ListOutputs(ctx, sdk.ListOutputsArgs{
-				Basket:  changeBasket,
-				Include: sdk.OutputIncludeEntireTransactions,
-				Limit:   &limit,
-			}, originator)
-			if err != nil {
-				logger.Error("listOutputs with BEEF failed", "index", i+1, "error", err)
-			} else if (i+1)%25 == 0 {
-				logger.Info("listOutputs with BEEF", "index", i+1, "took", time.Since(listStart).String())
-			}
+		logger.Error("createAction failed", "index", index, "attempt", attempt, "took", createDur.String(), "error", err)
+		if ctx.Err() != nil {
+			return nil, false
 		}
-
-		if interval > 0 {
-			select {
-			case <-ctx.Done():
-			case <-time.After(interval):
-			}
+		select {
+		case <-ctx.Done():
+			return nil, false
+		case <-time.After(5 * time.Second):
 		}
 	}
+}
 
-	logger.Info("creation phase done", "created", len(records), "elapsed", time.Since(start).String())
+func maybeListOutputsWithBEEF(ctx context.Context, logger *slog.Logger, run tortureRun, index int) {
+	if !run.listBEEF {
+		return
+	}
+	listStart := time.Now()
+	limit := uint32(100)
+	_, err := run.wallet.ListOutputs(ctx, sdk.ListOutputsArgs{
+		Basket:  changeBasket,
+		Include: sdk.OutputIncludeEntireTransactions,
+		Limit:   &limit,
+	}, originator)
+	if err != nil {
+		logger.Error("listOutputs with BEEF failed", "index", index, "error", err)
+		return
+	}
+	if index%25 == 0 {
+		logger.Info("listOutputs with BEEF", "index", index, "took", time.Since(listStart).String())
+	}
+}
 
-	waitForMined(ctx, logger, userWallet, runLabel, records, minedTimeout, pollEvery)
-	writeResults(logger, runLabel, records, start)
+func paceTortureLoop(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(interval):
+	}
 }
 
 func waitForMined(ctx context.Context, logger *slog.Logger, userWallet *wallet.Wallet, runLabel string, records []*txRecord, minedTimeout, pollEvery time.Duration) {
