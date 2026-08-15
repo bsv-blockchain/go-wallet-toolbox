@@ -167,7 +167,7 @@ func (p *RPCStorageProvider) ListActions(ctx context.Context, auth wdk.AuthID, a
 // GetSyncChunk retrieves a chunk of sync data for a user between two storages using the provided synchronization arguments.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
 func (p *RPCStorageProvider) GetSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs) (*wdk.SyncChunk, error) {
-	err := p.verifyAuthenticated(ctx)
+	err := p.verifyAndBindSyncIdentityKey(ctx, &args.IdentityKey)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (p *RPCStorageProvider) FindOrInsertSyncStateAuth(ctx context.Context, auth
 // ProcessSyncChunk processes a sync chunk for a user, applying the changes contained within it.
 // Skipped in WalletStorage interface and not exposed in StorageManager.
 func (p *RPCStorageProvider) ProcessSyncChunk(ctx context.Context, args wdk.RequestSyncChunkArgs, chunk *wdk.SyncChunk) (*wdk.ProcessSyncChunkResult, error) {
-	err := p.verifyAuthenticated(ctx)
+	err := p.verifyAndBindSyncIdentityKey(ctx, &args.IdentityKey)
 	if err != nil {
 		return nil, err
 	}

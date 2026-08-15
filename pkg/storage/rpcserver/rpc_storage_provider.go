@@ -76,6 +76,35 @@ func (p *RPCStorageProvider) verifyAuthID(ctx context.Context, auth wdk.AuthID) 
 	return p.verifyIdentityKey(ctx, auth.IdentityKey)
 }
 
+// verifyAndBindSyncIdentityKey binds the identity whose data a sync request touches
+// to the authenticated BRC-103 peer identity.
+//
+// RequestSyncChunkArgs carries no AuthID; its IdentityKey alone selects the user
+// whose wallet data is exported (GetSyncChunk) or written (ProcessSyncChunk).
+// Requiring only that the caller be authenticated therefore lets any authenticated
+// peer name someone else's identity key and read or corrupt their storage. Callers
+// only ever sync their own data, so the authenticated identity is authoritative:
+// a blank identityKey is filled in from it and a differing one is rejected.
+func (p *RPCStorageProvider) verifyAndBindSyncIdentityKey(ctx context.Context, identityKey *string) error {
+	identity, err := middleware.ShouldGetAuthenticatedIdentity(ctx)
+	if err != nil {
+		return fmt.Errorf("function may only access authenticated user: %w", err)
+	}
+
+	authenticatedKey := identity.ToDERHex()
+
+	if is.BlankString(*identityKey) {
+		*identityKey = authenticatedKey
+		return nil
+	}
+
+	if *identityKey != authenticatedKey {
+		return fmt.Errorf("identityKey does not match authentication")
+	}
+
+	return nil
+}
+
 func (p *RPCStorageProvider) verifyIdentityKey(ctx context.Context, identityKey string) error {
 	if is.BlankString(identityKey) {
 		return fmt.Errorf("identityKey does not match authentication: missing identityKey")
