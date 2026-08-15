@@ -3,12 +3,14 @@ package actions
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/bsv-blockchain/go-sdk/wallet"
 
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/party"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/wallet_opts"
@@ -17,6 +19,7 @@ import (
 )
 
 type CreateAction struct {
+	Logger                  *slog.Logger
 	KeyDeriver              *wallet.KeyDeriver
 	Storage                 WalletStorageCreateAndProcessAction
 	WalletOpts              *wallet_opts.Flags
@@ -29,32 +32,43 @@ type CreateAction struct {
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	originator string
+
+	// release releases the storage-side action if this flow cannot complete it.
+	release *release
 }
 
-func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (*wallet.CreateActionResult, error) {
+func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActionArgs, originator string, wp *party.WalletParty) (result *wallet.CreateActionResult, err error) {
+	a.Logger = logging.Child(a.Logger, "CreateAction")
 	a.originator = originator
+
+	// storage.CreateAction reserves inputs for the action it creates. Until this flow hands
+	// the action to ProcessAction, it is the only one that can complete it - so any failure
+	// in between must give those inputs back.
+	a.release = newRelease(a.Logger, a.Storage)
+	defer func() { a.release.onError(ctx, err) }()
 	a.wdkArgs = mapping.MapCreateActionArgs(args, *a.WalletOpts)
 	if a.WdkArgsMutator != nil {
 		a.WdkArgsMutator(&a.wdkArgs)
 	}
 
-	if a.wdkArgs.Options.KnownTxids == nil {
-		knownTxIDs, err := wp.GetKnownTxIDs()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", err)
+	if len(a.wdkArgs.Options.KnownTxids) == 0 {
+		knownTxIDs, knownErr := wp.GetKnownTxIDs(ctx)
+		if knownErr != nil {
+			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", knownErr)
 		}
 
 		a.wdkArgs.Options.KnownTxids = knownTxIDs
 	}
 
-	if err := a.validate(); err != nil {
+	if err = a.validate(); err != nil {
 		return nil, err
 	}
 
 	if a.isNotNewTX() {
 		return a.handleNotNewTX(ctx)
 	}
-	result, err := a.handleNewTX(ctx, args)
+
+	result, err = a.handleNewTX(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -63,19 +77,24 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return result, nil
 	}
 
-	err = wp.BeefParty.MergeBeefFromParty(wp.StorageParty, result.Tx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+	if err = party.MergeFromStorage(ctx, wp, result.Tx); err != nil {
+		return nil, err
 	}
 
-	if a.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
-		}
+	// The merge above grows the shared graph whether or not this call advertised
+	// anything, so the bound is applied here rather than at advertise time -
+	// a caller supplying its own KnownTxids would otherwise never prune at all.
+	// Deferred so it runs after the reply below has been resolved and
+	// serialized, never while the graph is still needed to resolve it.
+	defer wp.BeefParty.PruneIfOversized(ctx)
 
-		result.Tx = tx
+	tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
+	if verifyErr != nil {
+		err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
+		return nil, err
 	}
+
+	result.Tx = tx
 
 	return result, nil
 }
@@ -106,6 +125,9 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 	if err != nil {
 		return nil, fmt.Errorf("failed to create action: %w", err)
 	}
+
+	// The action now exists in storage with its inputs reserved.
+	a.release.arm(storageCreateActionResult.Reference)
 
 	createActionResult, err := a.handleCreatedNewTx(ctx, args, storageCreateActionResult)
 	if err != nil {
@@ -172,6 +194,10 @@ func (a *CreateAction) handleProcessAction(ctx context.Context, tx *assembler.As
 	txID := tx.TxID()
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(txID, tx, createActionResult.Reference, a.wdkArgs)
+
+	// Point of no return: storage takes over from here and may broadcast the transaction, so
+	// this wallet must not release its inputs anymore.
+	a.release.disarm()
 
 	processActionResult, err := a.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -123,7 +124,12 @@ func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks
 }
 
 // CurrentHeight returns the current blockchain height from chaintracks
-func (a *Adapter) CurrentHeight(ctx context.Context) (uint32, error) {
+func (a *Adapter) CurrentHeight(ctx context.Context) (_ uint32, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-CurrentHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	ch, err := a.ct.CurrentHeight(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to find current height: %w", err)
@@ -133,7 +139,12 @@ func (a *Adapter) CurrentHeight(ctx context.Context) (uint32, error) {
 }
 
 // IsValidRootForHeight checks if the given merkle root is valid for the specified block height
-func (a *Adapter) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (a *Adapter) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (_ bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-IsValidRootForHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	isValid, err := a.ct.IsValidRootForHeight(ctx, root, height)
 	if err != nil {
 		return false, fmt.Errorf("failed to check valid root for height: %w", err)
@@ -144,17 +155,31 @@ func (a *Adapter) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash
 
 // GetHeight returns the current blockchain height
 func (a *Adapter) GetHeight(ctx context.Context) uint32 {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetHeight")
+	defer func() {
+		tracing.EndTracing(span, nil)
+	}()
 	return a.ct.GetHeight(ctx)
 }
 
 // GetTip returns the current chain tip
-func (a *Adapter) GetTip(ctx context.Context) (*wdk.ChainBlockHeader, error) {
+func (a *Adapter) GetTip(ctx context.Context) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetTip")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	tip := a.ct.GetTip(ctx)
 	return convertBlockHeader(tip, "tip header")
 }
 
 // GetHeaderByHeight retrieves a block header by its height
-func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*wdk.ChainBlockHeader, error) {
+func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetHeaderByHeight")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	header, err := a.ct.GetHeaderByHeight(ctx, height)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get header by height %d: %w", height, err)
@@ -164,7 +189,12 @@ func (a *Adapter) GetHeaderByHeight(ctx context.Context, height uint32) (*wdk.Ch
 }
 
 // GetHeaderByHash retrieves a block header by its hash
-func (a *Adapter) GetHeaderByHash(ctx context.Context, hash string) (*wdk.ChainBlockHeader, error) {
+func (a *Adapter) GetHeaderByHash(ctx context.Context, hash string) (_ *wdk.ChainBlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetHeaderByHash")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	chainHash, err := chainhash.NewHashFromHex(hash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chainhash from hash string: %s, err: %w", hash, err)
@@ -201,7 +231,12 @@ func convertBlockHeader(header *chaintracks.BlockHeader, description string) (*w
 }
 
 // GetHeaders retrieves multiple headers starting from the given height
-func (a *Adapter) GetHeaders(ctx context.Context, height, count uint32) ([]*chaintracks.BlockHeader, error) {
+func (a *Adapter) GetHeaders(ctx context.Context, height, count uint32) (_ []*chaintracks.BlockHeader, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetHeaders")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	headers, err := a.ct.GetHeaders(ctx, height, count)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get headers from height %d (count %d): %w", height, count, err)
@@ -211,7 +246,12 @@ func (a *Adapter) GetHeaders(ctx context.Context, height, count uint32) ([]*chai
 }
 
 // GetNetwork returns the network name (mainnet, testnet, etc.)
-func (a *Adapter) GetNetwork(ctx context.Context) (string, error) {
+func (a *Adapter) GetNetwork(ctx context.Context) (_ string, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Chaintracks-GetNetwork")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
 	network, err := a.ct.GetNetwork(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get network: %w", err)

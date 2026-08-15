@@ -47,6 +47,10 @@ func (r *callRecorder) count(name string) int {
 }
 
 // bgSpyKnownTxRepo is the process's knownTxRepo: it records each attempts bump (call + txIDs).
+func (s *bgSpyKnownTxRepo) ClaimKnownTxsForBroadcast(_ context.Context, txIDs []string) ([]string, error) {
+	return txIDs, nil
+}
+
 type bgSpyKnownTxRepo struct {
 	KnownTxRepo // embed interface; unimplemented methods panic if unexpectedly called
 

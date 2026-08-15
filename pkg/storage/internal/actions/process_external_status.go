@@ -315,7 +315,7 @@ func (p *process) advanceToBroadcastedFromExternalEvent(ctx context.Context, ev 
 // verification machinery (network re-check) before any terminal failure:
 //   - the network knows the tx -> false positive -> treat as a successful broadcast,
 //   - no positive evidence (no competing txs) or the network state is inconclusive ->
-//     keep the tx retryable (the polling safety net keeps it alive),
+//     make the tx retryable again (see requeueExternallyRejectedTx),
 //   - confirmed double spend -> existing terminal failure path.
 func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastStatusEvent, current wdk.ProvenTxReqStatus) ([]wdk.TxSynchronizedStatus, error) {
 	aggregated := synthesizeRejectedVerdict(ev)

@@ -156,6 +156,7 @@ type create struct {
 	beefVerifier    wdk.BeefVerifier
 	scriptsVerifier wdk.ScriptsVerifier
 	throughput      ThroughputConfig
+	aborter         actionAborter
 }
 
 func newCreateAction(
@@ -175,6 +176,7 @@ func newCreateAction(
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	throughput ThroughputConfig,
+	aborter actionAborter,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -194,6 +196,7 @@ func newCreateAction(
 		beefVerifier:    beefVerifier,
 		scriptsVerifier: scriptsVerifier,
 		throughput:      throughput,
+		aborter:         aborter,
 	}
 
 	if commissionCfg.Enabled() {
@@ -203,12 +206,17 @@ func newCreateAction(
 	return c
 }
 
-func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (*wdk.StorageCreateActionResult, error) {
-	var err error
+func (c *create) Create(ctx context.Context, userID int, params CreateActionParams) (result *wdk.StorageCreateActionResult, err error) {
 	ctx, span := tracing.StartTracing(ctx, "StorageActions-Create", attribute.Int("userID", userID))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
+
+	// Armed the moment the action is persisted: from then on it holds reserved inputs, while
+	// a failure means the caller never learns its reference and nothing could ever complete
+	// or abort it.
+	release := newRelease(c.logger, c.aborter, userID)
+	defer func() { release.onError(ctx, err) }()
 
 	reference, err := c.randomReference()
 	if err != nil {
@@ -655,6 +663,9 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		}
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
+
+	// The action (and its input reservations) is committed now.
+	release.arm(reference)
 
 	if useThroughput {
 		outcome := c.classifyThroughputOutcome(funding, fundedViaFallback)

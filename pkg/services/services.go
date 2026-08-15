@@ -235,7 +235,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	// Register chaintracks implementation if adapter is available
 	if chaintracksAdapter != nil {
-		predefined = append(predefined, Named[Implementation]{
+		predefined = append([]Named[Implementation]{{
 			Name: defs.ChaintracksServiceName,
 			Item: Implementation{
 				CurrentHeight:        chaintracksAdapter.CurrentHeight,
@@ -244,7 +244,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 				FindChainTipHeader:   chaintracksAdapter.GetTip,
 				IsValidRootForHeight: chaintracksAdapter.IsValidRootForHeight,
 			},
-		})
+		}}, predefined...)
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)

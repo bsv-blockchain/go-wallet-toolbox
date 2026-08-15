@@ -59,14 +59,24 @@ func Enable(logger *slog.Logger, serviceName, dialAddr string, sample int) (func
 	}
 
 	cleanup := func() {
-		err = exporter.Shutdown(ctx)
-		if err != nil {
-			logger.ErrorContext(ctx, "Failed to shutdown exporter", slog.String("err", err.Error()))
+		// Spans are batched, so anything produced in the last few seconds is
+		// still queued in the provider. Flush and shut the provider down first:
+		// it is the provider that drains the queue through the exporter, so
+		// closing the exporter first silently discards everything still pending.
+		//
+		// Long-running services never noticed - the batch timer had already
+		// exported their spans - but a short-lived process would finish its work
+		// and lose all of it on the way out.
+		if err = tp.ForceFlush(ctx); err != nil {
+			logger.ErrorContext(ctx, "Failed to flush pending spans", slog.String("err", err.Error()))
 		}
 
-		err = tp.Shutdown(ctx)
-		if err != nil {
+		if err = tp.Shutdown(ctx); err != nil {
 			logger.ErrorContext(ctx, "Failed to shutdown tracing provider", slog.String("err", err.Error()))
+		}
+
+		if err = exporter.Shutdown(ctx); err != nil {
+			logger.ErrorContext(ctx, "Failed to shutdown exporter", slog.String("err", err.Error()))
 		}
 	}
 

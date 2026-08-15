@@ -24,6 +24,7 @@ type StorageProviderResponses struct {
 	InternalizeAction     StorageProviderMethodResponse[*wdk.InternalizeActionResult]
 	CreateAction          StorageProviderMethodResponse[*wdk.StorageCreateActionResult]
 	ProcessAction         StorageProviderMethodResponse[*wdk.ProcessActionResult]
+	AbortAction           StorageProviderMethodResponse[*wdk.AbortActionResult]
 	InsertCertificateAuth StorageProviderMethodResponse[uint]
 	RelinquishCertificate StorageProviderMethodOnlyErrorResponse
 	RelinquishOutput      StorageProviderMethodOnlyErrorResponse
@@ -117,6 +118,7 @@ func ExpectNoInteraction() func(*StorageProviderResponses) {
 		responses.InternalizeAction.times(zero)
 		responses.CreateAction.times(zero)
 		responses.ProcessAction.times(zero)
+		responses.AbortAction.times(zero)
 		responses.InsertCertificateAuth.times(zero)
 		responses.RelinquishCertificate.times(zero)
 		responses.RelinquishOutput.times(zero)
@@ -135,6 +137,7 @@ func SetupMockStorageProvider(t testing.TB, provider *MockWalletStorageProvider,
 	responses.InternalizeAction.limitCallTimes(provider.EXPECT().InternalizeAction(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.InternalizeAction.result()))
 	responses.CreateAction.limitCallTimes(provider.EXPECT().CreateAction(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.CreateAction.result()))
 	responses.ProcessAction.limitCallTimes(provider.EXPECT().ProcessAction(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.ProcessAction.result()))
+	responses.AbortAction.limitCallTimes(provider.EXPECT().AbortAction(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.AbortAction.result()))
 	responses.InsertCertificateAuth.limitCallTimes(provider.EXPECT().InsertCertificateAuth(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.InsertCertificateAuth.result()))
 	responses.RelinquishCertificate.limitCallTimes(provider.EXPECT().RelinquishCertificate(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.RelinquishCertificate.result()))
 	responses.RelinquishOutput.limitCallTimes(provider.EXPECT().RelinquishOutput(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(responses.RelinquishOutput.result()))
@@ -232,6 +235,9 @@ func DefaultResponses(t testing.TB) StorageProviderResponses {
 				LockTime:                0,
 				Reference:               "Y2NjY2NjY2NjY2Nj",
 			},
+		},
+		AbortAction: StorageProviderMethodResponse[*wdk.AbortActionResult]{
+			Success: &wdk.AbortActionResult{Aborted: true},
 		},
 		ProcessAction: StorageProviderMethodResponse[*wdk.ProcessActionResult]{
 			Success: &wdk.ProcessActionResult{

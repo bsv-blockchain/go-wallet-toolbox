@@ -373,6 +373,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	start := time.Now()
 	defer func() { w.logger.DebugContext(ctx, "CreateAction done", slog.Duration("duration", time.Since(start))) }()
 	action := &actions.CreateAction{
+		Logger:                  w.logger,
 		KeyDeriver:              w.keyDeriver,
 		Storage:                 w.storage,
 		WalletOpts:              w.flags,
@@ -401,6 +402,7 @@ func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, origina
 	}()
 
 	action := &actions.CreateAction{
+		Logger:                  w.logger,
 		KeyDeriver:              w.keyDeriver,
 		Storage:                 w.storage,
 		WalletOpts:              w.flags,
@@ -614,6 +616,15 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 
 	wdkArgs := mapping.MapListOutputsArgs(args)
 
+	if wdkArgs.IncludeTransactions {
+		var knownTxIDs primitives.TXIDHexStrings
+		knownTxIDs, err = w.party.GetKnownTxIDs(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get known txids: %w", err)
+		}
+		wdkArgs.KnownTxids = knownTxIDs.ToStringSlice()
+	}
+
 	if err = validate.ListOutputsArgs(&wdkArgs); err != nil {
 		return nil, fmt.Errorf("invalid list outputs args: %w", err)
 	}
@@ -624,13 +635,16 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	}
 
 	if len(result.BEEF) > 0 {
-		err = w.party.BeefParty.MergeBeefFromParty(w.party.StorageParty, primitives.BEEF(result.BEEF))
-		if err != nil {
-			return nil, fmt.Errorf("failed to merge returned BEEF from storage: %w", err)
+		if err = party.MergeFromStorage(ctx, w.party, primitives.BEEF(result.BEEF)); err != nil {
+			return nil, err
 		}
 
+		// Bound the graph once this reply has been resolved and serialized -
+		// see BeefParty.PruneIfOversized for why it cannot happen any earlier.
+		defer w.party.BeefParty.PruneIfOversized(ctx)
+
 		var verifiedBeef primitives.BEEF
-		verifiedBeef, err = party.VerifyReturnedTxIDOnlyBeef(w.party.BeefParty, primitives.BEEF(result.BEEF))
+		verifiedBeef, err = party.VerifyReturnedTxIDOnlyBeef(ctx, w.party.BeefParty, primitives.BEEF(result.BEEF))
 		if err != nil {
 			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
 		}

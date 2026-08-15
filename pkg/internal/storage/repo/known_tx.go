@@ -25,6 +25,9 @@ import (
 
 const errFmtDBTransaction = "db transaction failed: %w"
 
+// statusColumn is the shared column name used by the status writers.
+const statusColumn = "status"
+
 const (
 	maxDepthOfRecursion = 1000
 )
@@ -64,30 +67,126 @@ func (p *KnownTx) UpdateKnownTxStatus(ctx context.Context, txID string, status w
 	return updateKnownTxStatus(p.db.WithContext(ctx), txID, status, skipForStatuses, txNotes)
 }
 
-func (p *KnownTx) MarkKnownTxsAsSubmitting(ctx context.Context, txIDs []string) error {
+// KnownTxNeverPostedStatuses are the KnownTx statuses that carry no post attempt yet:
+// the transaction is queued or freshly recorded, but was never handed to a broadcaster.
+var KnownTxNeverPostedStatuses = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnprocessed,
+	wdk.ProvenTxStatusUnsent,
+	wdk.ProvenTxStatusNoSend,
+}
+
+// ParkUnbroadcastKnownTx marks a KnownTx as invalidTx so that no broadcast pipeline picks
+// it up again. It is guarded to transactions that provably never reached the network:
+// a never-posted status, was_broadcast still false and no recorded attempt. Returns
+// applied=false (writing nothing) when the guard holds.
+//
+// This is the KnownTx half of a pre-broadcast abort: releasing the reserved inputs while
+// leaving the shared KnownTx broadcastable would let send_waiting post a transaction whose
+// inputs are spendable again - a real double spend.
+func (p *KnownTx) ParkUnbroadcastKnownTx(ctx context.Context, txID string, txNotes []history.Builder) (bool, error) {
 	var err error
-	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-MarkKnownTxsAsSubmitting")
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-ParkUnbroadcastKnownTx", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	applied := false
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.KnownTx{}).
+			Where("tx_id = ?", txID).
+			Where("status IN ?", KnownTxNeverPostedStatuses).
+			Where("was_broadcast = ?", false).
+			Where("attempts = ?", 0).
+			UpdateColumns(map[string]any{
+				statusColumn: wdk.ProvenTxStatusInvalid,
+			})
+		if result.Error != nil {
+			return fmt.Errorf("failed to park known tx %s: %w", txID, result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		applied = true
+
+		return addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+			return note.Entity(txID)
+		}))
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return applied, nil
+}
+
+// KnownTxClaimableForBroadcastStatuses are the statuses a transaction can be claimed for a
+// post from: it is waiting to be sent, explicitly parked by its owner (noSend, sent later via
+// sendWith), or a previous attempt ended without network evidence and is being retried.
+//
+// Everything else is excluded on purpose: statuses that already carry network evidence, the
+// terminal failures - which is what an abort parks a transaction as - and 'unfail', which is
+// re-checking an earlier failure.
+var KnownTxClaimableForBroadcastStatuses = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnprocessed,
+	wdk.ProvenTxStatusUnsent,
+	wdk.ProvenTxStatusSending,
+	wdk.ProvenTxStatusNoSend,
+	wdk.ProvenTxStatusNonFinal,
+	wdk.ProvenTxStatusUnknown,
+}
+
+// ClaimKnownTxsForBroadcast takes ownership of the given transactions for an imminent post:
+// it moves every claimable row to 'sending' (flagging was_broadcast) and returns the txIDs
+// that were actually claimed.
+//
+// It is the gate that makes a parked KnownTx an effective stop signal: a transaction that
+// was aborted (or otherwise moved out of a claimable status) is not returned, so callers
+// must not post it. Claiming immediately before the post also prevents a queued in-memory
+// broadcast from racing an abort that already released the transaction's inputs.
+func (p *KnownTx) ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string) ([]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-ClaimKnownTxsForBroadcast")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
 	if len(txIDs) == 0 {
+		return nil, nil
+	}
+
+	var claimed []string
+	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var rows []*models.KnownTx
+		if findErr := tx.Model(&models.KnownTx{}).
+			Select("tx_id").
+			Where("tx_id IN ?", txIDs).
+			Where(statusInCondition, KnownTxClaimableForBroadcastStatuses).
+			Find(&rows).Error; findErr != nil {
+			return fmt.Errorf("failed to find claimable known txs: %w", findErr)
+		}
+
+		claimed = slices.Map(rows, func(row *models.KnownTx) string { return row.TxID })
+		if len(claimed) == 0 {
+			return nil
+		}
+
+		if updateErr := tx.Model(&models.KnownTx{}).
+			Where("tx_id IN ?", claimed).
+			Where(statusInCondition, KnownTxClaimableForBroadcastStatuses).
+			UpdateColumns(map[string]any{
+				statusColumn:    wdk.ProvenTxStatusSending,
+				"was_broadcast": true,
+			}).Error; updateErr != nil {
+			return fmt.Errorf("failed to claim known txs for broadcast: %w", updateErr)
+		}
+
 		return nil
-	}
-
-	err = p.db.WithContext(ctx).
-		Model(&models.KnownTx{}).
-		Where("tx_id IN ?", txIDs).
-		Where("status = ?", wdk.ProvenTxStatusUnprocessed).
-		UpdateColumns(map[string]any{
-			"status":        wdk.ProvenTxStatusSending,
-			"was_broadcast": true,
-		}).Error
+	})
 	if err != nil {
-		return fmt.Errorf("failed to mark known txs as submitting: %w", err)
+		return nil, err
 	}
 
-	return nil
+	return claimed, nil
 }
 
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {

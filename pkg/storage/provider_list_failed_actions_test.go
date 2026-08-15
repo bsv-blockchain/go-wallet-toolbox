@@ -188,13 +188,16 @@ func TestListFailedActions_IncludesAbortedWithDistinctStatus(t *testing.T) {
 
 	// and: crucially, the aborted tx's shared KnownTx row was NOT flipped to
 	// 'unfail' - this is what the Status != TxStatusFailed guard in
-	// markActionsForUnfail actually prevents (AbortAction itself never touches
-	// KnownTx, so it stays at its pre-abort 'nosend' status; if the guard were
-	// removed, this would be flipped to 'unfail', spuriously triggering on-chain
-	// re-verification and wastefully affecting any other, genuinely-failed
-	// Transactions sharing that same KnownTx row - note the aborted Transaction row
-	// itself is separately protected from being re-failed by process_unfail.go's
-	// positive CAS requiring the Transaction's current status to be 'failed')
+	// markActionsForUnfail actually prevents (if the guard were removed, this would
+	// be flipped to 'unfail', spuriously triggering on-chain re-verification and
+	// wastefully affecting any other, genuinely-failed Transactions sharing that
+	// same KnownTx row - note the aborted Transaction row itself is separately
+	// protected from being re-failed by process_unfail.go's positive CAS requiring
+	// the Transaction's current status to be 'failed').
+	//
+	// It sits at 'invalidTx' because the abort parks the KnownTx: the transaction
+	// provably never reached a broadcaster, and parking is what stops any pipeline
+	// from claiming it for a post after its inputs were released.
 	testabilities.ThenDBState(t, activeStorage).
-		HasKnownTX(abortedTxID).WithStatus(wdk.ProvenTxStatusNoSend)
+		HasKnownTX(abortedTxID).WithStatus(wdk.ProvenTxStatusInvalid)
 }

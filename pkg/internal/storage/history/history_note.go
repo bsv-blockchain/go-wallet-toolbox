@@ -18,6 +18,10 @@ const (
 	AggregateResultsHistoryNote  = "aggregateResults"
 	NotifyTxOfProofHistoryNote   = "notifyTxOfProof"
 
+	// AbortBeforeBroadcastHistoryNote marks a transaction that was released back to its
+	// inputs because processing failed before anything was posted to the network.
+	AbortBeforeBroadcastHistoryNote = "abortBeforeBroadcast"
+
 	GetMerklePathSuccess  = "getMerklePathSuccess"
 	GetMerklePathNotFound = "getMerklePathNotFound"
 
@@ -39,6 +43,7 @@ type EventTypesSelector interface {
 	ProcessAction(userID int) Builder
 	AggregateResults(result AggregatedBroadcastResult) Builder
 	NotifyTxOfProof(transactionID uint) Builder
+	AbortBeforeBroadcast(newStatus wdk.ProvenTxReqStatus) Builder
 
 	GetMerklePathSuccess(serviceName string) Builder
 	GetMerklePathNotFound(serviceName string) Builder
@@ -95,6 +100,10 @@ func (b *builder) InternalizeAction(userID int) Builder {
 
 func (b *builder) ProcessAction(userID int) Builder {
 	return b.WithWhat(ProcessActionHistoryNote).WithUser(userID)
+}
+
+func (b *builder) AbortBeforeBroadcast(newStatus wdk.ProvenTxReqStatus) Builder {
+	return b.WithWhat(AbortBeforeBroadcastHistoryNote).WithNewStatus(string(newStatus))
 }
 
 func (b *builder) AggregateResults(result AggregatedBroadcastResult) Builder {

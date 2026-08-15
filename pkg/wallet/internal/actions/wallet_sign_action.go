@@ -27,17 +27,19 @@ import (
 type SignAction struct {
 	Logger                  *slog.Logger
 	PendingSignActionsCache pending.SignActionsRepository
-	Storage                 WalletStorageProcessAction
+	Storage                 WalletStorageProcessAndAbortAction
 
 	wdkArgs    wdk.ValidCreateActionArgs
 	reference  string
 	tx         *assembler.AssembledTransaction
 	txID       *chainhash.Hash
 	originator string
+
+	// release releases the storage-side action if this flow cannot complete it.
+	release *release
 }
 
-func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (*wallet.SignActionResult, error) {
-	var err error
+func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs, originator string, wp *party.WalletParty) (result *wallet.SignActionResult, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction", attribute.String("originator", originator))
 	defer func() {
 		tracing.EndTracing(span, err)
@@ -47,8 +49,15 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	s.originator = originator
 	s.reference = string(args.Reference) // TODO: Make sure, the type []byte is a good choice for this field. I have doubts.
 
-	err = s.validate()
-	if err != nil {
+	// The action was created (and its inputs reserved) by an earlier CreateAction and only
+	// this flow can complete it, so any failure before it reaches ProcessAction releases it.
+	// The cached pending action goes with it: the reference is dead afterwards.
+	s.release = newRelease(s.Logger, s.Storage)
+	s.release.onRelease = s.dropPendingSignAction
+	s.release.arm(s.reference)
+	defer func() { s.release.onError(ctx, err) }()
+
+	if err = s.validate(); err != nil {
 		return nil, err
 	}
 
@@ -66,8 +75,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 		return nil, fmt.Errorf("not all inputs can be unlocked: %w", err)
 	}
 
-	err = s.tx.Sign()
-	if err != nil {
+	if err = s.tx.Sign(); err != nil {
 		return nil, fmt.Errorf("sign transaction failed: %w", err)
 	}
 
@@ -77,7 +85,7 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 		return nil, err
 	}
 
-	result, err := mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
+	result, err = mapping.MapSignActionResultFromStorageResultsForNewTx(s.txID, s.tx, processActionResult, s.wdkArgs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build result after processing signed action: %w",
 			pkgerrors.NewTransactionError(*s.txID).
@@ -94,9 +102,10 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 	}
 
 	if result.Tx != nil && s.wdkArgs.Options.ReturnTXIDOnly.Value() {
-		tx, err := party.VerifyReturnedTxIDOnlyAtomicBEEF(wp.BeefParty, result.Txid, result.Tx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
+		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx)
+		if verifyErr != nil {
+			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
+			return nil, err
 		}
 
 		result.Tx = tx
@@ -116,6 +125,16 @@ func (s *SignAction) attachUnlockingScripts(args wallet.SignActionArgs) {
 	}
 }
 
+// dropPendingSignAction removes the cached pending action after its storage-side action was
+// released: the reference is dead, so a retry with it can only fail.
+func (s *SignAction) dropPendingSignAction() {
+	if err := s.PendingSignActionsCache.Delete(s.reference); err != nil {
+		s.Logger.Warn("failed to delete pending sign action from cache after abort",
+			slog.String("reference", s.reference),
+			logging.Error(err))
+	}
+}
+
 func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActionResult, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Wallet-SignAction-handleProcessAction")
@@ -124,6 +143,10 @@ func (s *SignAction) handleProcessAction(ctx context.Context) (*wdk.ProcessActio
 	}()
 
 	processActionArgs := mapping.MapProcessActionArgsForNewTx(s.txID, s.tx, s.reference, s.wdkArgs)
+
+	// Point of no return: storage takes over from here and may broadcast the transaction, so
+	// this wallet must not release its inputs anymore.
+	s.release.disarm()
 
 	processActionResult, err := s.Storage.ProcessAction(ctx, processActionArgs)
 	if err != nil {
