@@ -147,7 +147,7 @@ func main() {
 	}
 
 	if *fundTxID != "" {
-		if err := internalizeFunding(ctx, logger, activeServices, userWallet, *fundTxID, uint32(*fundVout)); err != nil {
+		if err := internalizeFunding(ctx, logger, activeServices, userWallet, *fundTxID, uint32(*fundVout)); err != nil { //nolint:gosec // CLI vout is a tx output index, far below uint32 max
 			fatal(logger, "failed to internalize funding tx", err)
 		}
 	}
@@ -351,7 +351,7 @@ func walletBalance(ctx context.Context, logger *slog.Logger, userWallet *wallet.
 			balance += output.Satoshis
 		}
 		count = outputs.TotalOutputs
-		offset += uint32(len(outputs.Outputs))
+		offset += uint32(len(outputs.Outputs)) //nolint:gosec // safe: output count fits in uint32
 		if offset >= outputs.TotalOutputs || len(outputs.Outputs) == 0 {
 			break
 		}
@@ -601,7 +601,7 @@ func writeResults(logger *slog.Logger, runLabel string, records []*txRecord, sta
 		logger.Error("failed to create results file", "error", err)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := csv.NewWriter(f)
 	defer w.Flush()
