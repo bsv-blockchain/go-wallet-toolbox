@@ -37,9 +37,14 @@ package {{ $pkg.Name }}
             {{- end }}
         {{- else }}
             {{- $authIDVarName := .Arguments.ArgumentOfType "AuthID" }}
+            {{- $syncArgsVarName := .Arguments.ArgumentOfType "RequestSyncChunkArgs" }}
             {{- $contextVarName := coalesce (.Arguments.ArgumentOfType "context.Context") "context.Background()" }}
             {{- if $authIDVarName }}
                 err := p.verifyAuthID({{ $contextVarName }}, {{ $authIDVarName }})
+            {{- else if $syncArgsVarName }}
+                {{- /*RequestSyncChunkArgs carries no AuthID, but its IdentityKey selects whose data is read/written,
+                    so it must be bound to the authenticated peer rather than merely requiring any authentication.*/}}
+                err := p.verifyAndBindSyncIdentityKey({{ $contextVarName }}, &{{ $syncArgsVarName }}.IdentityKey)
             {{- else }}
                 err := p.verifyAuthenticated({{ $contextVarName }})
             {{- end }}

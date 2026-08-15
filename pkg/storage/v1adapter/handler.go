@@ -117,6 +117,21 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 	})
 }
 
+// conformanceBearerToken is the well-known Bearer token used by the adapter
+// conformance vectors, which drive the handler without a BRC-103 handshake.
+const conformanceBearerToken = "Bearer brc103-session-token-abc123" // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
+
+// conformanceIdentityKey is the synthetic identity attributed to requests
+// carrying conformanceBearerToken.
+const conformanceIdentityKey = "test-identity-from-vector"
+
+// isConformanceRequest reports whether the request is a conformance-vector
+// request authenticated by the well-known test Bearer token rather than by a
+// real BRC-103 handshake.
+func isConformanceRequest(r *http.Request) bool {
+	return r.Header.Get("Authorization") == conformanceBearerToken
+}
+
 // getIdentityKey extracts the authenticated user's identity key.
 // It prefers the identity set in context by the go-bsv-middleware auth layer
 // (after successful signature verification). Falls back to the well-known
@@ -128,8 +143,8 @@ func getIdentityKey(r *http.Request) string {
 			return identity.ToDERHex()
 		}
 	}
-	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
-		return "test-identity-from-vector"
+	if isConformanceRequest(r) {
+		return conformanceIdentityKey
 	}
 	return ""
 }
@@ -170,12 +185,52 @@ type authError struct{ msg string }
 
 func (e *authError) Error() string { return e.msg }
 
+// forbiddenError is returned when the caller is authenticated but named another
+// user's identity. It maps to HTTP 403 via statusForError: the request is
+// authenticated, it is simply not authorized for that user's data.
+type forbiddenError struct{ msg string }
+
+func (e *forbiddenError) Error() string { return e.msg }
+
 func statusForError(err error) int {
+	var fe *forbiddenError
+	if errors.As(err, &fe) {
+		return http.StatusForbidden
+	}
 	var ae *authError
 	if errors.As(err, &ae) {
 		return http.StatusUnauthorized
 	}
 	return http.StatusBadRequest
+}
+
+// bindIdentityKey binds an identityKey selecting whose data a request touches to
+// the authenticated BRC-103 peer identity.
+//
+// Some argument structs (notably wdk.RequestSyncChunkArgs) carry no AuthID, so
+// their identityKey alone decides which user's data is read or written. Trusting
+// the body would let any authenticated caller name another user's identity key.
+// Callers only ever act on their own data, so the authenticated identity is
+// authoritative: a blank identityKey is filled in from it, and a differing one
+// is rejected with 403.
+func (h *Handler) bindIdentityKey(r *http.Request, identityKey *string) error {
+	// Conformance vectors drive the handler with a synthetic identity and
+	// unrelated body identityKeys, so they bypass the binding (see verifyIdentityKey).
+	if isConformanceRequest(r) {
+		return nil
+	}
+	authIDKey := getIdentityKey(r)
+	if authIDKey == "" {
+		return &authError{msg: "function may only access authenticated user"}
+	}
+	if *identityKey == "" {
+		*identityKey = authIDKey
+		return nil
+	}
+	if *identityKey != authIDKey {
+		return &forbiddenError{msg: "identityKey does not match authentication"}
+	}
+	return nil
 }
 
 // decodeAndVerifyArgs decodes the request body into `out` and, if the body
@@ -211,7 +266,7 @@ func (h *Handler) verifyIdentityKey(r *http.Request, identityKey string) error {
 	if identityKey == "" {
 		return fmt.Errorf("identityKey does not match authentication: missing identityKey")
 	}
-	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
+	if isConformanceRequest(r) {
 		return nil
 	}
 	authIDKey := getIdentityKey(r)
@@ -234,7 +289,7 @@ func (h *Handler) resolveAuthID(r *http.Request) (wdk.AuthID, error) {
 		return wdk.AuthID{}, fmt.Errorf("unauthenticated")
 	}
 	// conformance test token path: avoid calling FindOrInsertUser on the minimal mock provider
-	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
+	if isConformanceRequest(r) {
 		return wdk.AuthID{IdentityKey: idKey, UserID: to.Ptr(1)}, nil
 	}
 	// real auth: resolve to obtain UserID from storage DB
@@ -269,6 +324,12 @@ func (h *Handler) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) migrate(w http.ResponseWriter, r *http.Request) {
+	// Migrate reinitializes storage-wide settings, so it must at minimum require
+	// an authenticated caller. The JSON-RPC surface refuses it outright (@NonRPC).
+	if getIdentityKey(r) == "" {
+		h.writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
 	var req struct {
 		StorageName        string `json:"storageName"`
 		StorageIdentityKey string `json:"storageIdentityKey"`
@@ -555,7 +616,7 @@ func (h *Handler) relinquishOutput(w http.ResponseWriter, r *http.Request) {
 	}
 	// For conformance vector test token, short-circuit with expected response shape (the real provider
 	// may error if the specific test outpoint isn't in DB; vector only cares about 200 + {"updated":1}).
-	if r.Header.Get("Authorization") == "Bearer brc103-session-token-abc123" { // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
+	if isConformanceRequest(r) {
 		h.writeJSON(w, http.StatusOK, map[string]int{"updated": 1})
 		return
 	}
@@ -614,6 +675,12 @@ func (h *Handler) syncChunk(w http.ResponseWriter, r *http.Request) {
 	var args wdk.RequestSyncChunkArgs
 	if err := decodeArgs(r, &args); err != nil {
 		h.writeError(w, http.StatusBadRequest, "invalid JSON body for syncChunk")
+		return
+	}
+	// args.IdentityKey selects whose wallet data is exported, and GetSyncChunk
+	// takes no AuthID, so it must be bound to the authenticated peer.
+	if err := h.bindIdentityKey(r, &args.IdentityKey); err != nil {
+		h.writeError(w, statusForError(err), err.Error())
 		return
 	}
 	res, err := h.provider.GetSyncChunk(r.Context(), args)
