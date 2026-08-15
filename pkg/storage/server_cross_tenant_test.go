@@ -72,8 +72,7 @@ func TestRESTSyncRoutesRejectCrossTenantAccess(t *testing.T) {
 		chunk, err := client.GetSyncChunk(t.Context(), syncArgsFor(t, given.StorageIdentityKey(), testusers.Bob))
 
 		// then:
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "identityKey does not match authentication")
+		require.ErrorContains(t, err, "identityKey does not match authentication")
 		assert.Nil(t, chunk)
 	})
 

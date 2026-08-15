@@ -119,6 +119,10 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 
 // conformanceBearerToken is the well-known Bearer token used by the adapter
 // conformance vectors, which drive the handler without a BRC-103 handshake.
+// It is public test data committed in adapter-conformance.json — it grants no
+// access to any real system and is not a credential.
+//
+//nolint:gosec // G101: well-known conformance-vector test token, not a live credential
 const conformanceBearerToken = "Bearer brc103-session-token-abc123" // NOSONAR(go:S2068) - test token for conformance vectors, safe public test data
 
 // conformanceIdentityKey is the synthetic identity attributed to requests
