@@ -14,6 +14,7 @@ import (
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -92,6 +93,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	if err != nil {
 		return nil, fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}
+	sdkbeef.Sanitize(beef)
 
 	in.logger.DebugContext(
 		ctx, "Verifying beef transaction",

@@ -7,6 +7,7 @@ import (
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -41,6 +42,7 @@ func WalletInternalizeAction(keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeAc
 	}
 
 	beef, txIDHash, err := transaction.NewBeefFromAtomicBytes(args.Tx)
+	sdkbeef.Sanitize(beef)
 	if err != nil {
 		return fmt.Errorf("failed to create atomic beef from bytes: %w", err)
 	}

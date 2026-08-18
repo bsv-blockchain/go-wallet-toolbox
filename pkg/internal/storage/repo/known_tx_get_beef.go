@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gorm"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -306,7 +307,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	}
 
 	if len(model.InputBeef) > 0 && needsInputBEEF(tx, options, preFetched) {
-		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
+		err = sdkbeef.MergeBytes(mergeToBeef, model.InputBeef)
 		if err != nil {
 			return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
 		}

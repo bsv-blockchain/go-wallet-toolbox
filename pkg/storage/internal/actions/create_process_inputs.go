@@ -17,6 +17,7 @@ import (
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -130,6 +131,10 @@ func (proc *inputsProcessor) processInputs() (*processedInputsResult, error) {
 
 	// only verify beef during create action if using external input
 	if proc.inputBEEF != nil {
+		if err = proc.hydrateUnanchoredAncestry(); err != nil {
+			return nil, fmt.Errorf("failed to complete beef ancestry from storage: %w", err)
+		}
+
 		if ok, err := proc.beefVerifier.VerifyBeef(proc.ctx, proc.beef, true); err != nil {
 			return nil, fmt.Errorf("failed to verify beef: %w", err)
 		} else if !ok {
@@ -199,7 +204,10 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 func (proc *inputsProcessor) processInputBEEF() error {
 	var err error
 
-	if err = proc.beef.MergeBeefBytes(proc.inputBEEF); err != nil {
+	// Sanitizing merge: a bare txid in the caller's BEEF comes back out of
+	// go-sdk's reader with an empty transaction attached and wired into whatever
+	// spends it. See sdkbeef.Sanitize.
+	if err = sdkbeef.MergeBytes(proc.beef, proc.inputBEEF); err != nil {
 		return fmt.Errorf("failed to merge input beef: %w", err)
 	}
 
@@ -271,6 +279,142 @@ func (proc *inputsProcessor) checkInputsAndMergeTxIDsToBEEF() error {
 	return nil
 }
 
+// maxAncestryHydrationRounds bounds the hydrate-and-recheck loop in
+// hydrateUnanchoredAncestry. One round is enough for a BEEF whose stubs sit
+// directly above raw transactions; further rounds only matter when the stored
+// ancestry pulled in from storage itself carries a stub with a raw child (rows
+// written by older releases). The bound exists so a pathological graph cannot
+// spin here.
+const maxAncestryHydrationRounds = 8
+
+// hydrateUnanchoredAncestry fills in the ancestry the BEEF validator needs but
+// the provided inputBEEF does not carry.
+//
+// Under trustSelf a caller may replace any transaction storage already knows
+// with a bare txid (the knownTxIds optimisation). That is sound for a
+// transaction nothing else in the BEEF spends, but a TxIDOnly entry is not an
+// anchor: go-sdk's ValidateTransactions can only call an unproven raw
+// transaction valid by tracing every one of its inputs to a merkle proof. A raw
+// transaction sitting above a stub - or above an ancestor the caller trimmed
+// away entirely - therefore makes the whole BEEF invalid, and createAction
+// rejects it with a bare "provided beef is not valid" for transactions storage
+// is holding itself. That is the failure: the check just above this one proves
+// storage knows them.
+//
+// So every source that an unproven raw transaction spends and the BEEF cannot
+// anchor is read back out of storage with its full ancestry. Stubs that nothing
+// in the BEEF spends stay stubs, which is what keeps the optimisation worth
+// having: the common case (a caller listing its inputs as bare txids and
+// sending no raw ancestry at all) still costs no ancestry walk.
+func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
+	if !proc.trustSelf {
+		// Without trustSelf the caller promised a complete BEEF. Keep that
+		// strictness and let verification reject an incomplete one.
+		return nil
+	}
+
+	for round := 0; round < maxAncestryHydrationRounds; round++ {
+		needed := proc.unanchorableSources()
+		if len(needed) == 0 {
+			return nil
+		}
+
+		allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, needed, readyToBeInputProvenTxStatuses)
+		if err != nil {
+			return fmt.Errorf("failed to check if ancestor transactions are known: %w", err)
+		}
+
+		if !allKnown {
+			return missingProofError(needed, "inputBEEF spends transactions whose proof is neither provided nor known to storage")
+		}
+
+		proc.logger.DebugContext(proc.ctx, "Completing inputBEEF ancestry from storage",
+			slog.Int("round", round),
+			slog.Int("txIDsToHydrate", len(needed)),
+		)
+
+		if _, err = proc.parent.knownTxRepo.GetBEEFForTxIDs(
+			proc.ctx,
+			seq.FromSlice(needed),
+			entity.WithMergeToBEEF(proc.beef),
+			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
+		); err != nil {
+			return fmt.Errorf("failed to merge storage ancestry for %s: %w", strings.Join(needed, ", "), err)
+		}
+	}
+
+	return fmt.Errorf("inputBEEF ancestry still incomplete after %d hydration rounds", maxAncestryHydrationRounds)
+}
+
+// unanchorableSources lists the sources spent by unproven raw transactions in
+// the BEEF that the BEEF does not carry as raw data: entries held as a bare
+// txid, and sources absent altogether. A transaction that carries a proof is
+// terminal - the validator never inspects its inputs and script verification
+// skips it - so neither it nor anything above it is reported.
+//
+// A bare txid covered by a BUMP is a valid anchor for the validator but still
+// has no output scripts, which the script verification that follows needs for
+// every unproven raw transaction. It is reported too.
+func (proc *inputsProcessor) unanchorableSources() []string {
+	proven := provenInBEEF(proc.beef)
+
+	var needed []string
+	seen := make(map[chainhash.Hash]struct{})
+	for txIDHash, beefTx := range proc.beef.Transactions {
+		if beefTx.Transaction == nil {
+			// A bare txid spends nothing as far as this BEEF is concerned.
+			continue
+		}
+		if _, ok := proven[txIDHash]; ok {
+			continue
+		}
+
+		for _, input := range beefTx.Transaction.Inputs {
+			if input.SourceTXID == nil {
+				continue
+			}
+			if _, dup := seen[*input.SourceTXID]; dup {
+				continue
+			}
+			if source, inBEEF := proc.beef.Transactions[*input.SourceTXID]; inBEEF && source.Transaction != nil {
+				continue
+			}
+
+			seen[*input.SourceTXID] = struct{}{}
+			needed = append(needed, input.SourceTXID.String())
+		}
+	}
+
+	return needed
+}
+
+// provenInBEEF returns the txids the BEEF can anchor on its own: every txid leaf
+// carried by one of its BUMPs, plus every transaction that arrived with a merkle
+// path attached. It mirrors what go-sdk's ValidateTransactions treats as
+// terminal, so the two agree on which transactions still need their ancestry.
+func provenInBEEF(beef *transaction.Beef) map[chainhash.Hash]struct{} {
+	proven := make(map[chainhash.Hash]struct{})
+
+	for _, bump := range beef.BUMPs {
+		if len(bump.Path) == 0 {
+			continue
+		}
+		for _, leaf := range bump.Path[0] {
+			if leaf.Hash != nil && leaf.Txid != nil && *leaf.Txid {
+				proven[*leaf.Hash] = struct{}{}
+			}
+		}
+	}
+
+	for txIDHash, beefTx := range beef.Transactions {
+		if beefTx.Transaction != nil && beefTx.Transaction.MerklePath != nil {
+			proven[txIDHash] = struct{}{}
+		}
+	}
+
+	return proven
+}
+
 func (proc *inputsProcessor) xinputDefOnKnownUTXO(xinput *wdk.ValidCreateActionInput, output *pkgentity.Output) (*xinputDefinition, error) {
 	if len(output.LockingScript) == 0 || output.Satoshis <= 0 {
 		return nil, fmt.Errorf("output %s has no locking script or positive satoshis", xinput.Outpoint)
@@ -300,7 +444,12 @@ func (proc *inputsProcessor) xinputDefOnUnknownUTXO(xinput *wdk.ValidCreateActio
 	}
 
 	if btx.DataFormat == transaction.TxIDOnly {
-		beefForTx, err := proc.parent.knownTxRepo.GetBEEFForTxID(proc.ctx, xinput.Outpoint.TxID, entity.WithStatusesToFilterOut(readyToBeInputProvenTxStatuses...))
+		// Filter out the problematic statuses, not the usable ones: this lookup
+		// exists to read back a transaction the checks above already proved
+		// storage holds at a readyToBeInputProvenTxStatuses status, so excluding
+		// exactly those statuses made every stubbed unknown UTXO fail with
+		// "is not known to storage" right after storage confirmed it knows it.
+		beefForTx, err := proc.parent.knownTxRepo.GetBEEFForTxID(proc.ctx, xinput.Outpoint.TxID, entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...))
 		if err != nil {
 			return nil, fmt.Errorf("failed to build beef for tx %s: %w", xinput.Outpoint.TxID, err)
 		}
@@ -342,7 +491,10 @@ func missingProofError(txIDs []string, msgParts ...string) error {
 		subject = "transaction"
 	}
 
-	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, strings.Join(msgParts, ", "))
+	// The txids are the whole point of this error: without them a caller cannot
+	// tell which transaction to resend. This joined msgParts, repeating the
+	// message where the list belongs.
+	txMsgPart := fmt.Sprintf("valid and contain complete proof data for %s: %s", subject, strings.Join(txIDs, ", "))
 	if len(msgParts) > 0 {
 		return fmt.Errorf("%s; %s", strings.Join(msgParts, "; "), txMsgPart)
 	}

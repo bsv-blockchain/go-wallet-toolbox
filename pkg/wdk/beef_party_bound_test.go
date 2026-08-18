@@ -87,3 +87,89 @@ func TestBeefPartyKeepsAdvertisedTxsResolvable(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+// The same story with two actions overlapping, which is the shape that broke
+// under load: one action advertises, a second one's merge pushes the graph past
+// its cap, and the reset drops the graph the first action still needs to resolve
+// the reply it is holding. A lease defers the reset until the window closes.
+func TestBeefPartyDefersResetWhileAnActionIsBetweenAdvertiseAndResolve(t *testing.T) {
+	const storageParty = "storage"
+
+	bp := wdk.NewBeefParty([]string{storageParty})
+	lockTime := uint32(0)
+
+	mergeBatch := func(count int) {
+		answer := transaction.NewBeef()
+		for range count {
+			lockTime++
+			_, err := answer.MergeTransaction(boundTestTx(lockTime))
+			require.NoError(t, err)
+		}
+		answerBytes, err := answer.Bytes()
+		require.NoError(t, err)
+		require.NoError(t, bp.MergeBeefFromParty(t.Context(), storageParty, primitives.BEEF(answerBytes)))
+	}
+
+	// Action A opens its window and advertises what the graph holds.
+	mergeBatch(10)
+	releaseA := bp.Lease(t.Context())
+	advertised := bp.ValidateTransactions(t.Context()).Valid
+	require.NotEmpty(t, advertised)
+
+	// Action B, concurrently, pushes the graph past its cap and reads it - the
+	// point at which the old code reset the graph out from under A.
+	mergeBatch(wdk.DefaultMaxGraphTxs + 1)
+	releaseB := bp.Lease(t.Context())
+	bp.ValidateTransactions(t.Context())
+	bp.PruneIfOversized(t.Context())
+	releaseB()
+
+	err := bp.WithLock(t.Context(), func(graph *transaction.Beef) error {
+		for _, txid := range advertised {
+			assert.NotNilf(t, graph.FindAtomicTransaction(txid),
+				"advertised tx %s must stay resolvable while its action's window is open", txid)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	// Once A closes its window the deferred reset lands, so the bound still holds.
+	releaseA()
+
+	err = bp.WithLock(t.Context(), func(graph *transaction.Beef) error {
+		assert.Empty(t, graph.Transactions, "the deferred reset must run when the last lease is released")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// A lease must not be able to hold the graph open forever: past a hard ceiling
+// the reset happens anyway, so sustained concurrency cannot reintroduce
+// unbounded growth.
+func TestBeefPartyResetsPastTheCeilingEvenWithAnOpenLease(t *testing.T) {
+	const storageParty = "storage"
+
+	bp := wdk.NewBeefParty([]string{storageParty})
+	lockTime := uint32(0)
+
+	release := bp.Lease(t.Context())
+	defer release()
+
+	answer := transaction.NewBeef()
+	for range wdk.DefaultMaxGraphTxs*wdk.EmergencyResetFactor + 1 {
+		lockTime++
+		_, err := answer.MergeTransaction(boundTestTx(lockTime))
+		require.NoError(t, err)
+	}
+	answerBytes, err := answer.Bytes()
+	require.NoError(t, err)
+	require.NoError(t, bp.MergeBeefFromParty(t.Context(), storageParty, primitives.BEEF(answerBytes)))
+
+	bp.PruneIfOversized(t.Context())
+
+	err = bp.WithLock(t.Context(), func(graph *transaction.Beef) error {
+		assert.Empty(t, graph.Transactions, "the ceiling must reset the graph despite the open lease")
+		return nil
+	})
+	require.NoError(t, err)
+}

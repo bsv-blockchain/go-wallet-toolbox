@@ -352,10 +352,15 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 // Transactions already queued (unsent/sending) or advanced (completed/terminal) are left
 // untouched by the fromStatuses guard.
 func (p *process) requeueExternallyRejectedTx(ctx context.Context, ev *wdk.BroadcastStatusEvent, verdict *wdk.AggregatedPostedTxID, current wdk.ProvenTxReqStatus) ([]wdk.TxSynchronizedStatus, error) {
+	// unconfirmed is deliberately NOT requeueable: that status means a merkle proof
+	// has already arrived, so a REJECTED event for it is stale by definition.
+	// Requeueing would drop the proof, re-post a mined transaction, and - once the
+	// rebroadcast budget ran out - fail it terminally as invalidTx. Marking a mined
+	// transaction invalid is exactly the false-failure class the double-spend
+	// confirmation path exists to prevent.
 	fromStatuses := []wdk.ProvenTxReqStatus{
 		wdk.ProvenTxStatusUnmined,
 		wdk.ProvenTxStatusCallback,
-		wdk.ProvenTxStatusUnconfirmed,
 		wdk.ProvenTxStatusUnknown,
 	}
 	notes := p.notesForPostBEEF(wdk.ProvenTxStatusUnsent, verdict, nil, nil, nil)
