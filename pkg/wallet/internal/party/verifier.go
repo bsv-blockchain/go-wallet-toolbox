@@ -9,7 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
@@ -23,7 +22,7 @@ func VerifyReturnedTxIDOnlyBeef(ctx context.Context, bp *wdk.BeefParty, beef pri
 	)
 	defer func() { tracing.EndTracing(span, err) }()
 
-	b, err := sdkbeef.ParseBytes(beef)
+	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
 	}
@@ -59,7 +58,7 @@ func VerifyReturnedTxIDOnlyAtomicBEEF(ctx context.Context, bp *wdk.BeefParty, tx
 	)
 	defer func() { tracing.EndTracing(span, err) }()
 
-	b, err := sdkbeef.ParseBytes(beef)
+	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create beef from bytes: %w", err)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -195,7 +194,7 @@ func (a *CreateActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreate
 }
 
 func (a *CreateActionTransactionAssembler) parseInputBEEF() error {
-	inputBEEF, err := sdkbeef.ParseBytes(a.createActionResult.InputBeef)
+	inputBEEF, err := transaction.NewBeefFromBytes(a.createActionResult.InputBeef)
 	if err != nil {
 		return fmt.Errorf("cannot parse inputBeef: %w", err)
 	}

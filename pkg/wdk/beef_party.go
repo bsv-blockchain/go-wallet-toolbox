@@ -9,7 +9,6 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
@@ -375,7 +374,7 @@ func (bp *BeefParty) MergeBeefFromParty(ctx context.Context, party string, beef 
 	)
 	defer func() { tracing.EndTracing(span, err) }()
 
-	b, err := sdkbeef.ParseBytes(beef)
+	b, err := transaction.NewBeefFromBytes(beef)
 	if err != nil {
 		return fmt.Errorf("failed to parse BEEF bytes from party %s: %w", party, err)
 	}

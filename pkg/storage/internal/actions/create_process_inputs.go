@@ -17,7 +17,6 @@ import (
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/sdkbeef"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -204,10 +203,7 @@ func (proc *inputsProcessor) buildInputsDefinition() (*processedInputsResult, er
 func (proc *inputsProcessor) processInputBEEF() error {
 	var err error
 
-	// Sanitizing merge: a bare txid in the caller's BEEF comes back out of
-	// go-sdk's reader with an empty transaction attached and wired into whatever
-	// spends it. See sdkbeef.Sanitize.
-	if err = sdkbeef.MergeBytes(proc.beef, proc.inputBEEF); err != nil {
+	if err = proc.beef.MergeBeefBytes(proc.inputBEEF); err != nil {
 		return fmt.Errorf("failed to merge input beef: %w", err)
 	}
 
