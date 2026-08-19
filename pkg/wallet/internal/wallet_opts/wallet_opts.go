@@ -34,6 +34,7 @@ type Flags struct {
 
 	// AutoKnownTxids
 	// If true, txids that are known to the wallet's party beef do not need to be returned from storage.
+	// Default true. Turning it off makes storage return full ancestry on every reply.
 	AutoKnownTxids bool
 
 	// TrustSelf controls behavior of input BEEF validation.

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	txtestabilities "github.com/bsv-blockchain/universal-test-vectors/pkg/testabilities"
 	"github.com/go-softwarelab/common/pkg/slogx"
@@ -50,6 +51,13 @@ type StorageFixture interface {
 	MockProvider() *mocks.MockWalletStorageProvider
 
 	Faucet(activeStorage *storage.Provider, user testusers.User) FaucetFixture
+
+	// RecordKnownTx records a transaction as one storage already knows about,
+	// without routing it through internalize or create. It sets up the state the
+	// knownTxIds optimisation produces: the caller sends a bare txid for a
+	// transaction storage is holding, so the request itself carries neither its
+	// raw bytes nor its proof.
+	RecordKnownTx(tx *transaction.Transaction, inputBEEF []byte, status wdk.ProvenTxReqStatus)
 
 	StorageIdentityKey() string
 }
@@ -237,4 +245,28 @@ func (s *storageFixture) StorageIdentityKey() string {
 	require.NoError(s.t, err)
 
 	return identityKey
+}
+
+func (s *storageFixture) RecordKnownTx(tx *transaction.Transaction, inputBEEF []byte, status wdk.ProvenTxReqStatus) {
+	s.t.Helper()
+
+	knownTx := &models.KnownTx{
+		TxID:         tx.TxID().String(),
+		Status:       status,
+		WasBroadcast: true,
+		RawTx:        tx.Bytes(),
+		InputBeef:    inputBEEF,
+	}
+
+	if tx.MerklePath != nil {
+		merkleRoot, err := tx.MerklePath.ComputeRootHex(to.Ptr(tx.TxID().String()))
+		s.require.NoError(err)
+
+		knownTx.BlockHeight = &tx.MerklePath.BlockHeight
+		knownTx.MerklePath = tx.MerklePath.Bytes()
+		knownTx.MerkleRoot = to.Ptr(merkleRoot)
+		knownTx.BlockHash = to.Ptr(TestBlockHash)
+	}
+
+	s.require.NoError(s.db.DB.WithContext(s.t.Context()).Create(knownTx).Error)
 }

@@ -121,8 +121,13 @@ func WithIncludeAllSourceTransactions(value bool) func(*wallet_opts.Opts) {
 	}
 }
 
-// WithAutoKnownTxids - default: `false`
-// If true, txids that are known to the wallet's party beef do not need to be returned from storage.
+// WithAutoKnownTxids - default: `true`
+// If true, txids that are known to the wallet's party beef do not need to be returned from storage:
+// every request advertises them and storage answers with bare txids, which the wallet resolves from
+// its own graph. That is the throughput win, and it is also the only part of the BEEF path that can
+// hand a caller a transaction without its ancestry. Set it to false to make storage send full
+// ancestry on every reply - slower and larger, and the fastest way to rule this path out when
+// diagnosing a BEEF validity failure.
 func WithAutoKnownTxids(value bool) func(*wallet_opts.Opts) {
 	return func(opts *wallet_opts.Opts) {
 		opts.AutoKnownTxids = value
@@ -217,7 +222,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 	options := to.OptionsWithDefault(wallet_opts.Opts{
 		Flags: wallet_opts.Flags{
 			IncludeAllSourceTransactions: true,
-			AutoKnownTxids:               false,
+			AutoKnownTxids:               true,
 			TrustSelf:                    to.Ptr(sdk.TrustSelfKnown),
 		},
 		Logger:                 slog.Default(),
@@ -617,12 +622,19 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 	wdkArgs := mapping.MapListOutputsArgs(args)
 
 	if wdkArgs.IncludeTransactions {
-		var knownTxIDs primitives.TXIDHexStrings
-		knownTxIDs, err = w.party.GetKnownTxIDs(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get known txids: %w", err)
+		// Advertise->resolve window: see the same lease in CreateAction. Held for
+		// the rest of the call because the reply is resolved against this graph.
+		releaseGraph := w.party.BeefParty.Lease(ctx)
+		defer releaseGraph()
+
+		if w.flags.AutoKnownTxids {
+			var knownTxIDs primitives.TXIDHexStrings
+			knownTxIDs, err = w.party.GetKnownTxIDs(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get known txids: %w", err)
+			}
+			wdkArgs.KnownTxids = knownTxIDs.ToStringSlice()
 		}
-		wdkArgs.KnownTxids = knownTxIDs.ToStringSlice()
 	}
 
 	if err = validate.ListOutputsArgs(&wdkArgs); err != nil {

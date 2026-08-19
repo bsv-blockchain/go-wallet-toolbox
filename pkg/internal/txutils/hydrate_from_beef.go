@@ -72,6 +72,14 @@ func hydrateInput(input *transaction.TransactionInput, beef *transaction.Beef, d
 	if !ok {
 		return fmt.Errorf("could not find transaction %s in beef", txID)
 	}
+	if tx.Transaction == nil {
+		// A TxIDOnly entry carries no raw transaction. Verification accepts one
+		// (allowTxidOnly) whenever a BUMP covers it, so this is reachable, and
+		// walking into its inputs would dereference nil. There is nothing to
+		// hydrate from a bare txid: leave the input alone. Script verification
+		// skips inputs without a source transaction.
+		return nil
+	}
 	input.SourceTransaction = tx.Transaction
 	if tx.DataFormat == transaction.RawTxAndBumpIndex {
 		if !is.Between(tx.BumpIndex, 0, len(beef.BUMPs)-1) {

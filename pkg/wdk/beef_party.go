@@ -27,6 +27,13 @@ type BeefParty struct {
 
 	mu      sync.Mutex
 	knownTo map[string][]string
+
+	// leases counts the actions currently inside an advertise->resolve window.
+	// While any is open the graph must not be dropped; see Lease.
+	leases int
+	// resetPending records a bound that was reached while leases were open, so
+	// the last release performs the reset the bound asked for.
+	resetPending bool
 }
 
 // DefaultMaxGraphTxs bounds the shared Beef graph. Every action merges its
@@ -46,6 +53,18 @@ const DefaultMaxGraphTxs = 256
 // wallet has genuinely spanned that many blocks and the graph is stale enough
 // to drop.
 const DefaultMaxGraphBUMPs = 64
+
+// EmergencyResetFactor is how far past its bounds the graph may grow while
+// actions hold leases before it is reset anyway.
+//
+// A deferred reset is correct but not sufficient on its own: under sustained
+// concurrency the leases can overlap forever, the graph never reaches
+// quiescence, and the unbounded growth #996 set out to fix comes back. So a
+// hard ceiling still resets, and the stranded replies degrade instead - callers
+// that cannot resolve a bare txid fall back to the BEEF storage sent (see
+// wallet CreateAction) rather than failing an action whose transaction is
+// already broadcast.
+const EmergencyResetFactor = 4
 
 // NewBeefParty creates a new BeefParty instance with optional initial parties.
 func NewBeefParty(parties []string) *BeefParty {
@@ -296,8 +315,53 @@ func (bp *BeefParty) PruneIfOversized(ctx context.Context) {
 }
 
 func (bp *BeefParty) pruneIfOversizedLocked() {
-	if len(bp.Transactions) > DefaultMaxGraphTxs || len(bp.BUMPs) > DefaultMaxGraphBUMPs {
-		bp.resetLocked()
+	if len(bp.Transactions) <= DefaultMaxGraphTxs && len(bp.BUMPs) <= DefaultMaxGraphBUMPs {
+		return
+	}
+
+	beyondCeiling := len(bp.Transactions) > DefaultMaxGraphTxs*EmergencyResetFactor ||
+		len(bp.BUMPs) > DefaultMaxGraphBUMPs*EmergencyResetFactor
+
+	if bp.leases > 0 && !beyondCeiling {
+		// An action is between advertising its known txids and resolving the
+		// reply built from them. Dropping the graph now would strand that reply,
+		// so the reset waits for the last lease to be released.
+		bp.resetPending = true
+		return
+	}
+
+	bp.resetLocked()
+	bp.resetPending = false
+}
+
+// Lease marks the start of an advertise->resolve window and returns the release
+// to call when the window closes. Release is idempotent.
+//
+// Storage answers with bare txids for whatever the wallet advertised, and those
+// can only be resolved from the graph that produced them. A bound reached by a
+// concurrent action in between would drop that graph and leave this action
+// unable to produce transactions it just claimed to hold, so while any lease is
+// open the bound is recorded and applied by the last release instead.
+func (bp *BeefParty) Lease(ctx context.Context) func() {
+	_, span := tracing.StartTracing(ctx, "BeefParty-Lease")
+	defer func() { tracing.EndTracing(span, nil) }()
+
+	bp.mu.Lock()
+	bp.leases++
+	bp.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			bp.mu.Lock()
+			defer bp.mu.Unlock()
+
+			bp.leases--
+			if bp.leases == 0 && bp.resetPending {
+				bp.resetLocked()
+				bp.resetPending = false
+			}
+		})
 	}
 }
 

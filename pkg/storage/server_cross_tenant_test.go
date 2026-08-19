@@ -155,7 +155,7 @@ func TestRESTSyncRoutesRejectCrossTenantAccess(t *testing.T) {
 
 		mockStorage.EXPECT().
 			FindOrInsertSyncStateAuth(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, auth wdk.AuthID, _ string, _ string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
+			DoAndReturn(func(_ context.Context, auth wdk.AuthID, _, _ string) (*wdk.FindOrInsertSyncStateAuthResponse, error) {
 				assert.Equal(t, aliceKey, auth.IdentityKey)
 				assert.NotEqual(t, testusers.Bob.IdentityKey(t), auth.IdentityKey)
 				return &wdk.FindOrInsertSyncStateAuthResponse{SyncState: &wdk.TableSyncState{}, IsNew: true}, nil

@@ -51,7 +51,16 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		a.WdkArgsMutator(&a.wdkArgs)
 	}
 
-	if len(a.wdkArgs.Options.KnownTxids) == 0 {
+	// The advertise->resolve window opens here: whatever this action claims to
+	// know, storage answers for with bare txids, and only the graph that produced
+	// the claim can resolve them. The lease keeps a concurrent action's bound from
+	// dropping that graph in between; releasing it applies any bound that was
+	// deferred. Taken even when the caller supplied its own list - the reply still
+	// has to be resolved against the graph.
+	releaseGraph := wp.BeefParty.Lease(ctx)
+	defer releaseGraph()
+
+	if a.WalletOpts.AutoKnownTxids && len(a.wdkArgs.Options.KnownTxids) == 0 {
 		knownTxIDs, knownErr := wp.GetKnownTxIDs(ctx)
 		if knownErr != nil {
 			return nil, fmt.Errorf("failed to get known txids for auto known txids: %w", knownErr)
@@ -77,21 +86,40 @@ func (a *CreateAction) CreateAction(ctx context.Context, args wallet.CreateActio
 		return result, nil
 	}
 
-	if err = party.MergeFromStorage(ctx, wp, result.Tx); err != nil {
-		return nil, err
-	}
-
-	// The merge above grows the shared graph whether or not this call advertised
-	// anything, so the bound is applied here rather than at advertise time -
-	// a caller supplying its own KnownTxids would otherwise never prune at all.
-	// Deferred so it runs after the reply below has been resolved and
-	// serialized, never while the graph is still needed to resolve it.
+	// Past this point the transaction has been signed, handed to storage and
+	// broadcast. Nothing that remains - teaching the beef party, or swapping bare
+	// txids in the reply for full transactions - is worth failing the action for:
+	// the caller would get an error for a transaction that is live on the network,
+	// and a settlement engine reacting to that either rebuilds and double-spends
+	// its own inputs or writes off an operation that actually succeeded. Both
+	// steps therefore log and fall back to the BEEF storage returned, which is a
+	// valid reply on its own (storage completes bare txids it knows when the BEEF
+	// comes back as an input).
+	//
+	// The merge below grows the shared graph whether or not this call advertised
+	// anything, so the bound is applied here rather than at advertise time - a
+	// caller supplying its own KnownTxids would otherwise never prune at all.
+	// Deferred so it runs after the reply has been resolved and serialized, never
+	// while the graph is still needed to resolve it.
 	defer wp.BeefParty.PruneIfOversized(ctx)
+
+	if mergeErr := party.MergeFromStorage(ctx, wp, result.Tx); mergeErr != nil {
+		a.Logger.WarnContext(ctx,
+			"Could not merge the returned BEEF into the beef party after broadcast - returning the BEEF storage sent",
+			slog.String("txID", result.Txid.String()),
+			logging.Error(mergeErr),
+		)
+		return result, nil
+	}
 
 	tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx, a.wdkArgs.Options.KnownTxids...)
 	if verifyErr != nil {
-		err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
-		return nil, err
+		a.Logger.WarnContext(ctx,
+			"Could not resolve the txid-only entries in the returned BEEF after broadcast - returning the BEEF storage sent",
+			slog.String("txID", result.Txid.String()),
+			logging.Error(verifyErr),
+		)
+		return result, nil
 	}
 
 	result.Tx = tx

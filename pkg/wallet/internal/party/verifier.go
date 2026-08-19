@@ -3,6 +3,7 @@ package party
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -113,6 +114,17 @@ func verifyReturnedTxIDOnly(partyBeef, beef *transaction.Beef, knownTxIDs ...pri
 		}
 
 		return nil, fmt.Errorf("transaction %s returned as txidOnly but is not in the known transactions list", btx.KnownTxID.String())
+	}
+
+	// go-sdk's FindAtomicTransactionByHash walks the graph by SourceTransaction
+	// pointers and silently skips an input whose source the graph holds only as a
+	// bare txid, so a resolved transaction can come back with a hole in its
+	// ancestry and nothing errors while building it. The hole only surfaces much
+	// later, as a storage-side "provided beef is not valid" on whatever reuses
+	// these bytes as an input BEEF. Catch it here, where the graph that caused it
+	// is still in hand.
+	if vr := beef.ValidateTransactions(); len(vr.MissingInputs) > 0 {
+		return nil, fmt.Errorf("resolved beef has no ancestry for transactions: %s", strings.Join(vr.MissingInputs, ", "))
 	}
 
 	return beef, nil
