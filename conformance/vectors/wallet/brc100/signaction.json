@@ -1,431 +1,431 @@
 {
-    "$schema": "../../../schema/vector.schema.json",
-    "brc": [
-        "BRC-100"
-    ],
-    "id": "wallet.brc100.signaction",
-    "name": "BRC-100 signaction",
-    "parity_class": "required",
-    "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
-    "vectors": [
-        {
-            "description": "signAction single input spend",
-            "expected": {
-                "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            },
-            "id": "wallet.brc100.signaction.1",
-            "input": {
-                "args": {
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "happy-path"
-            ]
-        },
-        {
-            "description": "signAction multi-input spend",
-            "expected": {
-                "txid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-            },
-            "id": "wallet.brc100.signaction.2",
-            "input": {
-                "args": {
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMg==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        },
-                        "1": {
-                            "sequenceNumber": 0,
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "multi-input"
-            ]
-        },
-        {
-            "description": "signAction with options.noSend=true",
-            "expected": {
-                "txid": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-            },
-            "id": "wallet.brc100.signaction.3",
-            "input": {
-                "args": {
-                    "options": {
-                        "acceptDelayedBroadcast": true,
-                        "noSend": true
-                    },
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "noSend"
-            ]
-        },
-        {
-            "description": "signAction with options.returnTXIDOnly=true",
-            "expected": {
-                "txid": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-            },
-            "id": "wallet.brc100.signaction.4",
-            "input": {
-                "args": {
-                    "options": {
-                        "returnTXIDOnly": true
-                    },
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "txid-only"
-            ]
-        },
-        {
-            "description": "signAction with sendWith batch",
-            "expected": {
-                "sendWithResults": [
-                    {
-                        "status": "sending",
-                        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-                    }
-                ],
-                "txid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-            },
-            "id": "wallet.brc100.signaction.5",
-            "input": {
-                "args": {
-                    "options": {
-                        "sendWith": [
-                            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                        ]
-                    },
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "sendWith"
-            ]
-        },
-        {
-            "description": "signAction unknown reference error",
-            "expected": {
-                "code": "ERR_REFERENCE_NOT_FOUND",
-                "error": true
-            },
-            "id": "wallet.brc100.signaction.6",
-            "input": {
-                "args": {
-                    "reference": "dW5rbm93bi1yZWZlcmVuY2U=",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "error"
-            ]
-        },
-        {
-            "description": "signAction wrong number of spends",
-            "expected": {
-                "error": true
-            },
-            "id": "wallet.brc100.signaction.7",
-            "input": {
-                "args": {
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
-                    "spends": {}
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "error",
-                "validation"
-            ]
-        },
-        {
-            "description": "signAction result includes tx bytes",
-            "expected": {
-                "tx": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                ],
-                "txid": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-            },
-            "id": "wallet.brc100.signaction.8",
-            "input": {
-                "args": {
-                    "options": {
-                        "acceptDelayedBroadcast": false
-                    },
-                    "reference": "dGVzdHJlZmVyZW5jZTAwMg==",
-                    "spends": {
-                        "0": {
-                            "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
-                        }
-                    }
-                }
-            },
-            "parity_class": "intended",
-            "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness.",
-            "tags": [
-                "brc-100",
-                "signAction",
-                "immediate-broadcast"
-            ]
+  "$schema": "../../../schema/vector.schema.json",
+  "id": "wallet.brc100.signaction",
+  "name": "BRC-100 signaction",
+  "brc": [
+    "BRC-100"
+  ],
+  "version": "2.0.1",
+  "reference_impl": "@bsv/sdk@2.0.14 + wallet-toolbox",
+  "parity_class": "required",
+  "vectors": [
+    {
+      "id": "wallet.brc100.signaction.1",
+      "description": "signAction single input spend",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          }
         }
-    ],
-    "version": "2.0.1"
+      },
+      "expected": {
+        "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "happy-path"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.2",
+      "description": "signAction multi-input spend",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMg==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            },
+            "1": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141",
+              "sequenceNumber": 0
+            }
+          }
+        }
+      },
+      "expected": {
+        "txid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "multi-input"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.3",
+      "description": "signAction with options.noSend=true",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          },
+          "options": {
+            "noSend": true,
+            "acceptDelayedBroadcast": true
+          }
+        }
+      },
+      "expected": {
+        "txid": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "noSend"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.4",
+      "description": "signAction with options.returnTXIDOnly=true",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          },
+          "options": {
+            "returnTXIDOnly": true
+          }
+        }
+      },
+      "expected": {
+        "txid": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "txid-only"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.5",
+      "description": "signAction with sendWith batch",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          },
+          "options": {
+            "sendWith": [
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "txid": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "sendWithResults": [
+          {
+            "txid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "status": "sending"
+          }
+        ]
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "sendWith"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.6",
+      "description": "signAction unknown reference error",
+      "input": {
+        "args": {
+          "reference": "dW5rbm93bi1yZWZlcmVuY2U=",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          }
+        }
+      },
+      "expected": {
+        "error": true,
+        "code": "ERR_REFERENCE_NOT_FOUND"
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "error"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.7",
+      "description": "signAction wrong number of spends",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMQ==",
+          "spends": {}
+        }
+      },
+      "expected": {
+        "error": true
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "error",
+        "validation"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    },
+    {
+      "id": "wallet.brc100.signaction.8",
+      "description": "signAction result includes tx bytes",
+      "input": {
+        "args": {
+          "reference": "dGVzdHJlZmVyZW5jZTAwMg==",
+          "spends": {
+            "0": {
+              "unlockingScript": "473044020000000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000000000141"
+            }
+          },
+          "options": {
+            "acceptDelayedBroadcast": false
+          }
+        }
+      },
+      "expected": {
+        "txid": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "tx": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "tags": [
+        "brc-100",
+        "signAction",
+        "immediate-broadcast"
+      ],
+      "parity_class": "intended",
+      "skip_reason": "References in-flight actions that do not exist in a fresh wallet. Demoted pending stateful test harness."
+    }
+  ]
 }
