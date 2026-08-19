@@ -105,7 +105,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("provided beef is not valid")
+		return nil, fmt.Errorf("provided beef is not valid: %s", txutils.DescribeInvalidBEEF(beef))
 	}
 
 	// hydrate txs in beef
