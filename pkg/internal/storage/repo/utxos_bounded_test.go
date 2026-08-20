@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -34,7 +35,7 @@ func newBoundedUTXOsFixture(t *testing.T) (*boundedUTXOsFixture, func()) {
 	t.Helper()
 
 	db, cleanup := dbfixtures.TestDatabase(t)
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "bounded-utxos-user", "test-storage", wdk.DefaultBasketConfiguration())

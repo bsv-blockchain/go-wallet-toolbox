@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	storageentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
@@ -28,7 +29,7 @@ func TestMarkReservedOutputsAsNotSpendable_RejectsAlreadyClaimedOutput(t *testin
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "claim-contention-user", "test-storage")

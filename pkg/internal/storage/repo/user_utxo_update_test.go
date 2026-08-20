@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	storageentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
@@ -31,7 +32,7 @@ func TestUserUTXOsUpdate_RejectsReservingAlreadyReservedUTXO(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "utxo-cas-a-user", "test-storage", wdk.DefaultBasketConfiguration())
@@ -83,7 +84,7 @@ func TestUserUTXOsUpdate_ReservesUnreservedUTXO(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "utxo-cas-b-user", "test-storage", wdk.DefaultBasketConfiguration())
@@ -134,7 +135,7 @@ func TestUserUTXOsUpdate_OtherFieldsUnaffectedByGuard(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "utxo-cas-c-user", "test-storage", wdk.DefaultBasketConfiguration())
@@ -187,7 +188,7 @@ func TestUserUTXOsUpdate_MissingOutputReturnsNotFound(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "utxo-notfound-user", "test-storage", wdk.DefaultBasketConfiguration())

@@ -16,6 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
@@ -35,10 +36,11 @@ const (
 type KnownTx struct {
 	db    *gorm.DB
 	query *genquery.Query
+	retry *dbretry.Policy
 }
 
-func NewKnownTxRepo(db *gorm.DB, query *genquery.Query) *KnownTx {
-	return &KnownTx{db: db, query: query}
+func NewKnownTxRepo(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *KnownTx {
+	return &KnownTx{db: db, query: query, retry: retry}
 }
 
 func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error {
@@ -48,7 +50,7 @@ func (p *KnownTx) UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, 
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		return upsertKnownTx(tx, req, txNote)
 	})
 	if err != nil {
@@ -91,7 +93,7 @@ func (p *KnownTx) ParkUnbroadcastKnownTx(ctx context.Context, txID string, txNot
 	}()
 
 	applied := false
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		result := tx.Model(&models.KnownTx{}).
 			Where("tx_id = ?", txID).
 			Where("status IN ?", KnownTxNeverPostedStatuses).
@@ -155,7 +157,7 @@ func (p *KnownTx) ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string)
 	}
 
 	var claimed []string
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var rows []*models.KnownTx
 		if findErr := tx.Model(&models.KnownTx{}).
 			Select("tx_id").
@@ -236,7 +238,7 @@ func (p *KnownTx) FailKnownTxAsDoubleSpend(ctx context.Context, txID string, ski
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var txErr error
 		applied, txErr = applyKnownTxStatusGuarded(tx, txID, wdk.ProvenTxStatusDoubleSpend, skipForStatuses, txNotes)
 		if txErr != nil || !applied {
@@ -278,7 +280,7 @@ func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, 
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var txErr error
 		applied, txErr = applyKnownTxStatusGuarded(tx, txID, wdk.ProvenTxStatusUnmined, skipForStatuses, txNotes)
 		if txErr != nil || !applied {
@@ -613,7 +615,7 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		err = tx.Model(&models.KnownTx{}).
 			Where(p.query.KnownTx.TxID.Eq(knownTxAsMined.TxID)).
 			Updates(&models.KnownTx{
@@ -707,7 +709,7 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 		return nil, nil
 	}
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var timedOut []*models.KnownTx
 		query := tx.Model(&models.KnownTx{}).
 			Where("attempts >= ?", attempts)
@@ -759,7 +761,7 @@ func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string,
 		tracing.EndTracing(span, err)
 	}()
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var candidates []*models.KnownTx
 		if findErr := tx.Model(&models.KnownTx{}).
 			Where("tx_id = ? AND status IN ?", txID, fromStatuses).
@@ -941,7 +943,7 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 
 	var affected int64
 
-	err = p.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var affectedTxs []struct {
 			TxID      string
 			BlockHash string

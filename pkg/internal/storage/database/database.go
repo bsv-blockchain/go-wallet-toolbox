@@ -12,6 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -62,11 +63,17 @@ func NewWithGorm(database *gorm.DB, baseLogger *slog.Logger) *Database {
 }
 
 func (d *Database) CreateRepositories() *repo.Repositories {
-	return repo.NewSQLRepositories(d.DB)
+	return repo.NewSQLRepositories(d.DB, d.retryPolicy())
+}
+
+// retryPolicy is the policy for repositories built over this connection: it owns the
+// transactions it opens, so it may re-run one the engine rolled back.
+func (d *Database) retryPolicy() *dbretry.Policy {
+	return dbretry.Retrying(d.logger, nil)
 }
 
 func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx uint64) *funder.SQL {
-	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB))
+	utxoRepo := repo.NewUTXOs(d.DB, genquery.Use(d.DB), d.retryPolicy())
 	return funder.NewSQL(d.baseLogger, utxoRepo, feeModel, maxChangeOutputsPerTx)
 }
 

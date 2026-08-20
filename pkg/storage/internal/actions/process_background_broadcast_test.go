@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -179,5 +181,130 @@ func TestBackgroundBroadcast_BumpsAttemptsAfterPost(t *testing.T) {
 		require.Error(t, err)
 		assert.Zero(t, rec.count("bump"), "attempts must not be bumped when the post failed")
 		assert.Empty(t, spy.attemptsCalls)
+	})
+}
+
+// --- Lock-order regression cover for updateSingleTx's unit of work ---
+
+// bgOrderUowKnownTxRepo / bgOrderUowTxRepo record which table is written first and let a test
+// drive either guard into ErrStatusUpdateSkipped.
+type bgOrderUowKnownTxRepo struct {
+	KnownTxRepo
+
+	rec              *callRecorder
+	skipStatusesSeen []wdk.ProvenTxReqStatus
+	skip             bool
+}
+
+func (s *bgOrderUowKnownTxRepo) UpdateKnownTxStatus(_ context.Context, txID string, status wdk.ProvenTxReqStatus, skipForStatuses []wdk.ProvenTxReqStatus, _ []history.Builder) error {
+	s.rec.record("known_tx")
+	s.skipStatusesSeen = skipForStatuses
+	if s.skip {
+		return fmt.Errorf("%w: known tx %s -> %s", repo.ErrStatusUpdateSkipped, txID, status)
+	}
+	return nil
+}
+
+type bgOrderUowTxRepo struct {
+	TransactionsRepo
+
+	rec  *callRecorder
+	skip bool
+}
+
+func (s *bgOrderUowTxRepo) UpdateTransactionStatusByTxID(_ context.Context, txID string, status wdk.TxStatus, _ ...wdk.TxStatus) error {
+	s.rec.record("transactions")
+	if s.skip {
+		return fmt.Errorf("%w: transaction(s) with txID %s -> %s", repo.ErrStatusUpdateSkipped, txID, status)
+	}
+	return nil
+}
+
+type bgOrderUowUTXORepo struct {
+	UTXORepo
+
+	rec *callRecorder
+}
+
+func (s *bgOrderUowUTXORepo) CreateUTXOForSpendableOutputsByTxID(_ context.Context, _ string) error {
+	s.rec.record("utxo")
+	return nil
+}
+
+type bgOrderUowProviders struct {
+	Providers
+
+	knownTx *bgOrderUowKnownTxRepo
+	txs     *bgOrderUowTxRepo
+	utxo    *bgOrderUowUTXORepo
+}
+
+func (p bgOrderUowProviders) TransactionsRepo() TransactionsRepo { return p.txs }
+func (p bgOrderUowProviders) KnownTxRepo() KnownTxRepo           { return p.knownTx }
+func (p bgOrderUowProviders) UTXORepo() UTXORepo                 { return p.utxo }
+
+type bgOrderUow struct{ providers bgOrderUowProviders }
+
+func (u bgOrderUow) Do(ctx context.Context, fn func(ctx context.Context, p Providers) error) error {
+	return fn(ctx, u.providers)
+}
+
+// TestUpdateSingleTx_WritesKnownTxBeforeTransactions pins the lock order of the post-broadcast
+// apply - shared KnownTx before the per-user Transaction rows - and the guard semantics that
+// ride on it. The reverse order deadlocked against the status-sync cron.
+func TestUpdateSingleTx_WritesKnownTxBeforeTransactions(t *testing.T) {
+	const txID = "deadbeef"
+
+	newProcess := func(knownTx *bgOrderUowKnownTxRepo, txs *bgOrderUowTxRepo, utxo *bgOrderUowUTXORepo) *process {
+		return &process{
+			logger: logging.NewTestLogger(t),
+			uow:    bgOrderUow{providers: bgOrderUowProviders{knownTx: knownTx, txs: txs, utxo: utxo}},
+		}
+	}
+
+	successResult := &wdk.AggregatedPostedTxID{Status: wdk.AggregatedPostedTxIDSuccess}
+
+	t.Run("known_tx is written before transactions", func(t *testing.T) {
+		rec := &callRecorder{}
+		knownTx := &bgOrderUowKnownTxRepo{rec: rec}
+		p := newProcess(knownTx, &bgOrderUowTxRepo{rec: rec}, &bgOrderUowUTXORepo{rec: rec})
+
+		_, _, err := p.updateSingleTx(context.Background(), txID, successResult, nil, nil, []string{txID}, "", nil)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"known_tx", "transactions", "utxo"}, rec.snapshot())
+	})
+
+	t.Run("the known_tx guard covers terminal failures, not just the beyond-broadcast statuses", func(t *testing.T) {
+		rec := &callRecorder{}
+		knownTx := &bgOrderUowKnownTxRepo{rec: rec}
+		p := newProcess(knownTx, &bgOrderUowTxRepo{rec: rec}, &bgOrderUowUTXORepo{rec: rec})
+
+		_, _, err := p.updateSingleTx(context.Background(), txID, successResult, nil, nil, []string{txID}, "", nil)
+		require.NoError(t, err)
+
+		assert.Subset(t, knownTx.skipStatusesSeen, wdk.ProvenTxReqBeyondBroadcastStageStatuses)
+		assert.Contains(t, knownTx.skipStatusesSeen, wdk.ProvenTxStatusInvalid)
+		assert.Contains(t, knownTx.skipStatusesSeen, wdk.ProvenTxStatusDoubleSpend)
+	})
+
+	t.Run("a skipped known_tx guard makes the whole unit of work a no-op", func(t *testing.T) {
+		rec := &callRecorder{}
+		p := newProcess(&bgOrderUowKnownTxRepo{rec: rec, skip: true}, &bgOrderUowTxRepo{rec: rec}, &bgOrderUowUTXORepo{rec: rec})
+
+		_, _, err := p.updateSingleTx(context.Background(), txID, successResult, nil, nil, []string{txID}, "", nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"known_tx"}, rec.snapshot())
+	})
+
+	t.Run("a skipped transaction CAS keeps the known_tx transition and skips the rest", func(t *testing.T) {
+		rec := &callRecorder{}
+		p := newProcess(&bgOrderUowKnownTxRepo{rec: rec}, &bgOrderUowTxRepo{rec: rec, skip: true}, &bgOrderUowUTXORepo{rec: rec})
+
+		_, _, err := p.updateSingleTx(context.Background(), txID, successResult, nil, nil, []string{txID}, "", nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"known_tx", "transactions"}, rec.snapshot())
 	})
 }

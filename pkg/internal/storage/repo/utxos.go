@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -21,12 +22,14 @@ import (
 type UTXOs struct {
 	db    *gorm.DB
 	query *genquery.Query
+	retry *dbretry.Policy
 }
 
-func NewUTXOs(db *gorm.DB, query *genquery.Query) *UTXOs {
+func NewUTXOs(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *UTXOs {
 	return &UTXOs{
 		db:    db,
 		query: query,
+		retry: retry,
 	}
 }
 
@@ -270,7 +273,7 @@ func (u *UTXOs) MakeChangeSpendableAndIndexByTxID(ctx context.Context, txID stri
 		tracing.EndTracing(span, err)
 	}()
 
-	err = u.query.DBTransaction(func(query *genquery.Query) error {
+	err = runInQueryTransaction(ctx, u.query, u.retry, func(query *genquery.Query) error {
 		filterScope := func(dao gen.Dao) gen.Dao {
 			subquery := query.Transaction.
 				Select(query.Transaction.ID).
@@ -311,7 +314,7 @@ func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID st
 		tracing.EndTracing(span, err)
 	}()
 
-	err = u.query.DBTransaction(func(query *genquery.Query) error {
+	err = runInQueryTransaction(ctx, u.query, u.retry, func(query *genquery.Query) error {
 		return createUTXOsForSpendableOutputsByTxID(ctx, query, txID)
 	})
 	if err != nil {
