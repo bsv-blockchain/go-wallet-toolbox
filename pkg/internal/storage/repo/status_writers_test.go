@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	storageentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
@@ -24,7 +25,7 @@ func TestUpdateKnownTxStatus_ZeroRows_ReturnsSkipped(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	txID := "1111111111111111111111111111111111111111111111111111111111111111"
@@ -41,7 +42,7 @@ func TestUpdateKnownTxStatus_SkipListExcludes_ReturnsSkippedAndWritesNoNotes(t *
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	txID := "2222222222222222222222222222222222222222222222222222222222222222"
@@ -79,7 +80,7 @@ func TestUpdateTransactionStatusByTxID_ExpectedMismatch_Skipped(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "status-writer-mismatch", "test-storage")
@@ -113,7 +114,7 @@ func TestUpdateTransactionStatusByTxID_ExpectedMatch_Updates(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	user, err := repos.CreateUser(ctx, "status-writer-match", "test-storage")
@@ -147,7 +148,7 @@ func TestUpdateTransactionStatusByID_ZeroRows_Skipped(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	// when:
@@ -165,7 +166,7 @@ func TestInvalidateMerkleProofs_HappyPath_ReturnsCount(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	ctx := t.Context()
 
 	blockHash := "000000000000000000000000000000000000000000000000000000000000dead"

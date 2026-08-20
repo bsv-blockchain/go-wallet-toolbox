@@ -807,6 +807,25 @@ func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string
 	return sendWithResults, nil
 }
 
+// broadcastResultSkipStatuses are the KnownTx statuses a broadcast result must not transition:
+// everything beyond the broadcast stage, plus the terminal failures that only the unfail flow
+// may resurrect. It is wider than wdk.ProvenTxReqBeyondBroadcastStageStatuses because it guards
+// the first write of updateSingleTx - the terminal failures used to be covered by the
+// Transaction CAS that ran before it.
+var broadcastResultSkipStatuses = append(
+	slices.Clone(wdk.ProvenTxReqBeyondBroadcastStageStatuses),
+	wdk.ProvenTxStatusInvalid,
+	wdk.ProvenTxStatusDoubleSpend,
+)
+
+// updateSingleTx applies one transaction's broadcast result: KnownTx status and history notes,
+// the owners' Transaction rows, and the outputs that follow from them.
+//
+// The shared KnownTx is written before the per-user Transaction rows, matching every other
+// multi-table writer in the storage layer; the reverse order deadlocked against the status-sync
+// cron, which picks a transaction up while its POST is still in flight. KnownTx is also the
+// storage-wide authority on how far a transaction has got, so it carries the guard that makes a
+// late or raced result a no-op.
 func (p *process) updateSingleTx(
 	ctx context.Context,
 	txID string,
@@ -836,18 +855,21 @@ func (p *process) updateSingleTx(
 
 	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
 		var uowErr error
-		// Guarded Transaction write FIRST. A broadcast result may only transition a tx that is
-		// still in a broadcast-eligible state: unprocessed (initial), sending (in-flight),
-		// nosend (broadcast via SendWith), or unproven (re-broadcast while awaiting proof, e.g.
-		// SendWaitingTransactions). If it matches zero rows the tx is already proven/mined
-		// (completed) or terminal (failed) — a late/raced result. Warn and no-op BEFORE the
-		// failure cascade or the KnownTx downgrade, so we never downgrade a proven tx or
-		// re-release inputs the proof already proved.
+		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, broadcastResultSkipStatuses, notes)
+		if uowErr != nil {
+			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+				p.logger.WarnContext(txCtx, "ignoring late broadcast result for transaction beyond broadcast stage",
+					slog.String("txID", txID), slog.String("attemptedStatus", string(newReqStatus)), logging.Error(uowErr))
+				return nil
+			}
+			return fmt.Errorf("failed to update known tx status after broadcast: %w", uowErr)
+		}
+
 		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus,
 			wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusNoSend, wdk.TxStatusUnproven)
 		if uowErr != nil {
 			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
-				p.logger.WarnContext(txCtx, "ignoring late broadcast result for transaction beyond broadcast stage",
+				p.logger.WarnContext(txCtx, "broadcast result not applied to user transactions (no row in the expected pre-proof state)",
 					slog.String("txID", txID), slog.String("attemptedStatus", string(newTxStatus)), logging.Error(uowErr))
 				return nil
 			}
@@ -868,17 +890,6 @@ func (p *process) updateSingleTx(
 				if uowErr = repos.OutputRepo().MarkCreatedOutputsAsNotSpendable(txCtx, id); uowErr != nil {
 					return fmt.Errorf("failed to mark created outputs as not spendable for failed tx %s: %w", txID, uowErr)
 				}
-			}
-		}
-
-		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
-		if uowErr != nil {
-			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
-				// The shared KnownTx is already beyond the broadcast stage; leaving it as-is
-				// is legitimate. The Transaction write above already matched, so continue.
-				p.logger.DebugContext(txCtx, "known tx status update skipped (beyond broadcast stage)", slog.String("txID", txID), logging.Error(uowErr))
-			} else {
-				return fmt.Errorf("failed to update known tx status after broadcast: %w", uowErr)
 			}
 		}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -31,10 +32,11 @@ import (
 type Outputs struct {
 	db    *gorm.DB
 	query *genquery.Query
+	retry *dbretry.Policy
 }
 
-func NewOutputs(db *gorm.DB, query *genquery.Query) *Outputs {
-	return &Outputs{db: db, query: query}
+func NewOutputs(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *Outputs {
+	return &Outputs{db: db, query: query, retry: retry}
 }
 
 type txIDsReadModel struct {
@@ -243,7 +245,7 @@ func (o *Outputs) UnlinkOutputFromBasketByOutpoint(ctx context.Context, userID i
 		tracing.EndTracing(span, err)
 	}()
 
-	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, o.db, o.retry, func(tx *gorm.DB) error {
 		query := tx.Model(&models.Output{}).
 			Select("id").
 			Scopes(scopes.UserID(userID)).
@@ -628,7 +630,7 @@ func (o *Outputs) SaveOutputs(ctx context.Context, outputs []*pkgentity.Output) 
 		return res
 	})
 
-	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, o.db, o.retry, func(tx *gorm.DB) error {
 		for _, model := range modelsToStore {
 			err = tx.Save(&model.Output).Error
 			if err != nil {
@@ -660,7 +662,7 @@ func (o *Outputs) RecreateSpentOutputs(ctx context.Context, spendingTransactionI
 		tracing.EndTracing(span, err)
 	}()
 
-	err = o.query.DBTransaction(func(query *genquery.Query) error {
+	err = runInQueryTransaction(ctx, o.query, o.retry, func(query *genquery.Query) error {
 		return recreateSpentOutputs(ctx, query, spendingTransactionID)
 	})
 	if err != nil {
