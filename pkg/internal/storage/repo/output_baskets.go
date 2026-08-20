@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -22,10 +23,11 @@ import (
 type OutputBaskets struct {
 	db    *gorm.DB
 	query *genquery.Query
+	retry *dbretry.Policy
 }
 
-func NewOutputBaskets(db *gorm.DB, query *genquery.Query) *OutputBaskets {
-	return &OutputBaskets{db: db, query: query}
+func NewOutputBaskets(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *OutputBaskets {
+	return &OutputBaskets{db: db, query: query, retry: retry}
 }
 
 func (o *OutputBaskets) FindBasketByName(ctx context.Context, userID int, name string) (*entity.OutputBasket, error) {
@@ -63,7 +65,7 @@ func (o *OutputBaskets) UpsertOutputBasket(ctx context.Context, userID int, bask
 		MinimumDesiredUTXOValue: basket.MinimumDesiredUTXOValue,
 	}
 
-	err = o.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, o.db, o.retry, func(tx *gorm.DB) error {
 		updateTx := tx.Model(&models.OutputBasket{}).
 			Scopes(scopes.UserID(userID)).
 			Where("name = ?", basket.Name).

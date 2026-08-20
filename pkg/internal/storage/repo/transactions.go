@@ -19,6 +19,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/scopes"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
@@ -62,10 +63,11 @@ func (e *StaleUTXOIndexError) Unwrap() error { return ErrUTXOContention }
 type Transactions struct {
 	query *genquery.Query
 	db    *gorm.DB
+	retry *dbretry.Policy
 }
 
-func NewTransactions(db *gorm.DB, query *genquery.Query) *Transactions {
-	return &Transactions{db: db, query: query}
+func NewTransactions(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *Transactions {
+	return &Transactions{db: db, query: query, retry: retry}
 }
 
 func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.NewTx) error {
@@ -75,7 +77,7 @@ func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.Ne
 		tracing.EndTracing(span, err)
 	}()
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, txs.db, txs.retry, func(tx *gorm.DB) error {
 		return txs.createTransactionInTx(tx, newTx)
 	})
 	if err != nil {
@@ -413,7 +415,7 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 		tracing.EndTracing(span, err)
 	}()
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) (err error) {
+	err = runInTransaction(ctx, txs.db, txs.retry, func(tx *gorm.DB) (err error) {
 		err = tx.Model(models.Transaction{}).
 			Scopes(scopes.UserID(updatedTx.UserID)).
 			Where("id = ?", updatedTx.TransactionID).
@@ -761,7 +763,7 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 
 	transactionModel := models.Transaction{}
 
-	err = txs.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = runInTransaction(ctx, txs.db, txs.retry, func(tx *gorm.DB) error {
 		err = tx.Model(models.Transaction{}).
 			Select("*").
 			Where("id = ?", transactionID).

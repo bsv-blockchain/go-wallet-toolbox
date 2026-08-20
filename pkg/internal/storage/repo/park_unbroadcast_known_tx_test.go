@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
@@ -32,7 +33,7 @@ func TestParkUnbroadcastKnownTx_NeverPosted_Parks(t *testing.T) {
 			db, cleanup := dbfixtures.TestDatabase(t)
 			defer cleanup()
 
-			repos := repo.NewSQLRepositories(db.DB)
+			repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 			txID := "1111111111111111111111111111111111111111111111111111111111111111"
 			require.NoError(t, db.DB.Create(&models.KnownTx{
 				TxID:         txID,
@@ -88,7 +89,7 @@ func TestParkUnbroadcastKnownTx_PostedOrPosting_IsRefused(t *testing.T) {
 			db, cleanup := dbfixtures.TestDatabase(t)
 			defer cleanup()
 
-			repos := repo.NewSQLRepositories(db.DB)
+			repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 			txID := "2222222222222222222222222222222222222222222222222222222222222222"
 			knownTx.TxID = txID
 			require.NoError(t, db.DB.Create(&knownTx).Error)
@@ -118,7 +119,7 @@ func TestParkUnbroadcastKnownTx_MissingRow_IsRefused(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 
 	// when:
 	applied, err := repos.ParkUnbroadcastKnownTx(t.Context(), "3333333333333333333333333333333333333333333333333333333333333333", nil)
@@ -137,7 +138,7 @@ func TestClaimKnownTxsForBroadcast_ClaimsOnlyClaimableStatuses(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 
 	claimable := map[string]wdk.ProvenTxReqStatus{
 		"1111111111111111111111111111111111111111111111111111111111111111": wdk.ProvenTxStatusUnprocessed,
@@ -191,7 +192,7 @@ func TestClaimKnownTxsForBroadcast_ParkedTxIsNeverClaimed(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 	txID := "abababababababababababababababababababababababababababababababab"
 	require.NoError(t, db.DB.Create(&models.KnownTx{TxID: txID, Status: wdk.ProvenTxStatusUnsent}).Error)
 

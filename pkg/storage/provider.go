@@ -20,6 +20,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -72,13 +73,24 @@ func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return 
 func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
 
 type uow struct {
-	db *gorm.DB
+	db     *gorm.DB
+	logger *slog.Logger
+	random wdk.Randomizer
 }
 
+// Do runs fn inside a single database transaction, re-running the whole transaction when the
+// engine rolls it back to break a conflict with a concurrent session. The repositories fn
+// receives are bound to that transaction and therefore do not retry on their own; this is the
+// only layer that can, because only it can release every lock and start over.
+//
+// fn is re-run from the top, so its CAS guards re-evaluate against current state. Every closure
+// passed here writes only to the database, which is what makes re-running it safe.
 func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
-	return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		txRepos := repo.NewSQLRepositories(tx)
-		return fn(ctx, &providersWrapper{txRepos})
+	return dbretry.Do(ctx, u.logger, u.random, func() error {
+		return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			txRepos := repo.NewSQLRepositories(tx, dbretry.NoRetry())
+			return fn(ctx, &providersWrapper{txRepos})
+		})
 	})
 }
 
@@ -137,7 +149,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			tunableFunder,
 			options.Commission,
 			repos,
-			&uow{db.DB},
+			&uow{db: db.DB, logger: log, random: options.Randomizer},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,

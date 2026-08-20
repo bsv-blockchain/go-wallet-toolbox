@@ -11,6 +11,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
@@ -70,7 +71,7 @@ func TestGetBEEFForTxIDs_DirectSourcesOnly_StorageKnownParents(t *testing.T) {
 	storeKnownTx(t, db, parent, nil)
 	storeKnownTx(t, db, subject, ancestryBytes)
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 
 	// when:
 	beef, err := repos.GetBEEFForTxIDs(
@@ -106,7 +107,7 @@ func TestGetBEEFForTxIDs_DirectSourcesOnly_CallerSuppliedParent(t *testing.T) {
 
 	storeKnownTx(t, db, subject, ancestryBytes)
 
-	repos := repo.NewSQLRepositories(db.DB)
+	repos := repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 
 	// when:
 	beef, err := repos.GetBEEFForTxIDs(
