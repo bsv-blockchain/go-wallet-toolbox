@@ -234,6 +234,133 @@ func TestBRC100Conformance_ListOutputs(t *testing.T) {
 	}
 }
 
+// TestBRC100Conformance_CreateAction covers the 90 BRC-100 createAction vectors.
+//
+// All 90 vectors carry a skip_reason: each expects a deterministic txid computed
+// against a specific funded UTXO set from the TS reference's mock chain, which a
+// fresh test wallet has no way to reproduce (ERR_INSUFFICIENT_FUNDS on an
+// unfunded wallet, and no funded-mock-chain harness exists yet to match the
+// exact expected txids). There are no argument-validation or error vectors in
+// this file to exercise instead. This suite is scaffolding: once a funded
+// mock-chain harness lands upstream or here, removing/narrowing the skip_reason
+// on a vector will make it run automatically.
+func TestBRC100Conformance_CreateAction(t *testing.T) {
+	vectors := loadBRC100Vectors(t, brc100vectors.CreateActionVectors)
+	for _, v := range vectors {
+		if shouldSkip(v) {
+			t.Logf("SKIP %s: %s", v.ID, v.Description)
+			continue
+		}
+		t.Run(v.ID, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			root := v.Input.RootKey
+			if root == "" {
+				root = "0000000000000000000000000000000000000000000000000000000000000001"
+			}
+			w := given.Wallet().WithSQLiteStorage().WithServices().ForRootKey(root)
+
+			argsJSON, err := json.Marshal(v.Input.Args)
+			require.NoError(t, err)
+			var args sdk.CreateActionArgs
+			require.NoError(t, json.Unmarshal(argsJSON, &args))
+
+			// The vectors place noSend/acceptDelayedBroadcast at the top level of args;
+			// the Go SDK nests both under CreateActionArgs.Options.
+			if noSend, ok := v.Input.Args["noSend"].(bool); ok {
+				if args.Options == nil {
+					args.Options = &sdk.CreateActionOptions{}
+				}
+				args.Options.NoSend = &noSend
+			}
+			if acceptDelayed, ok := v.Input.Args["acceptDelayedBroadcast"].(bool); ok {
+				if args.Options == nil {
+					args.Options = &sdk.CreateActionOptions{}
+				}
+				args.Options.AcceptDelayedBroadcast = &acceptDelayed
+			}
+
+			originator := v.Input.Originator
+			if originator == "" {
+				originator = "brc100-test.example.com"
+			}
+
+			expectError, _ := v.Expected["error"].(bool)
+
+			res, err := w.CreateAction(context.Background(), args, originator)
+
+			if expectError {
+				require.Error(t, err, "expected error for vector %s", v.ID)
+				return
+			}
+
+			require.NoError(t, err, "unexpected error for vector %s", v.ID)
+			require.NotNil(t, res)
+
+			expTxid, _ := v.Expected["txid"].(string)
+			require.Equal(t, expTxid, res.Txid.String(), "txid mismatch for %s", v.ID)
+		})
+	}
+}
+
+// TestBRC100Conformance_SignAction covers the 8 BRC-100 signAction vectors.
+//
+// All 8 vectors carry the same generic skip_reason (they reference an in-flight
+// action's reference/spends that only exist after a prior noSend CreateAction
+// call, which a fresh wallet doesn't have). That's accurate for the 6 "happy
+// path" vectors (1-5, 8), which stay skipped. It's not accurate for the 2 error
+// vectors (6, 7): signing an unknown reference errors regardless of what's in
+// storage, so those run against a fresh wallet — mirroring how
+// TestBRC100Conformance_InternalizeAction runs its error vectors despite most of
+// the file being skipped. Vector 7's expected error is the generic "wrong number
+// of spends" validation from the TS reference; on our fresh wallet it surfaces
+// as "reference not found" instead (same as vector 6), since the referenced
+// action was never created here — but expected.error is just `true` with no
+// code assertion, so the contract still holds.
+func TestBRC100Conformance_SignAction(t *testing.T) {
+	vectors := loadBRC100Vectors(t, brc100vectors.SignActionVectors)
+	for _, v := range vectors {
+		expectError, _ := v.Expected["error"].(bool)
+
+		if !expectError && shouldSkip(v) {
+			t.Logf("SKIP %s: %s", v.ID, v.Description)
+			continue
+		}
+
+		t.Run(v.ID, func(t *testing.T) {
+			given, cleanup := testabilities.Given(t)
+			defer cleanup()
+
+			aliceWallet := given.AliceWalletWithStorage(testabilities.StorageTypeSQLite)
+
+			argsJSON, err := json.Marshal(v.Input.Args)
+			require.NoError(t, err)
+			var args sdk.SignActionArgs
+			require.NoError(t, json.Unmarshal(argsJSON, &args))
+
+			originator := v.Input.Originator
+			if originator == "" {
+				originator = "brc100-test.example.com"
+			}
+
+			res, err := aliceWallet.SignAction(context.Background(), args, originator)
+
+			if expectError {
+				require.Error(t, err, "expected error for vector %s", v.ID)
+				require.Nil(t, res)
+				return
+			}
+
+			require.NoError(t, err, "unexpected error for vector %s", v.ID)
+			require.NotNil(t, res)
+
+			expTxid, _ := v.Expected["txid"].(string)
+			require.Equal(t, expTxid, res.Txid.String(), "txid mismatch for %s", v.ID)
+		})
+	}
+}
+
 // TestBRC100Conformance_InternalizeAction covers BRC-100 internalizeAction vectors.
 //
 // Most vectors carry 12-byte placeholder tx arrays that are not valid BEEF; these are
