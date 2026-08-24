@@ -36,6 +36,10 @@ type ProviderConfig struct {
 	ChangeBasket   defs.ChangeBasket
 	UTXOManagement defs.UTXOManagement
 
+	// BackgroundBroadcaster sizes the delayed-broadcast queue. Zero fields keep
+	// the sizing derived from UTXOManagement (or the package defaults).
+	BackgroundBroadcaster defs.BackgroundBroadcaster
+
 	BackgroundBroadcasterContext context.Context
 	BackgroundBroadcasterChannel chan<- wdk.CurrentTxStatus
 }
@@ -169,6 +173,13 @@ func WithUTXOManagement(cfg defs.UTXOManagement) ProviderOption {
 	}
 }
 
+// WithBackgroundBroadcaster sets the delayed-broadcast queue sizing for the provider.
+func WithBackgroundBroadcaster(cfg defs.BackgroundBroadcaster) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.BackgroundBroadcaster = cfg
+	}
+}
+
 func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConfig {
 	return ProviderConfig{
 		DBConfig:                     defs.DefaultDBConfig(),
@@ -181,6 +192,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		Commission:                   defs.DefaultCommission(),
 		ChangeBasket:                 defs.DefaultChangeBasket(),
 		UTXOManagement:               defs.DefaultUTXOManagement(),
+		BackgroundBroadcaster:        defs.DefaultBackgroundBroadcaster(),
 		Logger:                       slog.Default(),
 		BackgroundBroadcasterContext: context.Background(),
 	}

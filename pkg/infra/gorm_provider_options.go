@@ -12,5 +12,6 @@ func GORMProviderOptionsFromConfig(cfg *Config) []storage.ProviderOption {
 		storage.WithFailAbandoned(cfg.FailAbandoned),
 		storage.WithChangeBasket(cfg.ChangeBasket),
 		storage.WithUTXOManagement(cfg.UTXOManagement),
+		storage.WithBackgroundBroadcaster(cfg.BackgroundBroadcaster),
 	}
 }

@@ -105,6 +105,18 @@ monitor:
       interval_seconds: 600
       start_immediately: false
 
+# --- Delayed broadcast queue ---
+# createAction hands transactions to this queue; the send_waiting cron is only a
+# fallback for whatever does not fit, and it drains far more slowly.
+#   workers      0 = derive from utxo_management.throughput.target_tps, else 10.
+#                    Throughput is roughly workers / (time of one post).
+#   channel_size 0 = 1000. This buffers bursts; it does not raise sustained
+#                    throughput. 5000 absorbs a burst of a few thousand
+#                    transactions without spilling to the cron.
+background_broadcaster:
+  workers: 0
+  channel_size: 5000
+
 # --- Change Basket Defaults ---
 change_basket:
   max_change_outputs_per_tx: 8

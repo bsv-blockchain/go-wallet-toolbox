@@ -58,6 +58,11 @@ type Provider struct {
 	// unregisterPoolGauges removes the OTel pool gauge callback on Stop;
 	// nil under the privacy strategy.
 	unregisterPoolGauges func()
+
+	// unregisterBroadcasterGauges removes the OTel delayed-broadcast queue gauge
+	// callback on Stop. Unlike the pool gauges this is registered for every
+	// strategy, because the delayed-broadcast queue is always in play.
+	unregisterBroadcasterGauges func()
 }
 
 type providersWrapper struct {
@@ -165,6 +170,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 				FanoutOutputsPerTx: options.UTXOManagement.Throughput.FanoutOutputsPerTx,
 				TargetTPS:          options.UTXOManagement.Throughput.TargetTPS,
 			},
+			options.BackgroundBroadcaster,
 		),
 		options:          &options,
 		logger:           log,
@@ -172,6 +178,11 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		fuelDenomination: fuelDenomination,
 	}
 	p.defaultChangeBasket.Store(&defaultBasketCfg)
+
+	p.unregisterBroadcasterGauges, err = metrics.RegisterBroadcasterQueueGauges(p.actions.BroadcasterQueueStats)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register broadcaster queue gauges: %w", err)
+	}
 
 	if options.UTXOManagement.Enabled() {
 		p.unregisterPoolGauges, err = metrics.RegisterPoolGauges(metrics.PoolGaugeConfig{
@@ -215,6 +226,10 @@ func (p *Provider) Stop() {
 
 	if p.unregisterPoolGauges != nil {
 		p.unregisterPoolGauges()
+	}
+
+	if p.unregisterBroadcasterGauges != nil {
+		p.unregisterBroadcasterGauges()
 	}
 
 	if err := p.Database.Close(); err != nil {

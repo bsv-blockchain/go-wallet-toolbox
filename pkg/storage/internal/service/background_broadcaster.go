@@ -277,6 +277,16 @@ func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (ad
 	}
 }
 
+// QueueStats reports the delayed-broadcast queue occupancy. It is read by the
+// metrics exporter, so it must stay allocation-free and lock-free: len/cap on a
+// buffered channel are both.
+func (bb *BackgroundBroadcaster) QueueStats() (depth, capacity int) {
+	if bb == nil {
+		return 0, 0
+	}
+	return len(bb.broadcastChannel), cap(bb.broadcastChannel)
+}
+
 func (bb *BackgroundBroadcaster) markEnqueued(txIDs []string) {
 	now := time.Now()
 	bb.depMu.Lock()
