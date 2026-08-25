@@ -11,10 +11,8 @@ import (
 //
 // Note: MarshalJSON uses a value receiver (required by json.Marshaler when the
 // value type appears non-addressably in encoding paths) while UnmarshalJSON must
-// use a pointer receiver to mutate the underlying slice. The recvcheck linter
-// flags the mix, but both forms are necessary for correct JSON round-tripping.
-//
-//nolint:recvcheck // see comment above
+// use a pointer receiver to mutate the underlying slice. Both forms are necessary
+// for correct JSON round-tripping.
 type ExplicitByteArray []byte
 
 // MarshalJSON marshals the byte array to a JSON array of numbers

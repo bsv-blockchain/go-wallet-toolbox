@@ -907,13 +907,15 @@ func (p *process) updateSingleTx(
 }
 
 func (p *process) failedResultForTxID(txID string) (wdk.SendWithResult, wdk.ReviewActionResult) {
-	return wdk.SendWithResult{
-			TxID:   primitives.TXIDHexString(txID),
-			Status: wdk.SendWithResultStatusFailed,
-		}, wdk.ReviewActionResult{
-			TxID:   primitives.TXIDHexString(txID),
-			Status: wdk.ReviewActionResultStatusServiceError,
-		}
+	sendWithResult := wdk.SendWithResult{
+		TxID:   primitives.TXIDHexString(txID),
+		Status: wdk.SendWithResultStatusFailed,
+	}
+	reviewActionResult := wdk.ReviewActionResult{
+		TxID:   primitives.TXIDHexString(txID),
+		Status: wdk.ReviewActionResultStatusServiceError,
+	}
+	return sendWithResult, reviewActionResult
 }
 
 func (p *process) notesForPostBEEF(

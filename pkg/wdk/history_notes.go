@@ -17,6 +17,12 @@ const (
 
 // HistoryNote represents a transaction event with metadata including time, user information, and event attributes.
 // It's an equivalent to the HistoryNote in wdk.ProvenTxReq
+//
+// Note: MarshalJSON uses a value receiver (required by json.Marshaler) while the
+// remaining methods use pointer receivers (UnmarshalJSON mutates the receiver).
+// The recvcheck linter flags the mix, but both forms are necessary here.
+//
+//nolint:recvcheck // see comment above
 type HistoryNote struct {
 	When time.Time `json:"when"`
 
