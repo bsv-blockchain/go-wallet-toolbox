@@ -655,13 +655,26 @@ func (w *Wallet) ListOutputs(ctx context.Context, args sdk.ListOutputsArgs, orig
 		// see BeefParty.PruneIfOversized for why it cannot happen any earlier.
 		defer w.party.BeefParty.PruneIfOversized(ctx)
 
-		var verifiedBeef primitives.BEEF
-		verifiedBeef, err = party.VerifyReturnedTxIDOnlyBeef(ctx, w.party.BeefParty, primitives.BEEF(result.BEEF))
-		if err != nil {
-			return nil, fmt.Errorf("failed to verify returned BEEF from storage: %w", err)
+		// Swapping the bare txids in the reply for full transactions is an
+		// optimisation, not a correctness requirement, so a failure here must not
+		// fail the call - see the same fallback in CreateAction. The wallet
+		// advertised what its shared graph held, and the graph can be dropped out
+		// from under an in-flight reply: the bound has a hard ceiling that fires
+		// even while leases are open (BeefParty.EmergencyResetFactor), which under
+		// sustained concurrency leaves this reply asking for transactions the
+		// graph no longer has. The BEEF storage sent is a valid reply on its own -
+		// storage completes bare txids it knows when the BEEF comes back as an
+		// input - so degrade to it instead of failing a read the caller would only
+		// retry.
+		verifiedBeef, verifyErr := party.VerifyReturnedTxIDOnlyBeef(ctx, w.party.BeefParty, primitives.BEEF(result.BEEF))
+		if verifyErr != nil {
+			w.logger.WarnContext(ctx,
+				"Could not resolve the txid-only entries in the returned BEEF - returning the BEEF storage sent",
+				logging.Error(verifyErr),
+			)
+		} else {
+			result.BEEF = primitives.ExplicitByteArray(verifiedBeef)
 		}
-
-		result.BEEF = primitives.ExplicitByteArray(verifiedBeef)
 	}
 
 	mappedResult, err := mapping.MapListOutputsResult(result)
