@@ -44,6 +44,10 @@ type ARCFixture interface {
 	OnBroadcast() ArcBroadcastFixture
 	HoldBroadcasting() ARCFixture
 	ReleaseBroadcasting() ARCFixture
+	// PostedTxIDs returns the txids of every broadcast POST this fixture received, in the
+	// order they arrived. Arcade forwards to Teranode in that order, so this is what an
+	// assertion about broadcast order has to look at.
+	PostedTxIDs() []string
 }
 
 type ARCQueryFixture interface {
@@ -75,6 +79,9 @@ type arcFixture struct {
 	url                          string
 	token                        string
 	holdBroadcastExecution       sync.RWMutex
+
+	postedMu    sync.Mutex
+	postedTxIDs []string
 }
 
 func NewARCFixture(t testing.TB, opts ...Option) ARCFixture {
@@ -141,6 +148,7 @@ func (f *arcFixture) IsUpAndRunning() {
 			return httpmock.NewJsonResponse(errorResponseForStatusWithExtraInfo(arcHttpStatusCumulativeFeeValidationFailed, message))
 		}
 
+		f.recordPostedTx(tx.TxID().String())
 		f.storeEFTx(tx)
 
 		if f.broadcastWithoutResponseBody {
@@ -154,6 +162,18 @@ func (f *arcFixture) IsUpAndRunning() {
 		txid := req.URL.String()[len(f.url+"/v1/tx/"):]
 		return f.getKnownTransaction(txid).toResponse()
 	})
+}
+
+func (f *arcFixture) recordPostedTx(txID string) {
+	f.postedMu.Lock()
+	defer f.postedMu.Unlock()
+	f.postedTxIDs = append(f.postedTxIDs, txID)
+}
+
+func (f *arcFixture) PostedTxIDs() []string {
+	f.postedMu.Lock()
+	defer f.postedMu.Unlock()
+	return append([]string(nil), f.postedTxIDs...)
 }
 
 func (f *arcFixture) TxInfoJSON(id string) string {

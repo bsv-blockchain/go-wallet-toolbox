@@ -73,6 +73,9 @@ manual_tests/*.sqlite-journal
 manual_tests/*.sqlite-wal
 manual_tests/*.sqlite-shm
 
+# Runtime / container log dumps (e.g. `docker compose logs > token-wallet.log`)
+*.log
+
 # Fuzz Tests
 testdata
 

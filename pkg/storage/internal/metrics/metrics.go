@@ -24,6 +24,7 @@ var (
 	funderClaims         metric.Int64Counter
 	funderNotEnoughFunds metric.Int64Counter
 	contentionRetries    metric.Int64Counter
+	broadcasterOverflow  metric.Int64Counter
 )
 
 func ensureInstruments() {
@@ -37,6 +38,8 @@ func ensureInstruments() {
 			metric.WithDescription("Funding failures surfaced as not-enough-funds"))
 		contentionRetries, _ = meter.Int64Counter("wallet.funder.contention_retries",
 			metric.WithDescription("Funding transaction retries after UTXO contention"))
+		broadcasterOverflow, _ = meter.Int64Counter("wallet.broadcaster.overflow_total",
+			metric.WithDescription("Transactions the delayed-broadcast queue could not accept, deferred to the send_waiting cron"))
 	})
 }
 
@@ -62,6 +65,70 @@ func RecordContentionRetry(ctx context.Context) {
 	if contentionRetries != nil {
 		contentionRetries.Add(ctx, 1)
 	}
+}
+
+// RecordBroadcasterOverflow counts transactions the delayed-broadcast queue was
+// too full to accept. They are not lost: they fall back to the send_waiting
+// cron, which drains far more slowly, so a non-zero rate here is the early
+// signal that the queue is undersized for the offered burst.
+func RecordBroadcasterOverflow(ctx context.Context, count int) {
+	ensureInstruments()
+	if broadcasterOverflow != nil && count > 0 {
+		broadcasterOverflow.Add(ctx, int64(count))
+	}
+}
+
+// QueueStatsFunc reports the current occupancy of the delayed-broadcast queue.
+// It runs once per metrics export interval, never on the broadcast path.
+type QueueStatsFunc func() (depth, capacity int)
+
+type broadcasterQueueGauges struct {
+	depth    metric.Int64ObservableGauge
+	capacity metric.Int64ObservableGauge
+}
+
+// RegisterBroadcasterQueueGauges registers the delayed-broadcast queue gauges
+// backed by stats. It returns an unregister func. With no MeterProvider set the
+// callback never fires.
+//
+// Depth is what predicts an overflow; the overflow counter only reports one
+// after it already happened.
+func RegisterBroadcasterQueueGauges(stats QueueStatsFunc) (func(), error) {
+	meter := otel.Meter(meterName)
+
+	gauges, err := newBroadcasterQueueGauges(meter)
+	if err != nil {
+		return nil, err
+	}
+
+	registration, err := meter.RegisterCallback(func(_ context.Context, observer metric.Observer) error {
+		depth, capacity := stats()
+		observer.ObserveInt64(gauges.depth, int64(depth))
+		observer.ObserveInt64(gauges.capacity, int64(capacity))
+		return nil
+	}, gauges.depth, gauges.capacity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register broadcaster queue gauge callback: %w", err)
+	}
+
+	return func() { _ = registration.Unregister() }, nil
+}
+
+func newBroadcasterQueueGauges(meter metric.Meter) (broadcasterQueueGauges, error) {
+	var gauges broadcasterQueueGauges
+	var err error
+
+	gauges.depth, err = meter.Int64ObservableGauge("wallet.broadcaster.queue_depth",
+		metric.WithDescription("Transactions currently buffered in the delayed-broadcast queue"))
+	if err != nil {
+		return broadcasterQueueGauges{}, fmt.Errorf("failed to create broadcaster.queue_depth gauge: %w", err)
+	}
+	gauges.capacity, err = meter.Int64ObservableGauge("wallet.broadcaster.queue_capacity",
+		metric.WithDescription("Capacity of the delayed-broadcast queue"))
+	if err != nil {
+		return broadcasterQueueGauges{}, fmt.Errorf("failed to create broadcaster.queue_capacity gauge: %w", err)
+	}
+	return gauges, nil
 }
 
 // PoolRow is one (basket, status) bucket of the not-reserved UTXO inventory.

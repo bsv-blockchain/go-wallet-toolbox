@@ -101,14 +101,31 @@ func (s *SignAction) SignAction(ctx context.Context, args wallet.SignActionArgs,
 			logging.Error(err))
 	}
 
-	if result.Tx != nil && s.wdkArgs.Options.ReturnTXIDOnly.Value() {
+	// Past handleProcessAction the transaction has been handed to storage and
+	// broadcast, so swapping the bare txids in the reply for full transactions is
+	// not worth failing the action for - the caller would get an error for a
+	// transaction that is live on the network, and a settlement engine reacting to
+	// that either rebuilds and double-spends its own inputs or writes off an
+	// operation that actually succeeded. Same fallback, for the same reason, as in
+	// CreateAction: log and return the BEEF storage sent, which is a valid reply on
+	// its own (storage completes bare txids it knows when the BEEF comes back as an
+	// input).
+	//
+	// Guarded on the transaction alone, the way CreateAction is: the mapping above
+	// fills Tx in only when the caller did NOT ask for ReturnTXIDOnly, so pairing
+	// that check with ReturnTXIDOnly made the block unreachable and the stubs went
+	// out to the caller unresolved.
+	if result.Tx != nil {
 		tx, verifyErr := party.VerifyReturnedTxIDOnlyAtomicBEEF(ctx, wp.BeefParty, result.Txid, result.Tx)
 		if verifyErr != nil {
-			err = fmt.Errorf("failed to verify returned BEEF from storage: %w", verifyErr)
-			return nil, err
+			s.Logger.WarnContext(ctx,
+				"Could not resolve the txid-only entries in the returned BEEF after broadcast - returning the BEEF storage sent",
+				slog.String("txID", result.Txid.String()),
+				logging.Error(verifyErr),
+			)
+		} else {
+			result.Tx = tx
 		}
-
-		result.Tx = tx
 	}
 
 	return result, nil

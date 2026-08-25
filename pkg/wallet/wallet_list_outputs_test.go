@@ -12,6 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 )
@@ -318,4 +319,66 @@ func (s *WalletTestSuite) TestWalletListOutputs() {
 		require.NotEmpty(t, resultWithoutLabels.Outputs)
 		assert.Empty(t, resultWithoutLabels.Outputs[0].Labels, "Labels should be empty when IncludeLabels=false")
 	})
+}
+
+// Resolving the txid-only stubs storage sends back is an optimisation, not a
+// correctness requirement: the BEEF storage sent is a valid reply on its own.
+// So a stub the wallet cannot resolve must degrade to that reply, the way
+// CreateAction already does, instead of failing a read the caller would only
+// retry.
+//
+// This is the shape the wallet ends up in when the shared graph is dropped out
+// from under an in-flight call - the bound has a hard ceiling that fires even
+// while leases are open (wdk.EmergencyResetFactor), which under sustained
+// concurrency leaves a reply asking for transactions the graph no longer has.
+func (s *WalletTestSuite) TestListOutputsFallsBackWhenAStubCannotBeResolved() {
+	t := s.T()
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+	// and:
+	internalizeArgs := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, testusers.Alice.KeyDeriver(t))
+	_, err := aliceWallet.InternalizeAction(t.Context(), internalizeArgs, fixtures.DefaultOriginator)
+	require.NoError(t, err, "Failed to internalize action for test setup")
+
+	// and:
+	_, subject, err := transaction.NewBeefFromAtomicBytes(internalizeArgs.Tx)
+	require.NoError(t, err)
+
+	// and: the party holds that transaction as a bare txid under a proof, which
+	// is what the known-txid list is built from but not what resolving a reply
+	// accepts - so the wallet advertises a transaction it cannot produce.
+	stranded := transaction.NewBeef()
+	stranded.MergeTxidOnly(subject)
+	proof := testutils.MockValidMerklePath(t, subject.String(), 800_000)
+	stranded.MergeBump(&proof)
+	strandedBytes, err := stranded.Bytes()
+	require.NoError(t, err)
+	require.NoError(t, aliceWallet.GetBeefParty().MergeBeefFromParty(t.Context(), storagePartyID, strandedBytes))
+
+	// and:
+	args := fixtures.DefaultWalletListOutputsArgs()
+	args.Include = sdk.OutputIncludeEntireTransactions
+
+	// when:
+	result, err := aliceWallet.ListOutputs(t.Context(), args, fixtures.DefaultOriginator)
+
+	// then:
+	require.NoError(t, err, "an unresolvable stub must not fail the call")
+	require.NotNil(t, result)
+	assert.NotEmpty(t, result.Outputs, shouldHaveAtLeastOneOutputMsg)
+	require.NotEmpty(t, result.BEEF, "the BEEF storage sent must still be returned")
+
+	// and: what comes back is storage's own reply, stub and all
+	beef, err := transaction.NewBeefFromBytes(result.BEEF)
+	require.NoError(t, err)
+	btx, ok := beef.Transactions[*subject]
+	require.Truef(t, ok, "returned BEEF is missing tx %s", subject)
+	assert.Equal(t, transaction.TxIDOnly, btx.DataFormat,
+		"storage answered with a stub, so that is what the fallback returns")
 }

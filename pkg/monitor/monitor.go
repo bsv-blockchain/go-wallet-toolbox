@@ -61,6 +61,9 @@ type ActiveTask struct {
 	Instance tasks.TaskInterface
 	Cronjob  gocron.Job
 	TaskName defs.MonitorTask
+	// Interval is the configured period of the job, and the authority on how long
+	// one run may take. The scheduler's own NextRun() is not: see contextWithTimeout.
+	Interval time.Duration
 }
 
 // NewDaemonWithGORMLocker creates a new Daemon instance with a GORM-based distributed lock.
@@ -216,6 +219,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 	task := &ActiveTask{
 		Instance: taskInstance,
 		TaskName: taskName,
+		Interval: taskConfig.Interval(),
 		// NOTE: Cronjob (gocron.Job) is not set here, as it will be set when the job is created.
 	}
 
@@ -238,7 +242,7 @@ func (d *Daemon) initializeTask(taskInstance tasks.TaskInterface, taskName defs.
 		opts = append(opts, gocron.WithStartAt(gocron.WithStartImmediately()))
 	}
 
-	interval := taskConfig.Interval()
+	interval := task.Interval
 
 	// Wire the lease TTL for this job before it can run. The lock key gocron
 	// uses is jobName, so the TTL must be registered under jobName. A TTL of
@@ -290,32 +294,34 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 			d.logger.InfoContext(ctx, "Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
-		nextRun, err := activeTask.Cronjob.NextRun()
-		if err != nil {
-			d.logger.ErrorContext(ctx, "Failed to get next run for task", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
-			return
-		}
-
-		ctx, cancel := d.contextWithTimeout(ctx, nextRun)
+		ctx, cancel := d.contextWithTimeout(ctx, activeTask.Interval)
 		defer cancel()
 
 		err = activeTask.Instance.Run(ctx)
 	}
 }
 
-func (d *Daemon) contextWithTimeout(ctx context.Context, nextRun time.Time) (context.Context, context.CancelFunc) {
-	if nextRun.IsZero() {
+// contextWithTimeout budgets one run of a task: its interval, less a safety margin,
+// so a run normally finishes before the next one is due.
+//
+// The budget is deliberately derived from the configured interval and NOT from the
+// scheduler's NextRun(). gocron can start a run a few milliseconds BEFORE its
+// scheduled instant, and NextRun() then still reports that instant rather than the
+// following one. Subtracting it from "now" yielded single-digit milliseconds instead
+// of the interval, and every batch in the run failed instantly on an already-expired
+// context - observed in production as hundreds of identical errors from a sweep that
+// lasted 34ms in total.
+//
+// Overrunning the slot is already tolerated elsewhere: gocron runs these jobs in
+// singleton mode with LimitModeReschedule, so an overlapping tick is rescheduled
+// rather than run concurrently, and the distributed lease TTL is max(2*interval, 5m)
+// precisely so a slow run is not stolen by a peer.
+func (d *Daemon) contextWithTimeout(ctx context.Context, interval time.Duration) (context.Context, context.CancelFunc) {
+	if interval <= 0 {
 		return ctx, func() {}
 	}
 
-	now := time.Now()
-	untilNext := nextRun.Sub(now)
-
-	if untilNext <= 0 {
-		return ctx, func() {}
-	}
-
-	timeout := time.Duration(float64(untilNext) * safetyMargin)
+	timeout := time.Duration(float64(interval) * safetyMargin)
 	return context.WithTimeout(ctx, timeout)
 }
 

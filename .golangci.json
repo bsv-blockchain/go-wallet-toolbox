@@ -285,7 +285,8 @@
         ],
         "concurrency": 8,
         "issues-exit-code": 1,
-        "tests": true
+        "tests": true,
+        "timeout": "10m"
     },
     "severity": {
         "default": "warning",

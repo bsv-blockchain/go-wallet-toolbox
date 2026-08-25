@@ -57,6 +57,29 @@ func (t ThroughputConfig) broadcasterSizing() service.Sizing {
 	}
 }
 
+// resolveBroadcasterSizing combines the operator's explicit sizing with the one
+// derived from the throughput strategy. Resolution is per field and an explicit
+// value wins, so a deployment that is not on the throughput strategy - where the
+// derivation yields nothing - can still widen just the queue for bursty traffic.
+// Fields left at zero fall through to the package defaults in service.Sizing.
+func resolveBroadcasterSizing(explicit defs.BackgroundBroadcaster, throughput ThroughputConfig) service.Sizing {
+	sizing := throughput.broadcasterSizing()
+	if explicit.Workers > 0 {
+		sizing.Workers = int(explicit.Workers)
+	}
+	if explicit.ChannelSize > 0 {
+		sizing.ChannelSize = int(explicit.ChannelSize)
+	}
+	return sizing
+}
+
+// BroadcasterQueueStats reports the delayed-broadcast queue occupancy, so the
+// provider can expose it as a gauge. Depth is what predicts an overflow; the
+// overflow counter only reports one after it already happened.
+func (a *Actions) BroadcasterQueueStats() (depth, capacity int) {
+	return a.backgroundBroadcaster.QueueStats()
+}
+
 func New(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -71,6 +94,7 @@ func New(
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 	throughput ThroughputConfig,
+	broadcasterCfg defs.BackgroundBroadcaster,
 ) *Actions {
 	abortAction := newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx, uow)
 
@@ -89,7 +113,7 @@ func New(
 		beefVerifier,
 		scriptsVerifier,
 		txBroadcastedChannel,
-		throughput.broadcasterSizing(),
+		resolveBroadcasterSizing(broadcasterCfg, throughput),
 		syncTxStatusesConfig.MaxRebroadcastAttempts,
 		abortAction,
 	)

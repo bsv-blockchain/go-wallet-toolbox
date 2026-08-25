@@ -49,7 +49,12 @@ func (r *callRecorder) count(name string) int {
 }
 
 // bgSpyKnownTxRepo is the process's knownTxRepo: it records each attempts bump (call + txIDs).
+// claimReturns stands in for the claim query's own ordering, which is the database's, not the
+// caller's - when set, it is returned instead of the txIDs that were asked for.
 func (s *bgSpyKnownTxRepo) ClaimKnownTxsForBroadcast(_ context.Context, txIDs []string) ([]string, error) {
+	if s.claimReturns != nil {
+		return s.claimReturns, nil
+	}
 	return txIDs, nil
 }
 
@@ -58,6 +63,7 @@ type bgSpyKnownTxRepo struct {
 
 	rec           *callRecorder
 	attemptsCalls [][]string
+	claimReturns  []string
 }
 
 func (s *bgSpyKnownTxRepo) IncreaseKnownTxAttemptsForTxIDs(_ context.Context, txIDs []string) error {
@@ -73,10 +79,13 @@ type bgStubServices struct {
 	rec     *callRecorder
 	result  wdk.PostFromBeefResult
 	postErr error
+
+	postedTxIDs []string
 }
 
-func (b *bgStubServices) PostFromBEEF(_ context.Context, _ *transaction.Beef, _ []string) (wdk.PostFromBeefResult, error) {
+func (b *bgStubServices) PostFromBEEF(_ context.Context, _ *transaction.Beef, txIDs []string) (wdk.PostFromBeefResult, error) {
 	b.rec.record("post")
+	b.postedTxIDs = txIDs
 	return b.result, b.postErr
 }
 
@@ -181,6 +190,53 @@ func TestBackgroundBroadcast_BumpsAttemptsAfterPost(t *testing.T) {
 		require.Error(t, err)
 		assert.Zero(t, rec.count("bump"), "attempts must not be bumped when the post failed")
 		assert.Empty(t, spy.attemptsCalls)
+	})
+}
+
+// TestBackgroundBroadcast_KeepsTheOrderItWasGiven pins the ordering contract of the re-claim.
+// Add() orders an item parents-first, and PostFromBEEF posts the slice in order, so the claim -
+// which matches on `tx_id IN (...)` and carries the database's ordering - must be used as a
+// filter, never as the new order. Adopting it used to send a child upstream ahead of its parent.
+func TestBackgroundBroadcast_KeepsTheOrderItWasGiven(t *testing.T) {
+	parent, child, gone := "aaa-parent", "bbb-child", "ccc-aborted"
+
+	t.Run("a reordered claim result does not reorder the post", func(t *testing.T) {
+		rec := &callRecorder{}
+		services := &bgStubServices{rec: rec, result: newSuccessPostResult(parent)}
+		p := &process{
+			logger:      logging.NewTestLogger(t),
+			knownTxRepo: &bgSpyKnownTxRepo{rec: rec, claimReturns: []string{child, parent}},
+			services:    services,
+			txRepo:      bgStubTxRepo{},
+			uow:         bgUow{},
+		}
+
+		_, err := p.BackgroundBroadcast(context.Background(), nil, []string{parent, child})
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{parent, child}, services.postedTxIDs)
+	})
+
+	t.Run("what the claim rejected is dropped, the rest keeps its order", func(t *testing.T) {
+		rec := &callRecorder{}
+		services := &bgStubServices{rec: rec, result: newSuccessPostResult(parent)}
+		spy := &bgSpyKnownTxRepo{rec: rec, claimReturns: []string{child, parent}}
+		p := &process{
+			logger:      logging.NewTestLogger(t),
+			knownTxRepo: spy,
+			services:    services,
+			txRepo:      bgStubTxRepo{},
+			uow:         bgUow{},
+		}
+
+		// gone was aborted while queued: it must not reach the network, and must not drag the
+		// others out of order on its way out.
+		_, err := p.BackgroundBroadcast(context.Background(), nil, []string{parent, gone, child})
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{parent, child}, services.postedTxIDs)
+		require.Len(t, spy.attemptsCalls, 1)
+		assert.Equal(t, []string{parent, child}, spy.attemptsCalls[0], "attempts are bumped for what is actually posted")
 	})
 }
 
@@ -306,5 +362,38 @@ func TestUpdateSingleTx_WritesKnownTxBeforeTransactions(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"known_tx", "transactions"}, rec.snapshot())
+	})
+}
+
+// TestRetainClaimed pins the filter both broadcast paths run the claim result through.
+// ClaimKnownTxsForBroadcast matches on `tx_id IN (...)` with no ORDER BY, so its result carries
+// the database's ordering - taking it as the new order is what used to send a child upstream
+// ahead of its parent.
+func TestRetainClaimed(t *testing.T) {
+	oldest, middle, newest := "aaa-oldest", "mmm-middle", "zzz-newest"
+
+	t.Run("keeps the caller's order when everything was claimed", func(t *testing.T) {
+		// The claim came back sorted by txid; the caller asked in creation order.
+		assert.Equal(t,
+			[]string{newest, oldest, middle},
+			retainClaimed([]string{newest, oldest, middle}, []string{oldest, middle, newest}),
+		)
+	})
+
+	t.Run("drops what was not claimed and keeps the rest in order", func(t *testing.T) {
+		assert.Equal(t,
+			[]string{newest, middle},
+			retainClaimed([]string{newest, oldest, middle}, []string{middle, newest}),
+		)
+	})
+
+	t.Run("an empty claim retains nothing", func(t *testing.T) {
+		assert.Empty(t, retainClaimed([]string{oldest, middle}, nil))
+	})
+
+	t.Run("does not modify the input slice", func(t *testing.T) {
+		input := []string{newest, oldest, middle}
+		retainClaimed(input, []string{oldest})
+		assert.Equal(t, []string{newest, oldest, middle}, input)
 	})
 }

@@ -9,6 +9,8 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/must"
@@ -26,6 +28,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -53,6 +56,14 @@ type process struct {
 	// double-spend-confirmed) tx is requeued for rebroadcast; 0 means unlimited.
 	maxRebroadcastAttempts uint64
 	aborter                actionAborter
+
+	// overflow* throttle the queue-full warning. A burst rejects hundreds of
+	// transactions within a second or two, and one line per rejection would bury
+	// the very signal the line exists to carry. Add() sits on the synchronous
+	// createAction path, so the throttle must stay lock-free.
+	overflowTotal    atomic.Uint64
+	overflowSinceLog atomic.Uint64
+	overflowLoggedAt atomic.Int64 // unix nanos of the last emitted warning
 }
 
 func newProcessAction(
@@ -560,7 +571,15 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if len(claimedTxIDs) == 0 {
 		return &wdk.ProcessActionResult{SendWithResults: sendWithResults}, nil
 	}
-	readyToSendTxIDs = claimedTxIDs
+	// Keep the caller's order rather than adopting the claim's: the sweep hands these over
+	// oldest-first, and the claim query returns whatever order the database happens to use.
+	readyToSendTxIDs = retainClaimed(readyToSendTxIDs, claimedTxIDs)
+
+	// Parents ahead of their children within this post. PostFromBEEF walks the slice in order
+	// and Arcade forwards upstream in receive order, so a child posted before the parent it
+	// spends is rejected by Teranode. The reordering is stable, so the creation order above
+	// survives everywhere there is no dependency to respect.
+	readyToSendTxIDs = txutils.ParentsFirst(beef, readyToSendTxIDs)
 
 	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
 	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
@@ -609,6 +628,27 @@ type postedBroadcast struct {
 	txLabelsLookup     map[string][]string
 	sendWithResults    []wdk.SendWithResult
 	notDelayedResults  []wdk.ReviewActionResult
+}
+
+// retainClaimed keeps the txIDs that the claim accepted, in the order they were asked for.
+// ClaimKnownTxsForBroadcast matches on `tx_id IN (...)` without an ORDER BY, so its result
+// carries the database's ordering - typically by txid hex, which says nothing about the order
+// these transactions have to reach the network in.
+func retainClaimed(txIDs, claimedTxIDs []string) []string {
+	if len(claimedTxIDs) == len(txIDs) {
+		return txIDs
+	}
+	claimed := make(map[string]struct{}, len(claimedTxIDs))
+	for _, txID := range claimedTxIDs {
+		claimed[txID] = struct{}{}
+	}
+	retained := make([]string, 0, len(claimedTxIDs))
+	for _, txID := range txIDs {
+		if _, ok := claimed[txID]; ok {
+			retained = append(retained, txID)
+		}
+	}
+	return retained
 }
 
 func (p *process) partitionBroadcastTxIDs(
@@ -801,10 +841,87 @@ func (p *process) processDelayedTransactions(ctx context.Context, txIDs []string
 
 	added := p.backgroundBroadcaster.Add(beef, txIDs)
 	if !added {
-		p.logger.DebugContext(ctx, "Background broadcaster channel is full, will be added later by the CRON")
+		p.recordBroadcasterOverflow(ctx, len(txIDs))
 	}
 
 	return sendWithResults, nil
+}
+
+// broadcasterOverflowLogInterval bounds how often the queue-full warning is
+// emitted. The operator needs to know that it happened and how many
+// transactions it affected, not one line per transaction.
+const broadcasterOverflowLogInterval = 10 * time.Second
+
+// recordBroadcasterOverflow accounts for transactions the delayed-broadcast
+// queue refused. They are not lost - the send_waiting cron picks them up - but
+// that path drains far more slowly, so this has to be visible at INFO level
+// rather than buried in debug logs where nobody reads it.
+//
+// The count is exact in the metric immediately; the log line is throttled,
+// because a burst rejects hundreds of transactions inside a second or two.
+func (p *process) recordBroadcasterOverflow(ctx context.Context, txCount int) {
+	if txCount <= 0 {
+		return
+	}
+
+	metrics.RecordBroadcasterOverflow(ctx, txCount)
+
+	p.overflowTotal.Add(uint64(txCount))
+	p.overflowSinceLog.Add(uint64(txCount))
+
+	now := time.Now().UnixNano()
+	last := p.overflowLoggedAt.Load()
+	if last == 0 {
+		// First rejection: arm the window instead of logging. The useful line is the
+		// one that says how many transactions a burst displaced, not the one that
+		// reports the first of them.
+		if p.overflowLoggedAt.CompareAndSwap(0, now) {
+			return
+		}
+		last = p.overflowLoggedAt.Load()
+	}
+
+	if now-last < int64(broadcasterOverflowLogInterval) {
+		return
+	}
+	if !p.overflowLoggedAt.CompareAndSwap(last, now) {
+		// Another goroutine won this window; its line carries our count too, because
+		// the pending counter is only drained by the winner.
+		return
+	}
+
+	p.logBroadcasterOverflow(ctx)
+}
+
+// flushBroadcasterOverflow reports whatever the throttle is still holding back.
+//
+// The sweep calls it, because the sweep is where the consequence surfaces: a burst
+// that never recurs would otherwise leave its tail - everything rejected after the
+// last windowed warning - unreported, which is exactly the blind spot this whole
+// change exists to close. Reporting it next to the sweep also puts cause and effect
+// in the same place in the log.
+func (p *process) flushBroadcasterOverflow(ctx context.Context) {
+	if p.overflowSinceLog.Load() == 0 {
+		return
+	}
+	p.overflowLoggedAt.Store(time.Now().UnixNano())
+	p.logBroadcasterOverflow(ctx)
+}
+
+func (p *process) logBroadcasterOverflow(ctx context.Context) {
+	deferredSinceLastWarning := p.overflowSinceLog.Swap(0)
+	if deferredSinceLastWarning == 0 {
+		return
+	}
+
+	depth, capacity := p.backgroundBroadcaster.QueueStats()
+	p.logger.WarnContext(ctx,
+		"delayed broadcast queue is full; transactions deferred to the send_waiting cron",
+		slog.Uint64("deferredSinceLastWarning", deferredSinceLastWarning),
+		slog.Uint64("deferredTotal", p.overflowTotal.Load()),
+		slog.Int("queueDepth", depth),
+		slog.Int("queueCapacity", capacity),
+	)
 }
 
 // broadcastResultSkipStatuses are the KnownTx statuses a broadcast result must not transition:
@@ -1048,14 +1165,17 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 	// The queued BEEF was built earlier, so re-claim right before posting: a transaction that
 	// was aborted (and had its inputs released) while sitting in the queue is no longer
 	// claimable and must not reach the network.
-	txIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, txIDs)
+	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim txs for background broadcast: %w", err)
 	}
-	if len(txIDs) == 0 {
+	if len(claimedTxIDs) == 0 {
 		p.logger.InfoContext(ctx, "skipping background broadcast: no transaction is claimable anymore")
 		return nil, nil
 	}
+	// Filter rather than replace: Add() already ordered this item parents-first, and the claim
+	// query returns whatever order the database happens to use.
+	txIDs = retainClaimed(txIDs, claimedTxIDs)
 
 	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {

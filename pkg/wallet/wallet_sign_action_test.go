@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/go-softwarelab/common/pkg/to"
@@ -15,6 +16,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/walletargs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/asserttx"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 )
@@ -602,4 +604,71 @@ func (s *WalletTestSuite) TestWalletSignAction_SigningNotExistingAction() {
 		require.Error(t, err)
 		require.Nil(t, signActionResult)
 	})
+}
+
+// By the time SignAction resolves the txid-only stubs in its reply the
+// transaction has already been broadcast, so a stub the wallet cannot resolve
+// must degrade to the BEEF storage sent rather than fail the action - a caller
+// that gets an error for a live transaction either rebuilds and double-spends
+// its own inputs or writes off an operation that succeeded.
+//
+// Same fallback, and same reasoning, as TestCreateActionResolvesKnownTxidStubs'
+// counterpart in CreateAction.
+func (s *WalletTestSuite) TestSignActionFallsBackWhenAStubCannotBeResolved() {
+	t := s.T()
+
+	const topUpValue = testValueForFunding
+	const inputValue = 100
+
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// and:
+	input := given.InputForUser(testusers.Alice).WithSatoshis(inputValue).WithNoUnlockingScript()
+
+	// and:
+	aliceWallet := given.AliceWalletWithStorage(s.StorageType)
+
+	// and:
+	txFromFaucet, _ := given.Faucet(aliceWallet).TopUp(topUpValue)
+
+	// and:
+	given.Services().BHS().OnMerkleRootVerifyResponse(input.BlockHeight(), input.MerklePath().Hex(), "CONFIRMED")
+
+	// and: the party holds the funding transaction as a bare txid under a proof,
+	// which is what the known-txid list is built from but not what resolving a
+	// reply accepts - so the wallet advertises a transaction it cannot produce.
+	funding := txFromFaucet.ID()
+	stranded := transaction.NewBeef()
+	stranded.MergeTxidOnly(funding)
+	proof := testutils.MockValidMerklePath(t, funding.String(), 800_000)
+	stranded.MergeBump(&proof)
+	strandedBytes, err := stranded.Bytes()
+	require.NoError(t, err)
+	require.NoError(t, aliceWallet.GetBeefParty().MergeBeefFromParty(t.Context(), storagePartyID, strandedBytes))
+
+	// and:
+	args := fixtures.DefaultWalletCreateActionArgs(
+		t,
+		walletargs.WithInput(input),
+		walletargs.WithSignAndProcess(false),
+	)
+
+	createActionResult, err := aliceWallet.CreateAction(t.Context(), args, fixtures.DefaultOriginator)
+	require.NoError(t, err)
+
+	// when:
+	signActionResult, err := aliceWallet.SignAction(t.Context(), sdk.SignActionArgs{
+		Reference: createActionResult.SignableTransaction.Reference,
+		Spends: map[uint32]sdk.SignActionSpend{
+			0: {UnlockingScript: input.UnlockingScript().Bytes()},
+		},
+	}, fixtures.DefaultOriginator)
+
+	// then: the action completes on the BEEF it already had, for a transaction
+	// that is by now on the network
+	require.NoError(t, err, "an unresolvable stub must not fail an already broadcast action")
+	require.NotNil(t, signActionResult)
+	require.NotEmpty(t, signActionResult.Tx, "the caller asked for the transaction, so it must still be returned")
 }

@@ -30,6 +30,7 @@ type Config struct {
 	TracingConfig         defs.TracingConfig         `mapstructure:"tracing"`
 	ChangeBasket          defs.ChangeBasket          `mapstructure:"change_basket"`
 	UTXOManagement        defs.UTXOManagement        `mapstructure:"utxo_management"`
+	BackgroundBroadcaster defs.BackgroundBroadcaster `mapstructure:"background_broadcaster"`
 	Observability         defs.Observability         `mapstructure:"observability"`
 }
 
@@ -93,6 +94,7 @@ func Defaults() Config {
 		TracingConfig:         defs.DefaultTracingConfig(),
 		ChangeBasket:          defs.DefaultChangeBasket(),
 		UTXOManagement:        defs.DefaultUTXOManagement(),
+		BackgroundBroadcaster: defs.DefaultBackgroundBroadcaster(),
 		Observability:         defs.DefaultObservability(),
 	}
 }
@@ -215,6 +217,10 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.UTXOManagement.Validate(c.FeeModel, c.Commission); err != nil {
 		return fmt.Errorf("invalid utxo management config: %w", err)
+	}
+
+	if err = c.BackgroundBroadcaster.Validate(); err != nil {
+		return fmt.Errorf("invalid background broadcaster config: %w", err)
 	}
 
 	if err = c.Observability.Validate(); err != nil {
