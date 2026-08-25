@@ -47,7 +47,7 @@ func (t ThroughputConfig) broadcasterSizing() service.Sizing {
 	if !t.Enabled || t.TargetTPS == 0 {
 		return service.Sizing{}
 	}
-	workers := int(min(t.TargetTPS/2, 256)) //nolint:gosec // bounded by the min above
+	workers := int(min(t.TargetTPS/2, 256))
 	if workers < service.BackgroundBroadcasterWorkerCount {
 		workers = service.BackgroundBroadcasterWorkerCount
 	}
