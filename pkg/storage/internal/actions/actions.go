@@ -65,10 +65,10 @@ func (t ThroughputConfig) broadcasterSizing() service.Sizing {
 func resolveBroadcasterSizing(explicit defs.BackgroundBroadcaster, throughput ThroughputConfig) service.Sizing {
 	sizing := throughput.broadcasterSizing()
 	if explicit.Workers > 0 {
-		sizing.Workers = int(explicit.Workers) //nolint:gosec // bounded by defs.MaxBroadcasterWorkers
+		sizing.Workers = int(explicit.Workers)
 	}
 	if explicit.ChannelSize > 0 {
-		sizing.ChannelSize = int(explicit.ChannelSize) //nolint:gosec // bounded by defs.MaxBroadcasterChannelSize
+		sizing.ChannelSize = int(explicit.ChannelSize)
 	}
 	return sizing
 }
