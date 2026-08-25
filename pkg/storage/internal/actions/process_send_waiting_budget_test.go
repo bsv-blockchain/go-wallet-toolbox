@@ -137,8 +137,33 @@ func TestCollectWaitingBatches(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, batches, 2)
-		assert.ElementsMatch(t, []string{"aa", "bb"}, batches[batch])
-		assert.Equal(t, []string{"cc"}, batches["cc"], "an unbatched tx is keyed by its own txID")
+		assert.Equal(t, batch, batches[0].name)
+		assert.Equal(t, []string{"aa", "bb"}, batches[0].txIDs)
+		assert.Equal(t, waitingBatch{name: "cc", txIDs: []string{"cc"}}, batches[1], "an unbatched tx is keyed by its own txID")
+	})
+
+	// The repo returns rows oldest-first; the sweep has to broadcast them in that order,
+	// so a batch takes the position of its oldest member.
+	t.Run("keeps the order the rows were read in", func(t *testing.T) {
+		late := "late-batch"
+		repo := &swSpyKnownTxRepo{pages: [][]*entity.KnownTxForStatusSync{{
+			waitingTx("oldest", nil),
+			waitingTx("second", &batch),
+			waitingTx("third", nil),
+			waitingTx("fourth", &batch),
+			waitingTx("fifth", &late),
+		}}}
+		p := newSweepProcess(t, repo)
+
+		batches, err := p.collectWaitingBatches(context.Background(), p.logger, queryopts.Until{Time: time.Now()})
+
+		require.NoError(t, err)
+		assert.Equal(t, []waitingBatch{
+			{name: "oldest", txIDs: []string{"oldest"}},
+			{name: batch, txIDs: []string{"second", "fourth"}},
+			{name: "third", txIDs: []string{"third"}},
+			{name: late, txIDs: []string{"fifth"}},
+		}, batches)
 	})
 
 	t.Run("a failing first page is a hard error when nothing was read", func(t *testing.T) {

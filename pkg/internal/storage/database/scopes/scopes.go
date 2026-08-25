@@ -11,11 +11,17 @@ import (
 func Paginate(page *queryopts.Paging) func(db *gorm.DB) *gorm.DB {
 	page.ApplyDefaults()
 	return func(db *gorm.DB) *gorm.DB {
-		orderClause := clause.OrderByColumn{
+		db = db.Order(clause.OrderByColumn{
 			Column: clause.Column{Name: page.SortBy},
 			Desc:   page.IsDesc(),
+		})
+		if page.ThenBy != "" {
+			db = db.Order(clause.OrderByColumn{
+				Column: clause.Column{Name: page.ThenBy},
+				Desc:   page.IsDesc(),
+			})
 		}
-		return db.Order(orderClause).Offset(page.Offset).Limit(page.Limit)
+		return db.Offset(page.Offset).Limit(page.Limit)
 	}
 }
 

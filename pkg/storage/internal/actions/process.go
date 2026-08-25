@@ -571,7 +571,15 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	if len(claimedTxIDs) == 0 {
 		return &wdk.ProcessActionResult{SendWithResults: sendWithResults}, nil
 	}
-	readyToSendTxIDs = claimedTxIDs
+	// Keep the caller's order rather than adopting the claim's: the sweep hands these over
+	// oldest-first, and the claim query returns whatever order the database happens to use.
+	readyToSendTxIDs = retainClaimed(readyToSendTxIDs, claimedTxIDs)
+
+	// Parents ahead of their children within this post. PostFromBEEF walks the slice in order
+	// and Arcade forwards upstream in receive order, so a child posted before the parent it
+	// spends is rejected by Teranode. The reordering is stable, so the creation order above
+	// survives everywhere there is no dependency to respect.
+	readyToSendTxIDs = txutils.ParentsFirst(beef, readyToSendTxIDs)
 
 	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
 	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
@@ -620,6 +628,27 @@ type postedBroadcast struct {
 	txLabelsLookup     map[string][]string
 	sendWithResults    []wdk.SendWithResult
 	notDelayedResults  []wdk.ReviewActionResult
+}
+
+// retainClaimed keeps the txIDs that the claim accepted, in the order they were asked for.
+// ClaimKnownTxsForBroadcast matches on `tx_id IN (...)` without an ORDER BY, so its result
+// carries the database's ordering - typically by txid hex, which says nothing about the order
+// these transactions have to reach the network in.
+func retainClaimed(txIDs, claimedTxIDs []string) []string {
+	if len(claimedTxIDs) == len(txIDs) {
+		return txIDs
+	}
+	claimed := make(map[string]struct{}, len(claimedTxIDs))
+	for _, txID := range claimedTxIDs {
+		claimed[txID] = struct{}{}
+	}
+	retained := make([]string, 0, len(claimedTxIDs))
+	for _, txID := range txIDs {
+		if _, ok := claimed[txID]; ok {
+			retained = append(retained, txID)
+		}
+	}
+	return retained
 }
 
 func (p *process) partitionBroadcastTxIDs(
@@ -1134,14 +1163,17 @@ func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Bee
 	// The queued BEEF was built earlier, so re-claim right before posting: a transaction that
 	// was aborted (and had its inputs released) while sitting in the queue is no longer
 	// claimable and must not reach the network.
-	txIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, txIDs)
+	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, txIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim txs for background broadcast: %w", err)
 	}
-	if len(txIDs) == 0 {
+	if len(claimedTxIDs) == 0 {
 		p.logger.InfoContext(ctx, "skipping background broadcast: no transaction is claimable anymore")
 		return nil, nil
 	}
+	// Filter rather than replace: Add() already ordered this item parents-first, and the claim
+	// query returns whatever order the database happens to use.
+	txIDs = retainClaimed(txIDs, claimedTxIDs)
 
 	results, err := p.services.PostFromBEEF(ctx, beef, txIDs)
 	if err != nil {

@@ -108,6 +108,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		GORMProviderOptionsFromConfig(&cfg),
 		storage.WithLogger(logger),
 		storage.WithBackgroundBroadcasterContext(ctx),
+		storage.WithBackgroundBroadcaster(defs.BackgroundBroadcaster{Workers: cfg.BackgroundBroadcaster.Workers, ChannelSize: cfg.BackgroundBroadcaster.ChannelSize}),
 	)
 
 	activeStorage, err := storage.NewGORMProvider(cfg.BSVNetwork, activeServices, providerOptions...)

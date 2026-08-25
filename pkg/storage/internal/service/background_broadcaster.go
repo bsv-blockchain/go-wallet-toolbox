@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -229,6 +229,7 @@ type broadcastItem struct {
 func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus, sizing Sizing) *BackgroundBroadcaster {
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
+	logger.InfoContext(ctx, "BackgroundBroadcaster", "workers", sizing.workers(), "channelSize", sizing.channelSize())
 	return &BackgroundBroadcaster{
 		sizing:               sizing,
 		ctx:                  bbContext,
@@ -265,7 +266,7 @@ func (bb *BackgroundBroadcaster) Stop() {
 
 func (bb *BackgroundBroadcaster) Add(beef *transaction.Beef, txIDs []string) (added bool) {
 	bb.logger.InfoContext(bb.ctx, "Adding new beef to delayed broadcast", "txIDs", txIDs)
-	item := broadcastItem{beef: beef, txIDs: parentsFirst(beef, txIDs)}
+	item := broadcastItem{beef: beef, txIDs: txutils.ParentsFirst(beef, txIDs)}
 	select {
 	case bb.broadcastChannel <- item:
 		// Only an accepted item is remembered: what overflows to the cron fallback is
@@ -379,11 +380,11 @@ func (bb *BackgroundBroadcaster) firstUnpostedParentLocked(item broadcastItem) s
 // beef as a raw, un-mined transaction (transaction.RawTx): a mined parent
 // (RawTxAndBumpIndex) is already in the UTXO set, and a txid-only / absent parent
 // is not something this broadcaster is responsible for. A parent that is itself a
-// subject of the same item is not gate-worthy either — parentsFirst ordered it
+// subject of the same item is not gate-worthy either — ParentsFirst ordered it
 // ahead of its children, so it goes upstream first within the same request.
 // Caller must hold depMu.
 func (bb *BackgroundBroadcaster) firstUnpostedParentOfLocked(beef *transaction.Beef, txID string, subjects map[string]struct{}) string {
-	tx := beefTx(beef, txID)
+	tx := txutils.BeefTx(beef, txID)
 	if tx == nil {
 		return ""
 	}
@@ -405,70 +406,6 @@ func (bb *BackgroundBroadcaster) firstUnpostedParentOfLocked(beef *transaction.B
 		return parentID
 	}
 	return ""
-}
-
-// parentsFirst returns txIDs reordered so that a transaction spending another
-// transaction of the same batch comes after it, preserving the input order
-// otherwise. PostFromBEEF posts a batch in slice order and Arcade forwards
-// upstream in receive order, so an unordered batch could post a child before the
-// parent it shares a request with. The input slice is not modified.
-func parentsFirst(beef *transaction.Beef, txIDs []string) []string {
-	if beef == nil || len(txIDs) < 2 {
-		return append([]string(nil), txIDs...)
-	}
-
-	batch := make(map[string]struct{}, len(txIDs))
-	for _, txID := range txIDs {
-		batch[txID] = struct{}{}
-	}
-
-	ordered := make([]string, 0, len(txIDs))
-	visited := make(map[string]struct{}, len(txIDs))
-
-	var visit func(txID string)
-	visit = func(txID string) {
-		if _, seen := visited[txID]; seen {
-			return
-		}
-		visited[txID] = struct{}{} // marked before recursing, so a cycle cannot loop forever
-		for _, parentID := range batchParents(beef, txID, batch) {
-			visit(parentID)
-		}
-		ordered = append(ordered, txID)
-	}
-	for _, txID := range txIDs {
-		visit(txID)
-	}
-	return ordered
-}
-
-// batchParents returns the txids spent by txID that are also subjects of the same
-// batch.
-func batchParents(beef *transaction.Beef, txID string, batch map[string]struct{}) []string {
-	tx := beefTx(beef, txID)
-	if tx == nil {
-		return nil
-	}
-	var parents []string
-	for _, in := range tx.Inputs {
-		if in.SourceTXID == nil {
-			continue
-		}
-		parentID := in.SourceTXID.String()
-		if _, ok := batch[parentID]; ok {
-			parents = append(parents, parentID)
-		}
-	}
-	return parents
-}
-
-// beefTx looks a subject transaction up in a beef by its hex txid.
-func beefTx(beef *transaction.Beef, txID string) *transaction.Transaction {
-	hash, err := chainhash.NewHashFromHex(txID)
-	if err != nil {
-		return nil
-	}
-	return beef.FindTransactionByHash(hash)
 }
 
 // markPostedAndRelease records the posted txids and re-queues any children that

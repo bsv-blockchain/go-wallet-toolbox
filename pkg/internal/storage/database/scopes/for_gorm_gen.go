@@ -20,8 +20,18 @@ func PaginateForGen(getter genTableGetter, page *queryopts.Paging) func(gen.Dao)
 		}
 
 		sortByExpr := to.If(page.IsDesc(), sortBy.Desc).Else(sortBy.Asc)
+		dao = dao.Order(sortByExpr)
 
-		return dao.Order(sortByExpr).Offset(page.Offset).Limit(page.Limit)
+		if page.ThenBy != "" {
+			thenBy, thenOk := getter.GetFieldByName(page.ThenBy)
+			if !thenOk {
+				_ = dao.AddError(fmt.Errorf("field %s not found", page.ThenBy))
+				return dao
+			}
+			dao = dao.Order(to.If(page.IsDesc(), thenBy.Desc).Else(thenBy.Asc))
+		}
+
+		return dao.Offset(page.Offset).Limit(page.Limit)
 	}
 }
 

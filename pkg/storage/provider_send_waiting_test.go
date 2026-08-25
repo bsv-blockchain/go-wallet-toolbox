@@ -291,3 +291,54 @@ func TestSendWaitingTransactions_DelayedBroadcastCountsOnlyActualPost(t *testing
 }
 
 // TODO: Add test case for batches when noSend..noSend..sendWith scenario is implemented
+
+// TestSendWaitingTransactions_BroadcastsInCreationOrder pins the sweep's ordering contract.
+// Arcade forwards to Teranode in the order it receives transactions, so a child spending an
+// unconfirmed parent has to be POSTed after it - and creation order is what puts a parent ahead
+// of its children. The sweep used to iterate a map, so the order it posted in was whatever Go's
+// map randomisation produced on that run.
+func TestSendWaitingTransactions_BroadcastsInCreationOrder(t *testing.T) {
+	// given:
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+	activeStorage := given.Provider().
+		WithRandomizer(randomizer.NewTestRandomizer()).
+		GORM()
+
+	// and: enough independent waiting transactions that hitting their creation order by
+	// chance is not something a passing run can be explained by (10! orderings).
+	const waitingTxs = 10
+	createdOrder := make([]string, 0, waitingTxs)
+	for i := range waitingTxs {
+		_, signedTx := given.Action(activeStorage).
+			WithDelayedBroadcast().
+			WillFailOnBroadcast().
+			WithSatoshisToInternalize(uint64(5000 + 100*i)).
+			WithSatoshisToSend(1).
+			Processed()
+		createdOrder = append(createdOrder, signedTx.TxID().String())
+	}
+
+	// and: all of them are queued as waiting.
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	for _, txID := range createdOrder {
+		thenDBState.HasKnownTX(txID).WithStatus(wdk.ProvenTxStatusSending)
+	}
+
+	// and: the re-post will succeed this time.
+	for _, txID := range createdOrder {
+		given.Provider().ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
+	}
+
+	// and: only what the sweep posts counts - the failed initial sends are already recorded.
+	postsBeforeSweep := len(given.Provider().ARC().PostedTxIDs())
+
+	// when:
+	_, err := activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
+
+	// then:
+	require.NoError(t, err)
+
+	// and: every waiting transaction reached ARC, oldest first.
+	assert.Equal(t, createdOrder, given.Provider().ARC().PostedTxIDs()[postsBeforeSweep:])
+}

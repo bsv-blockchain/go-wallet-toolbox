@@ -74,11 +74,15 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	budget := newSweepBudget(ctx)
 	processed := 0
 
-	for batchName, txIDs := range batchesToBroadcast {
+	for _, batch := range batchesToBroadcast {
+		batchName, txIDs := batch.name, batch.txIDs
+
 		if !budget.allows(ctx) {
 			// The monitor budgets the whole sweep, not the individual batch. Stopping
 			// here defers the remainder to the next run as one summary line, instead of
 			// letting every remaining batch fail on its first query and emit an error.
+			// Because the batches are ordered oldest-first, what is deferred is the
+			// newest tail - never a parent whose child has already gone out.
 			log.WarnContext(
 				ctx, "send_waiting budget exhausted; deferring remaining batches to the next run",
 				slog.Int("processed", processed),
@@ -128,16 +132,35 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	return results, err
 }
 
+// waitingBatch is one unit of broadcast work: the transactions of a single submitted
+// batch, or a lone transaction that was submitted without one.
+type waitingBatch struct {
+	name  string
+	txIDs []string
+}
+
 // collectWaitingBatches pages through the waiting transactions and groups them the
 // way they were submitted: transactions sharing a batch go out together, and a
 // transaction without one becomes a single-member batch keyed by its own txID.
 //
+// The result is ordered by creation time, and stays that way through broadcasting:
+// Arcade forwards to Teranode in receive order, so a child spending an unconfirmed
+// parent has to be posted after it. The query returns rows oldest-first, a batch takes
+// the position of its oldest member, and members keep their order within it. A batch
+// spanning a long stretch of time could in principle still straddle a lone transaction
+// that belongs in its middle, but a batch is created by a single processAction call,
+// so its members share a creation instant.
+//
 // A page that fails after earlier pages succeeded does not sink the whole sweep -
 // broadcasting what was already read makes progress, and the remainder is picked
 // up by the next run.
-func (p *process) collectWaitingBatches(ctx context.Context, log *slog.Logger, until queryopts.Until) (map[string][]string, error) {
-	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc"}
-	batchesToBroadcast := make(map[string][]string)
+func (p *process) collectWaitingBatches(ctx context.Context, log *slog.Logger, until queryopts.Until) ([]waitingBatch, error) {
+	// Oldest first, with the primary key breaking ties: created_at ties for every member of a
+	// batch, because one processAction call writes them all, and an unstable order under OFFSET
+	// paging can drop a row from one page and repeat it on the next.
+	paging := queryopts.Paging{Limit: sendWaitingItemsPerPage, Sort: "asc", ThenBy: "tx_id"}
+	var batchesToBroadcast []waitingBatch
+	positionOf := make(map[string]int)
 
 	for range sendWaitingMaxPages {
 		if ctx.Err() != nil {
@@ -162,11 +185,18 @@ func (p *process) collectWaitingBatches(ctx context.Context, log *slog.Logger, u
 		}
 
 		for _, item := range txIDsPage {
+			name := item.TxID
 			if item.Batch != nil {
-				batchesToBroadcast[*item.Batch] = append(batchesToBroadcast[*item.Batch], item.TxID)
-			} else {
-				batchesToBroadcast[item.TxID] = []string{item.TxID}
+				name = *item.Batch
 			}
+
+			if position, seen := positionOf[name]; seen {
+				batchesToBroadcast[position].txIDs = append(batchesToBroadcast[position].txIDs, item.TxID)
+				continue
+			}
+
+			positionOf[name] = len(batchesToBroadcast)
+			batchesToBroadcast = append(batchesToBroadcast, waitingBatch{name: name, txIDs: []string{item.TxID}})
 		}
 
 		if len(txIDsPage) < sendWaitingItemsPerPage {
