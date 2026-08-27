@@ -30,6 +30,10 @@ const (
 
 	ServiceFetchedWhileGettingBeef = "serviceFetchedWhileGettingBeef"
 
+	// AncestorFromInputBeef marks a transaction recorded as a known tx because a
+	// caller submitted it inside the inputBEEF of a descendant that spends it.
+	AncestorFromInputBeef = "ancestorFromInputBeef"
+
 	ReorgInvalidatedProof = "reorgInvalidatedProof"
 )
 
@@ -52,6 +56,8 @@ type EventTypesSelector interface {
 	PostBeefSuccess(serviceName string, txIDs []string) Builder
 
 	ServiceFetchedWhileGettingBeef(subjectTxID string) Builder
+
+	AncestorFromInputBeef(reference string) Builder
 
 	ReorgInvalidatedProof(orhpanedBlockHash string) Builder
 }
@@ -120,6 +126,11 @@ func (b *builder) ServiceFetchedWhileGettingBeef(subjectTxID string) Builder {
 	return b.withHttpAttributes(http.StatusOK).
 		WithWhat(ServiceFetchedWhileGettingBeef).
 		WithAttribute("subject_txid", subjectTxID)
+}
+
+func (b *builder) AncestorFromInputBeef(reference string) Builder {
+	return b.WithWhat(AncestorFromInputBeef).
+		WithAttribute("reference", reference)
 }
 
 func (b *builder) GetMerklePathNotFound(serviceName string) Builder {

@@ -638,6 +638,13 @@ func (p *KnownTx) UpdateKnownTxAsMined(ctx context.Context, knownTxAsMined *enti
 			return fmt.Errorf("failed to add tx notes: %w", err)
 		}
 
+		// A proof landing is the point where this transaction's ancestry stops
+		// being the only way to reach its parents, so it is the natural moment to
+		// drop the duplicated blob. The guard inside decides whether it is safe.
+		if err = pruneInputBeefIfReconstructible(tx, knownTxAsMined.TxID); err != nil {
+			return err
+		}
+
 		// NOTE: There can be multiple transactions with the same tx_id, so we need to update all of them.
 		err = tx.Model(&models.Transaction{}).
 			Where(p.query.Transaction.TxID.Eq(knownTxAsMined.TxID)).

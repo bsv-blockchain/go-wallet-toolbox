@@ -58,6 +58,7 @@ type inputsProcessor struct {
 	parent          *create
 	ctx             context.Context
 	userID          int
+	reference       string
 	providedInputs  []wdk.ValidCreateActionInput
 	inputBEEF       []byte
 	trustSelf       bool
@@ -96,6 +97,7 @@ func newInputsProcessor(
 		logger:          logger,
 		parent:          parent,
 		userID:          userID,
+		reference:       reference,
 		inputBEEF:       inputBEEF,
 		trustSelf:       trustSelf,
 		txIDsLookup:     txIDsLookup,
@@ -225,19 +227,58 @@ func (proc *inputsProcessor) processInputBEEF() error {
 		return txIDHash.String()
 	}))
 
-	if len(notProvidedInInputsTxIDs) == 0 {
-		return nil
+	if len(notProvidedInInputsTxIDs) > 0 {
+		allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, notProvidedInInputsTxIDs, readyToBeInputProvenTxStatuses)
+		if err != nil {
+			return fmt.Errorf("failed to check if transactions are known: %w", err)
+		}
+
+		if !allKnown {
+			return missingProofError(notProvidedInInputsTxIDs, "some tx in the inputBEEF is not known to storage")
+		}
 	}
 
-	allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, notProvidedInInputsTxIDs, readyToBeInputProvenTxStatuses)
-	if err != nil {
-		return fmt.Errorf("failed to check if transactions are known: %w", err)
+	// Runs only once the BEEF has been accepted, so a rejected request leaves no
+	// rows behind.
+	return proc.registerBeefAncestors()
+}
+
+// registerBeefAncestors records every transaction the submitted BEEF actually
+// carries as a known tx row.
+//
+// This is what lets the blob stop being stored: the ancestry it holds is the
+// only copy of those transactions, and duplicating it into each descendant is
+// what makes storage grow with the square of a chain's length. Written as rows,
+// each ancestor is stored once and the ancestry walk reads it directly.
+//
+// TxIDOnly entries carry no transaction, so there is nothing to record - they
+// were already validated against storage above.
+func (proc *inputsProcessor) registerBeefAncestors() error {
+	ancestors := make([]entity.AncestorTx, 0, len(proc.beef.Transactions))
+
+	for txIDHash, beefTx := range proc.beef.Transactions {
+		if beefTx.DataFormat == transaction.TxIDOnly || beefTx.Transaction == nil {
+			continue
+		}
+
+		ancestor := entity.AncestorTx{
+			TxID:  txIDHash.String(),
+			RawTx: beefTx.Transaction.Bytes(),
+		}
+
+		if beefTx.DataFormat == transaction.RawTxAndBumpIndex &&
+			beefTx.BumpIndex >= 0 && beefTx.BumpIndex < len(proc.beef.BUMPs) {
+			ancestor.MerklePath = proc.beef.BUMPs[beefTx.BumpIndex].Bytes()
+		}
+
+		ancestors = append(ancestors, ancestor)
 	}
 
-	if !allKnown {
-		return missingProofError(notProvidedInInputsTxIDs, "some tx in the inputBEEF is not known to storage")
+	if err := proc.parent.knownTxRepo.RegisterAncestors(proc.ctx, proc.reference, ancestors); err != nil {
+		return fmt.Errorf("failed to register inputBEEF ancestors: %w", err)
 	}
 
+	proc.logger.DebugContext(proc.ctx, "Registered inputBEEF ancestors as known txs", slog.Int("count", len(ancestors)))
 	return nil
 }
 

@@ -463,11 +463,16 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			}
 		}
 
+		// InputBeef is deliberately NOT carried onto the known tx. The ancestry it
+		// holds was recorded as known tx rows when the action was created (see
+		// inputsProcessor.registerBeefAncestors), and the ancestry walk reads
+		// those rows directly. Storing the blob here as well duplicated every
+		// ancestor once per descendant, which is what made this column grow with
+		// the square of a chain's length.
 		return upsertKnownTx(tx, &entity.UpsertKnownTx{
 			TxID:            updatedTx.TxID,
 			Status:          updatedTx.ReqTxStatus,
 			RawTx:           updatedTx.RawTx,
-			InputBeef:       updatedTx.InputBeef,
 			SkipForStatuses: wdk.ProvenTxReqBeyondBroadcastStageStatuses,
 		}, txNote)
 	})

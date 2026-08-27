@@ -117,6 +117,31 @@ type CreateActionParams struct {
 	ReturnTXIDOnly bool
 }
 
+// ancestryIsRedundant reports whether the recursive ancestry walk over the
+// allocated (storage-managed) UTXOs would produce data no consumer reads, so the
+// response BEEF can collapse those inputs to TxIDOnly stubs instead.
+//
+// Two independent cases qualify:
+//
+//   - TrustSelf && ReturnTXIDOnly: the caller trusts storage-known txs AND
+//     discards the returned transaction data outright, so nothing consumes the
+//     ancestry at all.
+//   - IncludeInputSourceRawTxs: a sign action that already receives each input's
+//     source transaction inline (resultInputForKnownUTXO fills SourceTransaction
+//     with a single per-input lookup, no recursion). The assembler prefers that
+//     field over the response BEEF when building the signable transaction (see
+//     CreateActionTransactionAssembler.toTxInput), and the only gate downstream
+//     is that every input has a SourceTransaction — which it does. Ancestry
+//     BEYOND the direct sources is therefore already unused on this path.
+//
+// Inputs supplied by the caller are unaffected either way: they resolve from the
+// caller's own InputBEEF, which is merged in separately via WithMergeToBEEF.
+// Delayed broadcast likewise rebuilds its own BEEF from known_txes rather than
+// from this response (see processDelayedTransactions' DirectSourcesOnly build).
+func (p CreateActionParams) ancestryIsRedundant() bool {
+	return (p.TrustSelf && p.ReturnTXIDOnly) || p.IncludeInputSourceRawTxs
+}
+
 func FromValidCreateActionArgs(args *wdk.ValidCreateActionArgs) CreateActionParams {
 	return CreateActionParams{
 		Version:                  args.Version,
@@ -708,7 +733,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		slog.Int("inputsCount", len(resultInputs)),
 	)
 
-	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.TrustSelf && params.ReturnTXIDOnly)
+	beef, err := c.mergeAllocatedUTXOs(ctx, processedInputs.Beef, funding.AllocatedUTXOs, params.KnownTxIDs, params.ancestryIsRedundant())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BEEF with allocated UTXOs: %w", err)
 	}
@@ -1226,16 +1251,18 @@ func (c *create) mergeAllocatedUTXOs(
 		entity.WithKnownTxIDs(knownTxIDs.ToStringSlice()...),
 	}
 	if trimSelfKnown {
-		// Only when the caller BOTH trusts storage-known txs (trustSelf=known)
-		// AND asked for ReturnTXIDOnly (it discards the returned tx data):
-		// every allocated (storage-managed) input collapses to a TxIDOnly stub
+		// Every allocated (storage-managed) input collapses to a TxIDOnly stub
 		// instead of a recursive ancestry walk — no raw-tx reads, BUMP merges,
-		// or multi-kB response BEEFs. Signing does not need the ancestry
-		// (per-input SourceLockingScript/SourceSatoshis are in the result), and
-		// delayed broadcast rebuilds its own BEEF from known_txes. At high TPS
-		// this walk dominates createAction CPU on both sides. Callers that DO
-		// consume the response (default flows, cross-wallet BEEF handoff, beef
-		// party learning) keep the full ancestry.
+		// or multi-kB response BEEFs. At high TPS this walk dominates
+		// createAction CPU on both sides.
+		//
+		// CreateActionParams.ancestryIsRedundant decides when that is safe: the
+		// caller either discards the response outright, or is a sign action that
+		// already receives each input's source transaction inline. Signing does
+		// not need the ancestry (per-input SourceLockingScript/SourceSatoshis
+		// are in the result), and delayed broadcast rebuilds its own BEEF from
+		// known_txes. Callers that DO consume the ancestry (default flows,
+		// cross-wallet BEEF handoff, beef party learning) keep it in full.
 		opts = append(opts, entity.WithTrustSelf(sdk.TrustSelfKnown))
 	}
 	beefTx, err := c.knownTxRepo.GetBEEFForTxIDs(ctx, seq.FromSlice(txIDs), opts...)

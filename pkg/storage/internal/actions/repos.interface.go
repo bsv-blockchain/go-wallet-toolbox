@@ -57,6 +57,11 @@ type TransactionsRepo interface {
 
 type KnownTxRepo interface {
 	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
+	// RegisterAncestors records the transactions carried inside a caller-supplied
+	// inputBEEF as known tx rows, so the ancestry does not have to be duplicated
+	// into every descendant's stored blob. Writes are additive: an ancestor that
+	// is already known keeps its status, raw tx and proof.
+	RegisterAncestors(ctx context.Context, reference string, ancestors []entity.AncestorTx) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)

@@ -21,8 +21,19 @@ func RetryOnErrOr5xx(r *resty.Response, err error) bool {
 	return err != nil || (r != nil && r.StatusCode() >= http.StatusInternalServerError)
 }
 
+// retryOnTooManyRequestsStatus retries a request the server answered with 429.
+//
+// res is nil when the call never produced a response at all - a DNS failure, a
+// refused dial, or a context deadline firing mid-flight. resty still evaluates
+// every retry condition in that case, and Response.StatusCode guards a nil
+// RawResponse but not a nil receiver, so dereferencing res here panicked on
+// exactly the transport failures the fallback services exist to absorb: the
+// panic surfaced as "service WhatsOnChain has paniced with: runtime error:
+// invalid memory address" and took the fallback down while the primaries were
+// timing out. There is no status to inspect on a nil response, and errors are
+// covered by RetryOnErrOr5xx, so it is not retried here.
 func retryOnTooManyRequestsStatus(res *resty.Response, err error) bool {
-	return res.StatusCode() == http.StatusTooManyRequests
+	return res != nil && res.StatusCode() == http.StatusTooManyRequests
 }
 
 type RestyClientFactory struct {
