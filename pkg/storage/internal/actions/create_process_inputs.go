@@ -329,10 +329,23 @@ func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
 			slog.Int("txIDsToHydrate", len(needed)),
 		)
 
+		// WithDirectSourcesOnly bounds what comes back to the direct parents,
+		// rather than the whole ancestor graph behind them.
+		//
+		// The validator needs each unproven raw transaction's own sources, which
+		// is one generation, and the loop above re-checks and fetches again if a
+		// further generation turns out to be needed. Pulling the full graph here
+		// instead merges every ancestor's stored input_beef blob (see
+		// recursiveBuildValidBEEF), which on a chain that is not confirming means
+		// re-merging the entire unmined history of the wallet — and then
+		// persisting it, so the next transaction inherits a larger blob again.
+		// The broadcast path already asks for direct sources only for the same
+		// reason; this makes createAction consistent with it.
 		if _, err = proc.parent.knownTxRepo.GetBEEFForTxIDs(
 			proc.ctx,
 			seq.FromSlice(needed),
 			entity.WithMergeToBEEF(proc.beef),
+			entity.WithDirectSourcesOnly(),
 			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
 		); err != nil {
 			return fmt.Errorf("failed to merge storage ancestry for %s: %w", strings.Join(needed, ", "), err)
