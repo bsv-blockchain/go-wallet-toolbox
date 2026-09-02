@@ -176,7 +176,10 @@ func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCrea
 		return nil, fmt.Errorf("unexpected input (outpoint: %s) not found in provided inputs", key)
 	}
 
-	sourceTx := a.inputBEEF.FindTransaction(it.SourceTxID)
+	sourceTx, err := a.sourceTransactionFor(it)
+	if err != nil {
+		return nil, err
+	}
 
 	return &transaction.TransactionInput{
 		SourceTXID:        sourceTxID,
@@ -187,6 +190,50 @@ func (a *CreateActionTransactionAssembler) toTxInputFromArgs(it *wdk.StorageCrea
 	}, nil
 }
 
+// sourceTransactionFor resolves the parent transaction of a caller-provided
+// input, preferring the inputBEEF and falling back to the raw bytes storage
+// already attached to the input itself.
+//
+// The fallback is what lets a caller stop shipping ancestry it does not need to
+// ship. Every signable input must carry a SourceTransaction — assembling an
+// atomic BEEF fails outright without one — and until now the only place the
+// assembler looked was the inputBEEF echoed back in the storage response. That
+// made the response BEEF load-bearing for assembly, so a caller could not pass a
+// trimmed (or absent) inputBEEF even when storage already held every parent it
+// needed: the persisted blob had to stay large purely so this lookup would
+// succeed.
+//
+// Storage populates StorageCreateTransactionSdkInput.SourceTransaction for
+// exactly these inputs when IncludeInputSourceRawTxs is set, reading raw_tx
+// straight off the known-tx row (see create.go, inputToStorageInput). Preferring
+// the BEEF keeps existing behaviour byte-for-byte; the fallback only engages
+// where assembly would previously have failed.
+func (a *CreateActionTransactionAssembler) sourceTransactionFor(it *wdk.StorageCreateTransactionSdkInput) (*transaction.Transaction, error) {
+	if sourceTx := a.inputBEEF.FindTransaction(it.SourceTxID); sourceTx != nil {
+		return sourceTx, nil
+	}
+
+	if len(it.SourceTransaction) == 0 {
+		// Neither route has it. Returning nil here would surface later as the
+		// opaque "every signable transaction input must have a source
+		// transaction"; name the outpoint instead.
+		return nil, fmt.Errorf(
+			"no source transaction for input (outpoint: %s.%d): absent from inputBeef and not supplied by storage",
+			it.SourceTxID, it.SourceVout,
+		)
+	}
+
+	sourceTx, err := transaction.NewTransactionFromBytes(it.SourceTransaction)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse source transaction for input (outpoint: %s.%d): %w", it.SourceTxID, it.SourceVout, err)
+	}
+	if got := sourceTx.TxID().String(); got != it.SourceTxID {
+		return nil, fmt.Errorf("source transaction txid mismatch for input (outpoint: %s.%d): expected %s got %s", it.SourceTxID, it.SourceVout, it.SourceTxID, got)
+	}
+
+	return sourceTx, nil
+}
+
 func (a *CreateActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreateTransactionSdkInput) bool {
 	key := fmt.Sprintf("%s.%d", it.SourceTxID, it.SourceVout)
 	_, ok := a.providedInputsByOutpoint[key]
@@ -194,6 +241,15 @@ func (a *CreateActionTransactionAssembler) isInputFromArgs(it *wdk.StorageCreate
 }
 
 func (a *CreateActionTransactionAssembler) parseInputBEEF() error {
+	// An absent inputBeef is legitimate now that a caller may decline to ship
+	// ancestry it does not need to: sourceTransactionFor falls back to the raw
+	// bytes storage attaches to each input. Start from an empty BEEF so lookups
+	// miss cleanly instead of failing the whole assembly here.
+	if len(a.createActionResult.InputBeef) == 0 {
+		a.inputBEEF = transaction.NewBeefV2()
+		return nil
+	}
+
 	inputBEEF, err := transaction.NewBeefFromBytes(a.createActionResult.InputBeef)
 	if err != nil {
 		return fmt.Errorf("cannot parse inputBeef: %w", err)
