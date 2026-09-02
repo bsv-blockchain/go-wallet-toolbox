@@ -227,6 +227,9 @@ func (a *CreateActionTransactionAssembler) sourceTransactionFor(it *wdk.StorageC
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse source transaction for input (outpoint: %s.%d): %w", it.SourceTxID, it.SourceVout, err)
 	}
+	if got := sourceTx.TxID().String(); got != it.SourceTxID {
+		return nil, fmt.Errorf("source transaction txid mismatch for input (outpoint: %s.%d): expected %s got %s", it.SourceTxID, it.SourceVout, it.SourceTxID, got)
+	}
 
 	return sourceTx, nil
 }
