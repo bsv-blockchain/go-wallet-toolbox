@@ -109,21 +109,22 @@ func (p *KnownTx) preFetchInto(ctx context.Context, dst map[string]models.KnownT
 	return modelsBatch, nil
 }
 
-// preFetchAncestry reads the ancestry breadth-first, ONE QUERY PER GENERATION.
+// preFetchAncestry reads the ancestry breadth-first, one query per generation.
 //
 // The recursive build reads any ancestor it has not already been handed with an
-// individual `First()`. Two generations used to be pre-read in bulk, which
-// covers a build whose subjects are already proved but not one that has to walk
-// back through unmined history — and on a chain that is not confirming, that is
-// every build. Measured on a wallet holding 10,002 transactions: 28,720,064
-// index scans against bsv_known_txes, roughly 2,870 round trips per
-// transaction, with the wallet process pinned at 446% CPU while postgres sat
-// flat at 27%. Eighty percent of the recursive build's time was inside
-// gorm.First, not in merging or hashing.
+// individual First(). Pre-reading two generations covers a build whose subjects
+// are already proved, but not one that has to walk back through unmined
+// history - and on a chain that is not confirming promptly, that is every
+// build. The walk then costs one round trip per ancestor, which is dominated by
+// per-statement overhead rather than by the lookup itself.
 //
-// The rows read are exactly the ones the recursion would have read anyway; only
-// the number of round trips changes. Bounded by maxDepthOfRecursion, which the
-// recursion enforces too, and it stops as soon as a generation adds nothing.
+// The rows read here are exactly the ones the recursion would have read anyway;
+// only the number of statements changes. Note that index scan counts do not
+// fall as a result - each value in an IN list still costs a probe - which is
+// the point: the probe was never the expensive part.
+//
+// Bounded by maxDepthOfRecursion, which the recursion enforces too, and it
+// stops as soon as a generation adds nothing.
 func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.KnownTx, seedIDs []string, options entity.GetBEEFOptions) error {
 	frontier := seedIDs
 
