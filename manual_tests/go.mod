@@ -5,7 +5,7 @@ go 1.26.3
 toolchain go1.26.6
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.3.4
+	github.com/bsv-blockchain/go-sdk v1.4.1
 	github.com/bsv-blockchain/go-wallet-toolbox v1.24.3
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
