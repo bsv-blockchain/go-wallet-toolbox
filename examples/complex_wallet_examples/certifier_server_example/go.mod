@@ -5,7 +5,7 @@ go 1.26.3
 toolchain go1.26.6
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.3.4
+	github.com/bsv-blockchain/go-sdk v1.4.1
 	github.com/bsv-blockchain/go-wallet-toolbox v0.184.13
 	github.com/go-softwarelab/common v1.8.0
 	gopkg.in/yaml.v3 v3.0.1
