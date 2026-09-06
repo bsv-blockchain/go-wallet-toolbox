@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -261,6 +262,9 @@ func (p *process) resolveExternalMerklePath(ctx context.Context, ev *wdk.Broadca
 func (p *process) merklePathFromServices(ctx context.Context, txID string) (*transaction.MerklePath, *wdk.MerklePathBlockHeader, error) {
 	merkleResult, err := p.services.MerklePath(ctx, txID)
 	if err != nil {
+		if errors.Is(err, wdk.ErrNotFoundError) {
+			return nil, nil, nil
+		}
 		return nil, nil, fmt.Errorf("failed to fetch merkle path for externally mined tx %s: %w", txID, err)
 	}
 	if merkleResult.MerklePath == nil || merkleResult.BlockHeader == nil {

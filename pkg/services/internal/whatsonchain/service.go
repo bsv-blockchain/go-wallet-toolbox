@@ -199,11 +199,7 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (_ *wdk.Me
 		return nil, fmt.Errorf("failed to get TSC proof: %w", err)
 	}
 	if proof == nil {
-		// Proof not found
-		return &wdk.MerklePathResult{
-			Name:  ServiceName,
-			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
-		}, nil
+		return nil, fmt.Errorf("tx %s has no merkle path yet: %w", txID, wdk.ErrNotFoundError)
 	}
 
 	header, err := woc.fetchMerkleHeader(ctx, proof.Target)

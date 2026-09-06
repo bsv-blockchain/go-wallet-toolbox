@@ -46,7 +46,7 @@ func TestGetMerklePath(t *testing.T) {
 		assert.Nil(t, response)
 	})
 
-	t.Run("return result without Merkle Path when transaction is not mined yet", func(t *testing.T) {
+	t.Run("return not-found error when transaction is seen but not mined yet by any provider", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)
 
@@ -55,19 +55,73 @@ func TestGetMerklePath(t *testing.T) {
 		// and:
 		given.ARC().WhenQueryingTx(txID).WillReturnTransactionWithoutMerklePath()
 
-		// and:
-		services := given.Services().New()
+		// and: no other provider has it either, so the queue is exhausted
+		services := given.Services().Config(testservices.WithEnabledArcade(false)).New()
 
 		// when:
 		response, err := services.MerklePath(t.Context(), txID)
 
 		// then:
+		require.Error(t, err)
+		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
+		assert.Nil(t, response)
+	})
+
+	t.Run("falls through to WoC when ARC has seen but not yet indexed a merkle path for the tx", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+
+		txHash := tst.MustHashFromHex(tst.TestTxID)
+		siblingHash := tst.MustHashFromHex(tst.TestSiblingHash)
+
+		merklePath := sdk.MerklePath{
+			BlockHeight: tst.TestBlockHeight,
+			Path: [][]*sdk.PathElement{
+				{
+					{
+						Offset: 0,
+						Hash:   txHash,
+						Txid:   to.Ptr(true),
+					},
+					{
+						Offset: 1,
+						Hash:   siblingHash,
+					},
+				},
+			},
+		}
+		merkleRoot, err := merklePath.ComputeRootHex(nil)
+		require.NoError(t, err, "failed to compute merkle root")
+
+		// ARC has seen the tx on the network but hasn't indexed a merkle path yet.
+		given.ARC().IsUpAndRunning()
+		given.ARC().WhenQueryingTx(tst.TestTxID).WillReturnTransactionWithoutMerklePath()
+
+		// WhatsOnChain already has a complete proof for the same tx.
+		given.WhatsOnChain().WhenQueryingMerklePath(tst.TestTxID).WillReturnTSCProof(200, `[{
+			"index": 0,
+			"txOrId": "`+tst.TestTxID+`",
+			"target": "`+tst.TestTargetHash+`",
+			"nodes": ["`+tst.TestSiblingHash+`"]
+		}]`)
+
+		blockHeaderJSON := fmt.Sprintf(`{
+			"hash": "%s",
+			"height": %d,
+			"merkleRoot": "%s"
+		}`, tst.TestTargetHash, tst.TestBlockHeight, merkleRoot)
+		given.WhatsOnChain().WhenQueryingBlockHeader(tst.TestTargetHash).WillReturnBlockHeaderJSON(200, blockHeaderJSON)
+
+		services := given.Services().Config(testservices.WithEnabledArcade(false)).New()
+
+		// when:
+		response, err := services.MerklePath(t.Context(), tst.TestTxID)
+
+		// then:
 		require.NoError(t, err)
 		require.NotNil(t, response)
-		assert.Equal(t, arc.ServiceName, response.Name)
-		assert.Nil(t, response.MerklePath)
-		assert.Nil(t, response.BlockHeader)
-		assert.Len(t, response.Notes, 1)
+		assert.Equal(t, whatsonchain.ServiceName, response.Name)
+		assert.Equal(t, merklePath, *response.MerklePath)
 	})
 
 	t.Run("get merkle path from arc", func(t *testing.T) {

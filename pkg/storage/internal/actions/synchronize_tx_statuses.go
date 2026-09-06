@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	stdslices "slices"
@@ -390,7 +391,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 		var merkleResult *wdk.MerklePathResult
 		merkleResult, err = s.services.MerklePath(ctx, txToSync.TxID)
-		if err != nil {
+		if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
 			s.logger.WarnContext(
 				ctx,
 				"failed to get merkle path for transaction",
@@ -405,7 +406,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			continue
 		}
 
-		if merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
+		if err != nil || merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
 			s.logger.InfoContext(
 				ctx,
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",

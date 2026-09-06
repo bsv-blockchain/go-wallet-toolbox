@@ -353,7 +353,7 @@ func TestQueryTx(t *testing.T) {
 }
 
 func TestMerklePath(t *testing.T) {
-	t.Run("returns empty result when arcade knows the tx but has no proof yet", func(t *testing.T) {
+	t.Run("returns not-found error when arcade knows the tx but has no proof yet, so queue can fail over", func(t *testing.T) {
 		// given:
 		txInfo := arcade.TXInfo{
 			TxID:      testTxID,
@@ -371,13 +371,9 @@ func TestMerklePath(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), testTxID)
 
 		// then:
-		require.NoError(t, err)
-		require.NotNil(t, res)
-		assert.Equal(t, arcade.ServiceName, res.Name)
-		assert.Nil(t, res.MerklePath)
-		assert.Nil(t, res.BlockHeader)
-		require.Len(t, res.Notes, 1)
-		assert.Equal(t, "getMerklePathNotFound", res.Notes[0].What)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
+		assert.Nil(t, res)
 	})
 
 	t.Run("returns error when arcade does not know the tx so queue can fail over", func(t *testing.T) {

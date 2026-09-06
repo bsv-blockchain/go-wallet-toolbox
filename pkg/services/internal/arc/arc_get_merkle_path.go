@@ -34,10 +34,10 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePat
 	}
 
 	if is.BlankString(txInfo.MerklePath) {
-		return &wdk.MerklePathResult{
-			Name:  s.name,
-			Notes: history.NewBuilder().GetMerklePathNotFound(s.name).Note().AsList(),
-		}, nil
+		// Seen by the network but not yet mined/indexed: report as not-found so
+		// the service queue tries the next provider instead of treating this as
+		// a final answer (ARC can lag behind other indexers for a long time).
+		return nil, fmt.Errorf("tx %s has no merkle path yet: %w", txID, wdk.ErrNotFoundError)
 	}
 
 	merklePath, err := transaction.NewMerklePathFromHex(txInfo.MerklePath)
