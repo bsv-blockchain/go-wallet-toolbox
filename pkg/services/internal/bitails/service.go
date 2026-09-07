@@ -110,10 +110,7 @@ func (b *Bitails) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePat
 		return nil, err
 	}
 	if proof == nil {
-		return &wdk.MerklePathResult{
-			Name:  ServiceName,
-			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
-		}, nil
+		return nil, fmt.Errorf("tx %s has no merkle path yet: %w", txID, wdk.ErrNotFoundError)
 	}
 
 	header, err := b.fetchMerkleHeader(ctx, proof.Target)

@@ -22,7 +22,8 @@ import (
 //
 // Behavior for the service queue:
 //   - 404 / not known to Arcade → error so the next MerklePath provider is tried
-//   - known but not yet proven → empty success (no failover; same as classic ARC)
+//   - known but not yet proven → error so the next MerklePath provider is tried
+//     (same as classic ARC)
 //   - mined with a valid merklePath → success
 func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePathResult, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Services-MerklePath", attribute.String("service", "arcade"))
@@ -42,10 +43,7 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePat
 	}
 
 	if is.BlankString(txInfo.MerklePath) {
-		return &wdk.MerklePathResult{
-			Name:  ServiceName,
-			Notes: history.NewBuilder().GetMerklePathNotFound(ServiceName).Note().AsList(),
-		}, nil
+		return nil, fmt.Errorf("tx %s has no merkle path yet: %w", txID, wdk.ErrNotFoundError)
 	}
 
 	merklePath, err := transaction.NewMerklePathFromHex(txInfo.MerklePath)

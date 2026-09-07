@@ -649,7 +649,7 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (_ *wdk.Me
 
 	result, err := s.merklePathServices.OneByOne(ctx, txid)
 	if err != nil {
-		if errors.Is(err, servicequeue.ErrEmptyResult) {
+		if errors.Is(err, servicequeue.ErrEmptyResult) || errors.Is(err, wdk.ErrNotFoundError) {
 			return nil, fmt.Errorf("transaction with txID: %s not found: %w", txid, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("couldn't get merkle path for id %s: %w", txid, err)
