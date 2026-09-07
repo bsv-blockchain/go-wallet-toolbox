@@ -371,8 +371,7 @@ func TestMerklePath(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), testTxID)
 
 		// then:
-		require.Error(t, err)
-		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
+		require.ErrorIs(t, err, wdk.ErrNotFoundError)
 		assert.Nil(t, res)
 	})
 

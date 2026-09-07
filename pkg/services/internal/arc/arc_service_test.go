@@ -382,8 +382,7 @@ func TestGetMerklePathWithARCService(t *testing.T) {
 		res, err := service.MerklePath(t.Context(), txID)
 
 		// then:
-		require.Error(t, err)
-		assert.ErrorIs(t, err, wdk.ErrNotFoundError)
+		require.ErrorIs(t, err, wdk.ErrNotFoundError)
 		assert.Nil(t, res)
 	})
 
