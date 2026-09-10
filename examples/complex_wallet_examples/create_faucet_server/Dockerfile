@@ -1,8 +1,11 @@
 # Multi-stage build for smaller final image
-# Base images are pinned by digest (Scorecard Pinned-Dependencies). Digests
+# Base images are pinned by digest only (Scorecard Pinned-Dependencies). Digests
 # reference the multi-arch manifest list, so builds resolve the correct image
-# per platform (linux/amd64, linux/arm64, …) and stay reproducible.
-FROM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
+# per platform (linux/amd64, linux/arm64, …) and stay reproducible. The tag is
+# omitted on purpose (Docker ignores it alongside a digest, and using both trips
+# SonarQube docker:S7018).
+# golang:1.27-alpine
+FROM golang@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 
 # Install git, ca-certificates, and SQLite development libraries
 RUN apk add --no-cache git ca-certificates sqlite-dev gcc musl-dev
@@ -29,7 +32,8 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
 
 # Final stage
-FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+# alpine:3.20
+FROM alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates

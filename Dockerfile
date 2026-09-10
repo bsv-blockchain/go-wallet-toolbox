@@ -3,10 +3,13 @@
 # =============================================================================
 # Builder stage
 # =============================================================================
-# Base images are pinned by digest (Scorecard Pinned-Dependencies). The digest
-# references the multi-arch manifest list, so builds stay reproducible while
-# still resolving the correct image per platform (linux/amd64, linux/arm64, …).
-FROM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
+# Base images are pinned by digest only (Scorecard Pinned-Dependencies). The
+# digest references the multi-arch manifest list, so builds stay reproducible
+# while still resolving the correct image per platform (linux/amd64, arm64, …).
+# The tag is omitted deliberately: Docker ignores it when a digest is present,
+# and pairing both trips SonarQube docker:S7018.
+# golang:1.27-alpine
+FROM golang@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -30,7 +33,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # =============================================================================
 # Runtime stage
 # =============================================================================
-FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+# alpine:3.20
+FROM alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 RUN apk add --no-cache ca-certificates tzdata curl postgresql-client \
     && adduser -D -H -u 1000 app
