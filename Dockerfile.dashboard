@@ -6,7 +6,7 @@
 # Pinned by digest only (Scorecard Pinned-Dependencies); the digest points at
 # the multi-arch manifest list, preserving linux/amd64 + linux/arm64 support.
 # The tag is omitted on purpose (Docker ignores it alongside a digest, and
-# using both trips SonarQube docker:S7018).
+# using both trips SonarCloud docker:S7018).
 # golang:1.27-alpine
 FROM golang@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 

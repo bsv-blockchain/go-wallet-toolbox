@@ -3,7 +3,7 @@
 # reference the multi-arch manifest list, so builds resolve the correct image
 # per platform (linux/amd64, linux/arm64, …) and stay reproducible. The tag is
 # omitted on purpose (Docker ignores it alongside a digest, and using both trips
-# SonarQube docker:S7018).
+# SonarCloud docker:S7018).
 # golang:1.27-alpine
 FROM golang@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 

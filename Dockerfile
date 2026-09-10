@@ -5,9 +5,9 @@
 # =============================================================================
 # Base images are pinned by digest only (Scorecard Pinned-Dependencies). The
 # digest references the multi-arch manifest list, so builds stay reproducible
-# while still resolving the correct image per platform (linux/amd64, arm64, …).
+# while still resolving the correct image per platform (linux/amd64, linux/arm64, …).
 # The tag is omitted deliberately: Docker ignores it when a digest is present,
-# and pairing both trips SonarQube docker:S7018.
+# and pairing both trips SonarCloud docker:S7018.
 # golang:1.27-alpine
 FROM golang@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 
