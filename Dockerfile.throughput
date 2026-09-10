@@ -3,7 +3,9 @@
 # =============================================================================
 # Builder stage — throughput infra + loadgen
 # =============================================================================
-FROM golang:1.27-alpine AS builder
+# Pinned by digest (Scorecard Pinned-Dependencies); the digest points at the
+# multi-arch manifest list, preserving linux/amd64 + linux/arm64 support.
+FROM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 
 RUN apk add --no-cache ca-certificates git tzdata
 
@@ -29,7 +31,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # =============================================================================
 # Runtime stage
 # =============================================================================
-FROM alpine:3.20
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 RUN apk add --no-cache ca-certificates curl postgresql-client tzdata \
     && adduser -D -H -u 1000 app
