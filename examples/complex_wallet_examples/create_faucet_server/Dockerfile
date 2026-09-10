@@ -1,5 +1,8 @@
 # Multi-stage build for smaller final image
-FROM golang:1.27-alpine AS builder
+# Base images are pinned by digest (Scorecard Pinned-Dependencies). Digests
+# reference the multi-arch manifest list, so builds resolve the correct image
+# per platform (linux/amd64, linux/arm64, …) and stay reproducible.
+FROM golang:1.27-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 
 # Install git, ca-certificates, and SQLite development libraries
 RUN apk add --no-cache git ca-certificates sqlite-dev gcc musl-dev
@@ -26,7 +29,7 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates
