@@ -34,7 +34,8 @@ func givenParentTransaction(t *testing.T) (*transaction.Transaction, []byte) {
 
 	parent := transaction.NewTransaction()
 	prev, err := chainhash.NewHashFromHex(
-		"0000000000000000000000000000000000000000000000000000000000000001")
+		"0000000000000000000000000000000000000000000000000000000000000001",
+	)
 	require.NoError(t, err)
 	parent.AddInput(&transaction.TransactionInput{
 		SourceTXID:       prev,

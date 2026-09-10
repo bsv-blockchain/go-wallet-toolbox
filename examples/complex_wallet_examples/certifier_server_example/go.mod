@@ -283,7 +283,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20260909141634-11ed52e25bc5 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
-	sigs.k8s.io/structured-merge-diff/v7 v7.0.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
@@ -292,3 +291,9 @@ replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.202
 replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
 
 replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
+
+// Pin kube-openapi to the v0.37.0-compatible commit: newer kube-openapi switched to
+// structured-merge-diff/v7, which breaks k8s apimachinery v0.37.0 (still on v6). Must be
+// repeated here because Go ignores replace directives from dependencies. See the main
+// module go.mod for the full explanation.
+replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad

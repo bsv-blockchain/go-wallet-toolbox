@@ -121,17 +121,18 @@ go get -u github.com/bsv-blockchain/go-wallet-toolbox
 
 ### Consuming as a library
 
-This module's `go.mod` pins three transitive dependencies via `replace` directives:
+This module's `go.mod` pins four transitive dependencies via `replace` directives:
 
 ```
 replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
 replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
 replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
+replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
 ```
 
-They exist because the latest `go-libp2p` release doesn't build against the latest `quic-go`/`webtransport-go` releases (an upstream API break), and other dependencies in the graph pull in those newer, incompatible versions.
+The first three exist because the latest `go-libp2p` release doesn't build against the latest `quic-go`/`webtransport-go` releases (an upstream API break), and other dependencies in the graph pull in those newer, incompatible versions. The `kube-openapi` pin holds it at the commit compatible with `k8s.io/apimachinery` v0.37.0 (which uses `structured-merge-diff/v6`); a newer `kube-openapi` pulled in transitively switched to `structured-merge-diff/v7` and breaks the build.
 
-Go only applies `replace` directives from the **main module** being built — they are ignored when this module is imported as a dependency. If you import `go-wallet-toolbox` from your own module, `go build` may fail with an error such as `undefined: webtransport.Dialer` unless you copy the same three `replace` lines above into your own `go.mod`.
+Go only applies `replace` directives from the **main module** being built — they are ignored when this module is imported as a dependency. If you import `go-wallet-toolbox` from your own module, `go build` may fail with an error such as `undefined: webtransport.Dialer` (or a `structured-merge-diff` type mismatch in `apimachinery`) unless you copy the same four `replace` lines above into your own `go.mod`.
 
 <br/>
 

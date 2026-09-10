@@ -284,7 +284,6 @@ require (
 	sigs.k8s.io/json v0.0.0-20260909141634-11ed52e25bc5 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
-	sigs.k8s.io/structured-merge-diff/v7 v7.0.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
@@ -295,7 +294,7 @@ tool go.uber.org/mock/mockgen
 // quic-go/webtransport-go (v0.12.0): it references a webtransport.Dialer type
 // that v0.12.0 removed. These replaces only apply when this module is built
 // standalone — Go ignores replace directives from dependencies, so consumers
-// importing this module as a library must copy the same three replace lines
+// importing this module as a library must copy the same replace lines below
 // into their own go.mod. See README.md "Consuming as a library" and
 // https://github.com/bsv-blockchain/go-wallet-toolbox/issues/983.
 replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
@@ -303,3 +302,12 @@ replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.202
 replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
 
 replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
+
+// k8s.io/{api,apimachinery,client-go} v0.37.0 use sigs.k8s.io/structured-merge-diff/v6
+// via kube-openapi ...20260721. A newer kube-openapi (...20260908, pulled in transitively
+// by go-teranode-p2p-client) switched to structured-merge-diff/v7, which breaks
+// apimachinery's managedfields typeconverter (it mixes v6 and v7 schema types). Pin
+// kube-openapi back to the v0.37.0-compatible commit. go-teranode-p2p-client already
+// carries the same replace, but Go ignores replaces from dependencies, so it must be
+// repeated here (and by library consumers).
+replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
