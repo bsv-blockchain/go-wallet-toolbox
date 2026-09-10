@@ -302,7 +302,7 @@ This command ensures all dependencies are brought up to date in a single step, i
 
 ## 🧪 Examples & Tests
 
-All unit tests and [examples](examples) run via [GitHub Actions](https://github.com/bsv-blockchain/go-wallet-toolbox/actions) and use [Go version 1.26.x](https://go.dev/doc/go1.26). View the [configuration file](.github/workflows/fortress.yml).
+All unit tests and [examples](examples) run via [GitHub Actions](https://github.com/bsv-blockchain/go-wallet-toolbox/actions) and use [Go version 1.27.x](https://go.dev/doc/go1.27). View the [configuration file](.github/workflows/fortress.yml).
 
 Run all tests (fast):
 
