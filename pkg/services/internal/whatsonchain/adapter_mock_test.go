@@ -288,3 +288,48 @@ func TestAdapter_GetUtxoStatus_NotFoundIsEmpty(t *testing.T) {
 	assert.False(t, result.IsUtxo)
 	assert.Empty(t, result.Details)
 }
+
+func TestAdapter_GetUtxoStatus_SkipsInvalidRecords(t *testing.T) {
+	t.Parallel()
+
+	const scriptHash = "995ea8d0f752f41cdd99bb9d54cb004709e04c7dc4088bcbbbb9ea5c390a43c3"
+
+	client := &mockSDKClient{
+		scriptUnspent: func(context.Context, string) (wocsdk.ScriptList, error) {
+			return wocsdk.ScriptList{
+				{TxHash: "good", TxPos: 1, Value: 100, Height: 5},
+				nil, // null entry must be skipped
+				{TxHash: "bad-pos", TxPos: -1, Value: 100}, // negative index skipped
+				{TxHash: "bad-value", TxPos: 2, Value: -5}, // negative value skipped
+			}, nil
+		},
+	}
+
+	result, err := newMockedService(t, client).GetUtxoStatus(context.Background(), scriptHash, nil)
+	require.NoError(t, err)
+	require.Len(t, result.Details, 1, "only the valid record must be mapped")
+	assert.Equal(t, "good", result.Details[0].TxID)
+	assert.True(t, result.IsUtxo)
+}
+
+func TestAdapter_GetScriptHashHistory_SkipsNilRecords(t *testing.T) {
+	t.Parallel()
+
+	const scriptHash = "995ea8d0f752f41cdd99bb9d54cb004709e04c7dc4088bcbbbb9ea5c390a43c3"
+
+	client := &mockSDKClient{
+		scriptConfirmed: func(context.Context, string) (wocsdk.ScriptList, error) {
+			return wocsdk.ScriptList{{TxHash: "c", Height: 1}, nil}, nil
+		},
+		scriptUnconfirmed: func(context.Context, string) (wocsdk.ScriptList, error) {
+			return wocsdk.ScriptList{nil, {TxHash: "u"}}, nil
+		},
+	}
+
+	// Must not panic on nil entries.
+	result, err := newMockedService(t, client).GetScriptHashHistory(context.Background(), scriptHash)
+	require.NoError(t, err)
+	require.Len(t, result.History, 2)
+	assert.Equal(t, "c", result.History[0].TxHash)
+	assert.Equal(t, "u", result.History[1].TxHash)
+}

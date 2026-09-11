@@ -53,12 +53,20 @@ func WithWhatsOnChainHTTPClient(client *http.Client) func(*Options) {
 }
 
 // WithRestyClient sets the resty client for the WalletServices.
+//
+// The WhatsOnChain service uses the official SDK (net/http) rather than resty,
+// so it is also pointed at the resty client's underlying *http.Client. This keeps
+// WithRestyClient/WithHttpClient affecting WoC (proxy, transport, test server) as
+// they did before the SDK migration. An explicit WithWhatsOnChainHTTPClient wins.
 func WithRestyClient(client *resty.Client) func(*Options) {
 	if client == nil {
 		panic("client cannot be nil")
 	}
 	return func(o *Options) {
 		o.RestyClientFactory = httpx.NewRestyClientFactoryWithBase(client)
+		if o.WhatsOnChainHTTPClient == nil {
+			o.WhatsOnChainHTTPClient = client.GetClient()
+		}
 	}
 }
 

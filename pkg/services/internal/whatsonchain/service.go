@@ -101,6 +101,12 @@ func New(logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain,
 		wocsdk.WithAPIKey(config.APIKey),
 		wocsdk.WithUserAgent(userAgent),
 		wocsdk.WithRateLimit(rpsToInt(config.RequestsPerSecond)),
+		// Disable the SDK's internal retry so every HTTP request maps to exactly
+		// one client-side rate-limiter token (see wait). SDK retries would issue
+		// additional attempts that bypass the limiter and could breach the WoC
+		// rate cap; transient failures are instead handled by the services layer,
+		// which fails over to the next provider.
+		wocsdk.WithRequestRetryCount(0),
 	}
 	if builder.httpClient != nil {
 		clientOpts = append(clientOpts, wocsdk.WithHTTPClient(builder.httpClient))
@@ -203,6 +209,8 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (_ *wdk.RawTxRe
 		}
 		return nil, fmt.Errorf("failed to fetch raw tx hex: %w", err)
 	}
+	// WhatsOnChain returns HTTP 404 with an empty body for an unknown tx, which
+	// the SDK surfaces as an empty string - treat that as "not found".
 	if txHex == "" {
 		return nil, nil
 	}
@@ -609,9 +617,15 @@ func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash st
 
 	history := make([]wdk.ScriptHistoryItem, 0, len(confirmed)+len(unconfirmed))
 	for _, record := range confirmed {
+		if record == nil {
+			continue
+		}
 		history = append(history, scriptRecordToHistoryItem(record, true))
 	}
 	for _, record := range unconfirmed {
+		if record == nil {
+			continue
+		}
 		history = append(history, scriptRecordToHistoryItem(record, false))
 	}
 

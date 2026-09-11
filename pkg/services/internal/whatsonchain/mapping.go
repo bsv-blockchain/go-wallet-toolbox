@@ -73,13 +73,16 @@ func scriptRecordsToUtxoDetails(records wocsdk.ScriptList) []wdk.UtxoDetail {
 		if record == nil {
 			continue
 		}
+		// The SDK exposes these as signed integers; a negative value is not a
+		// valid UTXO position/amount, so skip the record rather than coercing it
+		// to a zero-valued UTXO that could false-match an outpoint at index 0.
 		index, err := to.UInt32(record.TxPos)
 		if err != nil {
-			index = 0
+			continue
 		}
 		satoshis, err := to.UInt64(record.Value)
 		if err != nil {
-			satoshis = 0
+			continue
 		}
 		details = append(details, wdk.UtxoDetail{
 			TxID:     record.TxHash,
