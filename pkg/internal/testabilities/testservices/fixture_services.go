@@ -2,6 +2,7 @@ package testservices
 
 import (
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -137,6 +138,7 @@ func (f *servicesFixture) New() *services.WalletServices {
 	options := append(
 		f.walletServicesOpts,
 		services.WithRestyClient(f.httpClient),
+		services.WithWhatsOnChainHTTPClient(&http.Client{Transport: f.transport}),
 		services.WithChaintracksAdapter(f.chaintracksClient.Adapter()),
 	)
 
@@ -153,7 +155,12 @@ func (f *servicesFixture) Services() WalletServicesFixture {
 func (f *servicesFixture) NewServicesWithConfig(config defs.WalletServices) *services.WalletServices {
 	f.t.Helper()
 
-	walletServices := services.New(f.logger, config, services.WithRestyClient(f.httpClient))
+	walletServices := services.New(
+		f.logger,
+		config,
+		services.WithRestyClient(f.httpClient),
+		services.WithWhatsOnChainHTTPClient(&http.Client{Transport: f.transport}),
+	)
 
 	f.services = walletServices
 

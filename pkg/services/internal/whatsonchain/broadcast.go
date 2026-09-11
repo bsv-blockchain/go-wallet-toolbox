@@ -3,9 +3,11 @@ package whatsonchain
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"net/http"
 
+	"github.com/go-softwarelab/common/pkg/to"
+	wocsdk "github.com/mrz1836/go-whatsonchain"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
@@ -14,154 +16,95 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// BroadcastStatus represents the result of broadcasting a transaction
-type BroadcastStatus int
-
-const (
-	StatusError BroadcastStatus = iota
-	StatusSuccess
-	StatusAlreadyBroadcasted
-	StatusDoubleSpend
-	StatusMissingInputs
-)
-
-type broadcastRequest struct {
-	TxHex string `json:"txhex"`
-}
-
-type txInfoResult struct {
-	BlockHash   string
-	BlockHeight uint32
-}
-
-func (woc *WhatsOnChain) broadcast(ctx context.Context, rawTx []byte) (_ BroadcastStatus, _ string, err error) {
-	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "whatsonchain"))
+// PostTX broadcasts a single raw transaction to WhatsOnChain. It never returns a
+// Go error: broadcast outcomes (success, already-known, double-spend, missing
+// inputs, error) are folded into the returned wdk.PostedTxID so the broadcast
+// router can decide how to proceed.
+func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (_ *wdk.PostedTxID, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostTX", attribute.String("service", "whatsonchain"))
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	rawTxHex := hex.EncodeToString(rawTx)
-	txid := txutils.TransactionIDFromRawTx(rawTx)
-
-	url := fmt.Sprintf("%s/tx/raw", woc.url)
-
-	req := woc.httpClient.
-		R().
-		SetContext(ctx).
-		SetBody(broadcastRequest{TxHex: rawTxHex})
-
-	res, err := req.Post(url)
-	if err != nil {
-		if res != nil {
-			woc.logger.DebugContext(ctx, "broadcast request failed with response", "url", url, "error", err, "status_code", res.StatusCode(), "response", res.String())
-		}
-		return StatusError, txid, fmt.Errorf("failed to send request to WoC: %w", err)
-	}
-
-	if res.StatusCode() != http.StatusOK {
-		responseText := res.String()
-
-		switch {
-		case containsI(responseText, "already in mempool", "already in the mempool", "txn-already-known"):
-			return StatusAlreadyBroadcasted, txid, nil
-		case containsI(responseText, "txn-mempool-conflict"):
-			return StatusDoubleSpend, txid, nil
-		case containsI(responseText, "missing inputs"):
-			return StatusMissingInputs, txid, nil
-		default:
-			return StatusError, txid, fmt.Errorf("woc returned unexpected error %d: %s", res.StatusCode(), responseText)
-		}
-	}
-
-	return StatusSuccess, txid, nil
-}
-
-func (woc *WhatsOnChain) fetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
-	type wocStatusRequest struct {
-		Txids []string `json:"txids"`
-	}
-
-	type wocStatusResponse []struct {
-		TxID          string `json:"txid"`
-		BlockHash     string `json:"blockhash"`
-		BlockHeight   uint32 `json:"blockheight"`
-		BlockTime     int64  `json:"blocktime"`
-		Confirmations int    `json:"confirmations"`
-	}
-
-	var resp wocStatusResponse
-
-	url := fmt.Sprintf("%s/txs/status", woc.url)
-
-	req := woc.httpClient.
-		R().
-		SetContext(ctx).
-		SetBody(wocStatusRequest{
-			Txids: []string{txid},
-		}).
-		SetResult(&resp)
-
-	res, err := req.Post(url)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call WoC: %w", err)
-	}
-
-	if res.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("unexpected WoC status: %d", res.StatusCode())
-	}
-
-	if len(resp) == 0 {
-		return nil, fmt.Errorf("no data returned for txid: %s", txid)
-	}
-
-	return &txInfoResult{
-		BlockHash:   resp[0].BlockHash,
-		BlockHeight: resp[0].BlockHeight,
-	}, nil
+	result := woc.processSingleTx(ctx, rawTx)
+	return &result, nil
 }
 
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, rawTx []byte) wdk.PostedTxID {
-	status, returnedTxid, err := woc.broadcast(ctx, rawTx)
+	txid := txutils.TransactionIDFromRawTx(rawTx)
+
+	if err := woc.wait(ctx); err != nil {
+		return woc.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
+	}
+
+	_, err := woc.client.BroadcastTx(ctx, hex.EncodeToString(rawTx))
+
+	result := wdk.PostedTxID{TxID: txid}
 	if err != nil {
-		return woc.errorPostedTxID(rawTx, returnedTxid, fmt.Errorf("broadcast failed for txid %s: %w", returnedTxid, err))
-	}
-
-	result := wdk.PostedTxID{
-		TxID: returnedTxid,
-	}
-
-	shouldReturnError := classifyBroadcastStatus(status, &result)
-	if shouldReturnError {
-		msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", returnedTxid, result.Result)
-		if result.Error != nil {
-			msg += fmt.Sprintf(" and error: %v", result.Error)
+		if shouldReturnError := classifyBroadcastError(err, &result); shouldReturnError {
+			msg := fmt.Sprintf("broadcasted tx %s with problematic result %s", txid, result.Result)
+			if result.Error != nil {
+				msg += fmt.Sprintf(" and error: %v", result.Error)
+			}
+			result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Bytes(rawTx), []string{txid}, msg).Note().AsList()
+			return result
 		}
-		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Bytes(rawTx), []string{returnedTxid}, msg).Note().AsList()
-		return result
+		// Non-error classification (already in mempool): treat as success.
+	} else {
+		result.Result = wdk.PostedTxIDResultSuccess
 	}
 
-	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, []string{returnedTxid}).Note().AsList()
-
-	info, fetchErr := woc.tryFetchTxInfo(ctx, returnedTxid)
-	if fetchErr != nil {
-		// The tx has already been accepted by WoC - block info is optional enrichment,
-		// and right after a broadcast the tx may not be indexed yet (or the endpoint may
-		// be rate limited), so a fetch failure must not void the successful broadcast.
-		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast",
-			"txid", returnedTxid, "error", fetchErr)
-		return result
-	}
-
-	if info != nil {
-		result.BlockHash = info.BlockHash
-		result.BlockHeight = info.BlockHeight
-	}
-
+	result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, []string{txid}).Note().AsList()
+	woc.enrichWithBlockInfo(ctx, &result, txid)
 	return result
 }
 
-func (woc *WhatsOnChain) tryFetchTxInfo(ctx context.Context, txid string) (*txInfoResult, error) {
-	return woc.fetchTxInfo(ctx, txid)
+// classifyBroadcastError maps an SDK broadcast error onto the PostedTxID result and
+// reports whether the outcome is a failure the router should treat as an error.
+// An "already in mempool" outcome is not an error - the transaction is accepted.
+func classifyBroadcastError(err error, result *wdk.PostedTxID) (shouldReturnError bool) {
+	switch {
+	case errors.Is(err, wocsdk.ErrTxAlreadyInMempool):
+		result.Result = wdk.PostedTxIDResultAlreadyKnown
+		result.AlreadyKnown = true
+		return false
+	case errors.Is(err, wocsdk.ErrTxMempoolConflict):
+		result.Result = wdk.PostedTxIDResultDoubleSpend
+		result.DoubleSpend = true
+		return true
+	case errors.Is(err, wocsdk.ErrTxMissingInputs):
+		result.Result = wdk.PostedTxIDResultMissingInputs
+		result.DoubleSpend = true
+		return true
+	default:
+		result.Result = wdk.PostedTxIDResultError
+		result.Error = err
+		return true
+	}
+}
+
+// enrichWithBlockInfo best-effort populates block hash/height for an accepted tx.
+// A failure here must not void the successful broadcast: right after a broadcast
+// the tx may not be indexed yet (or the endpoint may be rate limited).
+func (woc *WhatsOnChain) enrichWithBlockInfo(ctx context.Context, result *wdk.PostedTxID, txid string) {
+	if err := woc.wait(ctx); err != nil {
+		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast", "txid", txid, "error", err)
+		return
+	}
+
+	statuses, err := woc.client.BulkTransactionStatus(ctx, &wocsdk.TxHashes{TxIDs: []string{txid}})
+	if err != nil || len(statuses) == 0 || statuses[0] == nil {
+		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast", "txid", txid, "error", err)
+		return
+	}
+
+	status := statuses[0]
+	result.BlockHash = status.BlockHash
+	if status.BlockHeight > 0 {
+		if height, convErr := to.UInt32(status.BlockHeight); convErr == nil {
+			result.BlockHeight = height
+		}
+	}
 }
 
 func (woc *WhatsOnChain) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {

@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"log/slog"
+	"net/http"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
@@ -128,7 +129,12 @@ func (p *providerFixture) withServices() ProviderFixture {
 	// NOTE: tests should not be slowed down by the client-side WoC rate limiter
 	config.WhatsOnChain.RequestsPerSecond = 10000
 
-	p.services = services.New(p.logger, config, services.WithRestyClient(client))
+	p.services = services.New(
+		p.logger,
+		config,
+		services.WithRestyClient(client),
+		services.WithWhatsOnChainHTTPClient(&http.Client{Transport: p.servicesSniffer}),
+	)
 	return p
 }
 

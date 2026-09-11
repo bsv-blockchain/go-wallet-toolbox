@@ -136,7 +136,7 @@ func TestRawTxFailure(t *testing.T) {
 
 		// then:
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to retrieve successful response from WOC")
+		assert.Contains(t, err.Error(), "HTTP 500")
 	})
 
 	t.Run("returns error when it fails to decode hex string", func(t *testing.T) {

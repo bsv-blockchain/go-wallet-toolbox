@@ -100,7 +100,7 @@ func TestWalletServices_IsValidRootForHeight_WoC_ContextCancelled(t *testing.T) 
 	// given:
 	fixture := testservices.GivenServices(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
-	pat := `=~/block/` + strconv.Itoa(int(height)) + `/header`
+	pat := `=~/block/height/` + strconv.Itoa(int(height))
 	fixture.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, pat,
 		func(_ *http.Request) (*http.Response, error) {
 			cancel(context.Canceled)

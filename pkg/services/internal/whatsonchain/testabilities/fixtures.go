@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -37,18 +38,16 @@ type wocServiceFixture struct {
 
 func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChain)) *whatsonchain.WhatsOnChain {
 	logger := logging.NewTestLogger(f.t)
-	client := f.WhatsOnChain().HttpClient()
 	network := f.Network()
+	httpClient := &http.Client{Transport: f.Transport()}
 
 	config := defs.WhatsOnChain{
-		BSVExchangeRate:            defs.BSVExchangeRate{},
-		RootForHeightRetryInterval: 0,
-		RootForHeightRetries:       1,
+		BSVExchangeRate: defs.BSVExchangeRate{},
 		// NOTE: tests should not be slowed down by the client-side WoC rate limiter
 		RequestsPerSecond: 10000,
 	}
 
-	service := whatsonchain.New(client, logger, network, config)
+	service := whatsonchain.New(logger, network, config, whatsonchain.WithHTTPClient(httpClient))
 
 	for _, opt := range opts {
 		opt(service)

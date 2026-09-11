@@ -117,7 +117,11 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var wocService *whatsonchain.WhatsOnChain
 	if config.WhatsOnChain.Enabled {
-		wocService = whatsonchain.New(options.RestyClientFactory.New(), logger, config.Chain, config.WhatsOnChain)
+		var wocOpts []whatsonchain.Option
+		if options.WhatsOnChainHTTPClient != nil {
+			wocOpts = append(wocOpts, whatsonchain.WithHTTPClient(options.WhatsOnChainHTTPClient))
+		}
+		wocService = whatsonchain.New(logger, config.Chain, config.WhatsOnChain, wocOpts...)
 		wocImpl := Implementation{
 			RawTx:                wocService.RawTx,
 			MerklePath:           wocService.MerklePath,
