@@ -129,18 +129,18 @@ func New(logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain,
 }
 
 // buildHTTPClient wires the client-side rate limiter into the SDK's HTTP client.
-// Rate limiting is applied per HTTP attempt via a RoundTripper, so SDK retries
-// also consume limiter tokens (never breaching the WoC rate cap).
+// Rate limiting is applied per HTTP attempt via a RoundTripper, and the result is
+// always wrapped with the SDK's retry, so transient (network / 5xx / 429)
+// failures are retried while every attempt still consumes a limiter token (the
+// WoC rate cap is never breached).
 //
-// When base is non-nil (an injected client, e.g. a test mock transport) its
-// transport is reused as-is with no extra retry, keeping behavior deterministic.
-// Otherwise the default transport is wrapped with the SDK's retry so transient
-// failures are retried while still being rate limited.
+// When base is non-nil its transport and timeout are reused (an injected client,
+// e.g. a test mock transport, or a caller-customized transport via
+// services.WithRestyClient); retry behavior is identical to the default path.
 func buildHTTPClient(rateLimiter *rateLimiterHolder, base *http.Client) wocsdk.HTTPInterface {
 	transport := http.DefaultTransport
 	timeout := requestTimeout
-	injected := base != nil
-	if injected {
+	if base != nil {
 		if base.Transport != nil {
 			transport = base.Transport
 		}
@@ -152,9 +152,6 @@ func buildHTTPClient(rateLimiter *rateLimiterHolder, base *http.Client) wocsdk.H
 	limited := &http.Client{
 		Transport: &rateLimitedTransport{holder: rateLimiter, base: transport},
 		Timeout:   timeout,
-	}
-	if injected {
-		return limited
 	}
 
 	return wocsdk.NewRetryableHTTPClient(limited, retryCount, wocsdk.NewExponentialBackoff(
