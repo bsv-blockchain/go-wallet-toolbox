@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -58,9 +59,13 @@ type SDKClient interface {
 
 // WhatsOnChain adapts the WhatsOnChain SDK to the toolbox service contracts.
 type WhatsOnChain struct {
-	client  SDKClient
-	logger  *slog.Logger
-	limiter *rate.Limiter
+	client SDKClient
+	logger *slog.Logger
+
+	// rateLimiter is the client-side rate limiter applied to every HTTP request
+	// (including SDK retries). It is nil when the service is built with an
+	// already-constructed SDK client via NewWithClient (e.g. unit tests).
+	rateLimiter *rateLimiterHolder
 
 	bsvExchangeRate   defs.BSVExchangeRate
 	bsvUpdateInterval time.Duration
@@ -68,16 +73,26 @@ type WhatsOnChain struct {
 	cacheMu           sync.RWMutex
 }
 
+const (
+	// requestTimeout bounds each WhatsOnChain HTTP request.
+	requestTimeout = 30 * time.Second
+	// retryCount is the number of retries applied to WhatsOnChain requests on
+	// transient (network / 5xx) failures. Each attempt still passes through the
+	// client-side rate limiter.
+	retryCount = 2
+)
+
 // Option customizes construction of the WhatsOnChain service.
 type Option func(*builderOptions)
 
 type builderOptions struct {
-	httpClient wocsdk.HTTPInterface
+	httpClient *http.Client
 }
 
-// WithHTTPClient injects a custom HTTP client into the underlying SDK client.
-// It is primarily used by tests to route SDK requests through a mock transport.
-func WithHTTPClient(httpClient wocsdk.HTTPInterface) Option {
+// WithHTTPClient makes the underlying SDK client use the given HTTP client's
+// transport (with client-side rate limiting layered on top). It is primarily
+// used by tests to route requests through a mock transport.
+func WithHTTPClient(httpClient *http.Client) Option {
 	return func(o *builderOptions) {
 		o.httpClient = httpClient
 	}
@@ -96,43 +111,70 @@ func New(logger *slog.Logger, network defs.BSVNetwork, config defs.WhatsOnChain,
 		opt(builder)
 	}
 
-	clientOpts := []wocsdk.ClientOption{
+	rateLimiter := &rateLimiterHolder{limiter: newRequestLimiter(config.RequestsPerSecond)}
+
+	client, err := wocsdk.NewClient(
+		context.Background(),
 		wocsdk.WithNetwork(mapNetwork(network)),
 		wocsdk.WithAPIKey(config.APIKey),
 		wocsdk.WithUserAgent(userAgent),
 		wocsdk.WithRateLimit(rpsToInt(config.RequestsPerSecond)),
-		// Disable the SDK's internal retry so every HTTP request maps to exactly
-		// one client-side rate-limiter token (see wait). SDK retries would issue
-		// additional attempts that bypass the limiter and could breach the WoC
-		// rate cap; transient failures are instead handled by the services layer,
-		// which fails over to the next provider.
-		wocsdk.WithRequestRetryCount(0),
-	}
-	if builder.httpClient != nil {
-		clientOpts = append(clientOpts, wocsdk.WithHTTPClient(builder.httpClient))
-	}
-
-	client, err := wocsdk.NewClient(context.Background(), clientOpts...)
+		wocsdk.WithHTTPClient(buildHTTPClient(rateLimiter, builder.httpClient)),
+	)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create WhatsOnChain client: %s", err.Error()))
 	}
 
-	return newWhatsOnChain(client, logger, config)
+	return newWhatsOnChain(client, rateLimiter, logger, config)
+}
+
+// buildHTTPClient wires the client-side rate limiter into the SDK's HTTP client.
+// Rate limiting is applied per HTTP attempt via a RoundTripper, so SDK retries
+// also consume limiter tokens (never breaching the WoC rate cap).
+//
+// When base is non-nil (an injected client, e.g. a test mock transport) its
+// transport is reused as-is with no extra retry, keeping behavior deterministic.
+// Otherwise the default transport is wrapped with the SDK's retry so transient
+// failures are retried while still being rate limited.
+func buildHTTPClient(rateLimiter *rateLimiterHolder, base *http.Client) wocsdk.HTTPInterface {
+	transport := http.DefaultTransport
+	timeout := requestTimeout
+	injected := base != nil
+	if injected {
+		if base.Transport != nil {
+			transport = base.Transport
+		}
+		if base.Timeout > 0 {
+			timeout = base.Timeout
+		}
+	}
+
+	limited := &http.Client{
+		Transport: &rateLimitedTransport{holder: rateLimiter, base: transport},
+		Timeout:   timeout,
+	}
+	if injected {
+		return limited
+	}
+
+	return wocsdk.NewRetryableHTTPClient(limited, retryCount, wocsdk.NewExponentialBackoff(
+		2*time.Millisecond, 10*time.Millisecond, 2.0, 2*time.Millisecond,
+	))
 }
 
 // NewWithClient creates a WhatsOnChain service backed by the supplied SDK client.
-// It is used by tests to inject a mock client or an SDK client wired to a mock
-// HTTP transport.
+// It is used by tests to inject a mock client directly; the client-side rate
+// limiter is not applied on this path.
 func NewWithClient(client SDKClient, logger *slog.Logger, config defs.WhatsOnChain) *WhatsOnChain {
 	logger = logging.Child(logger, "WoC")
-	return newWhatsOnChain(client, logger, config)
+	return newWhatsOnChain(client, nil, logger, config)
 }
 
-func newWhatsOnChain(client SDKClient, logger *slog.Logger, config defs.WhatsOnChain) *WhatsOnChain {
+func newWhatsOnChain(client SDKClient, rateLimiter *rateLimiterHolder, logger *slog.Logger, config defs.WhatsOnChain) *WhatsOnChain {
 	return &WhatsOnChain{
 		client:            client,
 		logger:            logger,
-		limiter:           newRequestLimiter(config.RequestsPerSecond),
+		rateLimiter:       rateLimiter,
 		bsvExchangeRate:   config.BSVExchangeRate,
 		bsvUpdateInterval: to.If(config.BSVUpdateInterval != nil, func() time.Duration { return *config.BSVUpdateInterval }).ElseThen(defs.DefaultBSVExchangeUpdateInterval),
 		rootCache:         make(map[uint32]*chainhash.Hash),
@@ -161,7 +203,9 @@ func rpsToInt(requestsPerSecond float64) int {
 // SetRequestsPerSecond reconfigures the client-side rate limiter.
 // Not safe for concurrent use with in-flight requests - call right after New.
 func (woc *WhatsOnChain) SetRequestsPerSecond(requestsPerSecond float64) {
-	woc.limiter = newRequestLimiter(requestsPerSecond)
+	if woc.rateLimiter != nil {
+		woc.rateLimiter.set(newRequestLimiter(requestsPerSecond))
+	}
 	woc.client.SetRateLimit(rpsToInt(requestsPerSecond))
 }
 
@@ -182,12 +226,41 @@ func newRequestLimiter(requestsPerSecond float64) *rate.Limiter {
 	return rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
 }
 
-// wait blocks until the client-side rate limiter permits another request.
-func (woc *WhatsOnChain) wait(ctx context.Context) error {
-	if err := woc.limiter.Wait(ctx); err != nil {
+// rateLimiterHolder guards a swappable rate limiter so SetRequestsPerSecond can
+// reconfigure the limit while the rate-limited transport keeps a stable reference.
+type rateLimiterHolder struct {
+	mu      sync.RWMutex
+	limiter *rate.Limiter
+}
+
+func (h *rateLimiterHolder) wait(ctx context.Context) error {
+	h.mu.RLock()
+	limiter := h.limiter
+	h.mu.RUnlock()
+	if err := limiter.Wait(ctx); err != nil {
 		return fmt.Errorf("waiting for WoC rate limiter: %w", err)
 	}
 	return nil
+}
+
+func (h *rateLimiterHolder) set(limiter *rate.Limiter) {
+	h.mu.Lock()
+	h.limiter = limiter
+	h.mu.Unlock()
+}
+
+// rateLimitedTransport applies the client-side rate limiter to every HTTP
+// request (including SDK retries) before delegating to the base transport.
+type rateLimitedTransport struct {
+	holder *rateLimiterHolder
+	base   http.RoundTripper
+}
+
+func (t *rateLimitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.holder.wait(req.Context()); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req)
 }
 
 // RawTx fetches the raw transaction bytes for the given txID. A not-found
@@ -197,10 +270,6 @@ func (woc *WhatsOnChain) RawTx(ctx context.Context, txID string) (_ *wdk.RawTxRe
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
-
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
 
 	txHex, err := woc.client.GetRawTransactionData(ctx, txID)
 	if err != nil {
@@ -245,10 +314,6 @@ func (woc *WhatsOnChain) UpdateBsvExchangeRate(ctx context.Context) (_ float64, 
 		return woc.bsvExchangeRate.Rate, nil
 	}
 
-	if err = woc.wait(ctx); err != nil {
-		return 0, err
-	}
-
 	rate, err := woc.client.GetExchangeRate(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch exchange rate: %w", err)
@@ -266,10 +331,6 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (_ *wdk.Me
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
-
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
 
 	proofs, err := woc.client.GetMerkleProofTSC(ctx, txID)
 	if err != nil {
@@ -311,10 +372,6 @@ func (woc *WhatsOnChain) MerklePath(ctx context.Context, txID string) (_ *wdk.Me
 
 // fetchMerkleHeader fetches the block header for a merkle proof target hash.
 func (woc *WhatsOnChain) fetchMerkleHeader(ctx context.Context, blockHash string) (*wdk.MerklePathBlockHeader, error) {
-	if err := woc.wait(ctx); err != nil {
-		return nil, err
-	}
-
 	blockInfo, err := woc.client.GetHeaderByHash(ctx, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch block header: %w", err)
@@ -339,10 +396,6 @@ func (woc *WhatsOnChain) FindChainTipHeader(ctx context.Context) (_ *wdk.ChainBl
 		tracing.EndTracing(span, err)
 	}()
 
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
-
 	headers, err := woc.client.GetHeaders(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching block headers from WhatsOnChain: %w", err)
@@ -366,10 +419,6 @@ func (woc *WhatsOnChain) CurrentHeight(ctx context.Context) (_ uint32, err error
 		tracing.EndTracing(span, err)
 	}()
 
-	if err = woc.wait(ctx); err != nil {
-		return 0, err
-	}
-
 	info, err := woc.client.GetChainInfo(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch chain info: %w", err)
@@ -391,10 +440,6 @@ func (woc *WhatsOnChain) ChainHeaderByHeight(ctx context.Context, height uint32)
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
-
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
 
 	blockInfo, err := woc.client.GetBlockByHeight(ctx, int64(height))
 	if err != nil {
@@ -423,10 +468,6 @@ func (woc *WhatsOnChain) IsValidRootForHeight(ctx context.Context, root *chainha
 		return cached.IsEqual(root), nil
 	}
 
-	if err = woc.wait(ctx); err != nil {
-		return false, err
-	}
-
 	blockInfo, err := woc.client.GetBlockByHeight(ctx, int64(height))
 	if err != nil {
 		if errors.Is(err, wocsdk.ErrBlockNotFound) {
@@ -452,10 +493,6 @@ func (woc *WhatsOnChain) HashToHeader(ctx context.Context, blockHash string) (_ 
 		tracing.EndTracing(span, err)
 	}()
 
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
-
 	blockInfo, err := woc.client.GetHeaderByHash(ctx, blockHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch block header from WoC: %w", err)
@@ -477,10 +514,6 @@ func (woc *WhatsOnChain) GetUtxoStatus(ctx context.Context, scriptHash string, o
 
 	if err = validateScriptHash(scriptHash); err != nil {
 		return nil, fmt.Errorf("invalid scripthash: %w", err)
-	}
-
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
 	}
 
 	records, err := woc.client.GetScriptUnspentTransactions(ctx, scriptHash)
@@ -537,10 +570,6 @@ func (woc *WhatsOnChain) GetStatusForTxIDs(ctx context.Context, txIDs []string) 
 
 	results := make([]wdk.TxStatusDetail, 0, len(txIDs))
 	for _, chunk := range chunkTxIDs(txIDs, maxTxsPerStatusRequest) {
-		if err = woc.wait(ctx); err != nil {
-			return nil, err
-		}
-
 		statuses, statusErr := woc.client.BulkTransactionStatus(ctx, &wocsdk.TxHashes{TxIDs: chunk})
 		if statusErr != nil {
 			return nil, fmt.Errorf("failed to get status for txIDs: %w", statusErr)
@@ -599,17 +628,11 @@ func (woc *WhatsOnChain) GetScriptHashHistory(ctx context.Context, scriptHash st
 		return nil, err
 	}
 
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
 	confirmed, err := woc.client.GetScriptConfirmedHistory(ctx, scriptHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get confirmed script history: %w", err)
 	}
 
-	if err = woc.wait(ctx); err != nil {
-		return nil, err
-	}
 	unconfirmed, err := woc.client.GetScriptUnconfirmedHistory(ctx, scriptHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get unconfirmed script history: %w", err)

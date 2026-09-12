@@ -33,10 +33,6 @@ func (woc *WhatsOnChain) PostTX(ctx context.Context, rawTx []byte) (_ *wdk.Poste
 func (woc *WhatsOnChain) processSingleTx(ctx context.Context, rawTx []byte) wdk.PostedTxID {
 	txid := txutils.TransactionIDFromRawTx(rawTx)
 
-	if err := woc.wait(ctx); err != nil {
-		return woc.errorPostedTxID(rawTx, txid, fmt.Errorf("broadcast failed for txid %s: %w", txid, err))
-	}
-
 	_, err := woc.client.BroadcastTx(ctx, hex.EncodeToString(rawTx))
 
 	result := wdk.PostedTxID{TxID: txid}
@@ -87,11 +83,6 @@ func classifyBroadcastError(err error, result *wdk.PostedTxID) (shouldReturnErro
 // A failure here must not void the successful broadcast: right after a broadcast
 // the tx may not be indexed yet (or the endpoint may be rate limited).
 func (woc *WhatsOnChain) enrichWithBlockInfo(ctx context.Context, result *wdk.PostedTxID, txid string) {
-	if err := woc.wait(ctx); err != nil {
-		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast", "txid", txid, "error", err)
-		return
-	}
-
 	statuses, err := woc.client.BulkTransactionStatus(ctx, &wocsdk.TxHashes{TxIDs: []string{txid}})
 	if err != nil || len(statuses) == 0 || statuses[0] == nil {
 		woc.logger.WarnContext(ctx, "failed to fetch tx info after successful broadcast", "txid", txid, "error", err)
@@ -104,14 +95,5 @@ func (woc *WhatsOnChain) enrichWithBlockInfo(ctx context.Context, result *wdk.Po
 		if height, convErr := to.UInt32(status.BlockHeight); convErr == nil {
 			result.BlockHeight = height
 		}
-	}
-}
-
-func (woc *WhatsOnChain) errorPostedTxID(raw []byte, txID string, err error) wdk.PostedTxID {
-	return wdk.PostedTxID{
-		TxID:   txID,
-		Result: wdk.PostedTxIDResultError,
-		Error:  err,
-		Notes:  history.NewBuilder().PostBeefError(ServiceName, history.Bytes(raw), []string{txID}, err.Error()).Note().AsList(),
 	}
 }
