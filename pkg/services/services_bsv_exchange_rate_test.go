@@ -94,7 +94,7 @@ func TestUpdateBsvExchangeRateFail(t *testing.T) {
 
 		// then:
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to retrieve successful response from WOC")
+		assert.Contains(t, err.Error(), "HTTP 500")
 	})
 
 	t.Run("returns error if currency is not USD", func(t *testing.T) {

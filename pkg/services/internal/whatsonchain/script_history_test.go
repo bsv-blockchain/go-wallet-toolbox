@@ -105,7 +105,7 @@ func TestWhatsOnChain_GetScriptHistory_UnconfirmedAPIError(t *testing.T) {
 
 	// then
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API error: Script not found")
+	assert.Contains(t, err.Error(), "Script not found")
 	assert.Nil(t, result)
 }
 
@@ -241,7 +241,7 @@ func TestWhatsOnChain_GetScriptHistory_HTTPError(t *testing.T) {
 
 	// then
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected status code 404")
+	assert.Contains(t, err.Error(), "script not found")
 	assert.Nil(t, result)
 }
 

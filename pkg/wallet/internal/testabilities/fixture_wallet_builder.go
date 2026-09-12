@@ -182,7 +182,12 @@ func (w *walletBuilder) ForUser(user testusers.User) *wallet.Wallet {
 		transport := w.givenStorage.Provider().Transport()
 		client := resty.New()
 		client.SetTransport(transport)
-		walletServices := services.New(slog.Default(), serviceCfg, services.WithRestyClient(client))
+		walletServices := services.New(
+			slog.Default(),
+			serviceCfg,
+			services.WithRestyClient(client),
+			services.WithWhatsOnChainHTTPClient(&http.Client{Transport: transport}),
+		)
 		opts = append(opts, wallet.WithServices(walletServices))
 	}
 

@@ -3,9 +3,9 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.27.0
 
 require (
-	github.com/bsv-blockchain/go-bsv-middleware v0.15.0
+	github.com/bsv-blockchain/go-bsv-middleware v0.15.1
 	github.com/bsv-blockchain/go-chaintracks v1.2.11
-	github.com/bsv-blockchain/go-sdk v1.4.1
+	github.com/bsv-blockchain/go-sdk v1.5.0
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.2
@@ -17,6 +17,7 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-sqlite3 v1.14.52
+	github.com/mrz1836/go-whatsonchain v1.2.1
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.71.0
@@ -52,7 +53,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.4 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.0 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.5 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
@@ -60,7 +61,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.10.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.0 // indirect
@@ -257,14 +258,14 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260909141559-55ac43c52cc3 // indirect
+	golang.org/x/telemetry v0.0.0-20260910141331-15ceca2b0a1f // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260908043556-f8649ddbbfe6 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260908043556-f8649ddbbfe6 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260911204522-f61a6ca850bd // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260911204522-f61a6ca850bd // indirect
 	google.golang.org/grpc v1.85.0-dev.0.20260825072537-93e31b48545e // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect

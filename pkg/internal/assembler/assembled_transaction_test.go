@@ -108,13 +108,14 @@ func TestAtomicBEEF_PreservesBumpIndexAcrossMultipleBumps(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, inputBEEF.BUMPs, 2, "input BEEF must have exactly 2 BUMPs (one per block)")
 
-	// Record which BEEF index proves parentTx — this must survive round-tripping.
+	// Sanity-check the test setup: in the input BEEF, parentTx is proven by BUMPs[1] (block 2000).
 	inputParentEntry, ok := inputBEEF.Transactions[*parentTxID]
 	require.True(t, ok, "parentTx must be in inputBEEF")
 	require.Equal(t, transaction.RawTxAndBumpIndex, inputParentEntry.DataFormat,
 		"parentTx must carry RawTxAndBumpIndex in inputBEEF (MerklePath leaf hash must match txid)")
-	expectedBumpIndex := inputParentEntry.BumpIndex
-	require.Equal(t, 1, expectedBumpIndex, "parentTx should be proven by BUMPs[1]")
+	require.Equal(t, 1, inputParentEntry.BumpIndex, "parentTx should be proven by BUMPs[1] in inputBEEF")
+	require.Equal(t, uint32(2000), inputBEEF.BUMPs[inputParentEntry.BumpIndex].BlockHeight,
+		"BUMPs[1] must be bump1 (block 2000)")
 
 	// The assembled ("unsigned") tx spends parentTx.
 	unsignedTx := &transaction.Transaction{Version: 1, LockTime: 333}
@@ -153,9 +154,16 @@ func TestAtomicBEEF_PreservesBumpIndexAcrossMultipleBumps(t *testing.T) {
 
 	assert.Equal(t, transaction.RawTxAndBumpIndex, parentEntry.DataFormat,
 		"parentTx DataFormat must be RawTxAndBumpIndex after round-trip")
-	assert.Equal(t, expectedBumpIndex, parentEntry.BumpIndex,
-		"parentTx BumpIndex must survive round-trip serialization; "+
-			"without the fix, mergeSourceTxIntoBEEF clobbered it to 0 via MergeRawTx")
+
+	// The atomic BEEF selection trims unreferenced BUMPs and reindexes the survivors, so the
+	// absolute BumpIndex is not preserved (bump0 for the grandparent is dropped, leaving bump1
+	// reindexed to 0). What must survive is that parentTx's BumpIndex still points to bump1
+	// (block 2000) — without the fix, mergeSourceTxIntoBEEF clobbered parentTx to a bare RawTx
+	// via MergeRawTx, dropping its proof entirely.
+	require.GreaterOrEqual(t, parentEntry.BumpIndex, 0, "parentTx BumpIndex must be valid")
+	require.Less(t, parentEntry.BumpIndex, len(roundTripped.BUMPs), "parentTx BumpIndex must be within BUMPs range")
+	assert.Equal(t, uint32(2000), roundTripped.BUMPs[parentEntry.BumpIndex].BlockHeight,
+		"parentTx BumpIndex must point to bump1 (block 2000), not bump0 (block 1000)")
 
 	require.NotNil(t, parentEntry.Transaction.MerklePath,
 		"parentTx must have a MerklePath attached after deserialization")

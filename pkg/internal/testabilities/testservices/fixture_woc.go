@@ -63,7 +63,7 @@ func (f *wocFixture) WillRespondWithMerkleRoot(root string) {
 	f.Helper()
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/height/\d+`, f.network)),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, blockHeaderDTO{
 			Version:           TestBlockVersion,
 			PreviousBlockHash: TestBlockPreviousBlockHash,
@@ -85,11 +85,23 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 	fixture := &wocFixture{
 		TB:        t,
 		transport: options.transport,
-		network:   options.network,
+		network:   canonicalWoCNetwork(options.network),
 	}
 
 	fixture.getBeefFixture = newGetBeefFixture(t, fixture)
 	return fixture
+}
+
+// canonicalWoCNetwork mirrors the adapter's network mapping (mapNetwork in the
+// whatsonchain service): the WhatsOnChain SDK only distinguishes main from test,
+// so ttn/tstn/test all resolve to "test" in request paths. The fixture must
+// register responders under the same canonical segment the adapter requests,
+// otherwise the mock transport cannot service non-mainnet WoC tests.
+func canonicalWoCNetwork(network defs.BSVNetwork) defs.BSVNetwork {
+	if network == defs.NetworkMainnet {
+		return defs.NetworkMainnet
+	}
+	return defs.NetworkTestnet
 }
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
@@ -107,7 +119,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithEmptyList() {
 	f.Helper()
 	f.transport.RegisterResponder(
 		http.MethodGet,
-		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
+		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers", f.network),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{}),
 	)
 }
@@ -135,7 +147,7 @@ func (f *wocFixture) WillRespondWithEmptyBlockHeight() {
 	f.Helper()
 	f.transport.RegisterRegexpResponder(
 		http.MethodGet,
-		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/.*/header`, f.network)),
+		regexp.MustCompile(fmt.Sprintf(`https://api.whatsonchain.com/v1/bsv/%s/block/height/\d+`, f.network)),
 		httpmock.NewStringResponder(http.StatusOK, "{}"),
 	)
 }
@@ -150,7 +162,7 @@ func (f *wocFixture) OnTipBlockHeaderWillRespondWithOneElementList(opts ...TipBl
 
 	f.transport.RegisterResponder(
 		http.MethodGet,
-		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers?limit=1", f.network),
+		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/block/headers", f.network),
 		httpmock.NewJsonResponderOrPanic(http.StatusOK, []wocBlockResponseItem{
 			{
 				Hash:              options.Hash,
@@ -219,10 +231,16 @@ func (f *wocFixture) WillRespondWithRawTx(status int, txID, rawTx string, err er
 		}
 	}
 
+	// WhatsOnChain returns an empty body for a not-found transaction.
+	content := rawTx
+	if status == http.StatusNotFound {
+		content = ""
+	}
+
 	f.transport.RegisterResponder(
 		http.MethodGet,
 		fmt.Sprintf("https://api.whatsonchain.com/v1/bsv/%s/tx/%s/hex", f.network, txID),
-		responder(status, rawTx), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
+		responder(status, content), //nolint:bodyclose // mock responder for test fixture, not an actual HTTP response
 	)
 }
 
@@ -450,28 +468,33 @@ func computeTxID(rawTx []byte) string {
 func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint32, merkleRoot string) {
 	f.Helper()
 
-	responder := httpmock.NewJsonResponderOrPanic(
-		status,
-		headerByHeightDTO{
-			Hash:              TestBlockHash,
-			Confirmations:     TestBlockConfirmations,
-			Size:              TestBlockSize,
-			Height:            height,
-			Version:           TestBlockVersion,
-			VersionHex:        TestBlockVersionHex,
-			MerkleRoot:        merkleRoot,
-			Time:              TestBlockTime,
-			MedianTime:        TestBlockMedianTime,
-			Nonce:             TestBlockNonce,
-			Bits:              TestBlockBits,
-			Difficulty:        TestBlockDifficulty,
-			ChainWork:         TestBlockChainWork,
-			PreviousBlockHash: TestBlockPreviousBlockHash,
-			NextBlockHash:     TestNextBlockHash,
-			NTx:               TestBlockNTx,
-			NumTx:             TestBlockNumTx,
-		},
-	)
+	// WhatsOnChain returns an empty body for a not-found (or otherwise non-OK)
+	// block height, so model that faithfully rather than serializing a header.
+	responder := httpmock.NewStringResponder(status, "")
+	if status == http.StatusOK {
+		responder = httpmock.NewJsonResponderOrPanic(
+			status,
+			headerByHeightDTO{
+				Hash:              TestBlockHash,
+				Confirmations:     TestBlockConfirmations,
+				Size:              TestBlockSize,
+				Height:            height,
+				Version:           TestBlockVersion,
+				VersionHex:        TestBlockVersionHex,
+				MerkleRoot:        merkleRoot,
+				Time:              TestBlockTime,
+				MedianTime:        TestBlockMedianTime,
+				Nonce:             TestBlockNonce,
+				Bits:              TestBlockBits,
+				Difficulty:        TestBlockDifficulty,
+				ChainWork:         TestBlockChainWork,
+				PreviousBlockHash: TestBlockPreviousBlockHash,
+				NextBlockHash:     TestNextBlockHash,
+				NTx:               TestBlockNTx,
+				NumTx:             TestBlockNumTx,
+			},
+		)
+	}
 
 	host := "https://api.whatsonchain.com"
 
@@ -481,14 +504,14 @@ func (f *wocFixture) WillRespondWithBlockHeaderByHeight(status int, height uint3
 	}
 
 	for _, p := range prefixes {
-		pathOnly := fmt.Sprintf("%s/block/%d/header", p, height)
+		pathOnly := fmt.Sprintf("%s/block/height/%d", p, height)
 		absolute := host + pathOnly
 
 		f.transport.RegisterResponder(http.MethodGet, pathOnly, responder)
 		f.transport.RegisterResponder(http.MethodGet, absolute, responder)
 	}
 
-	rx := fmt.Sprintf(`=~^/v1(?:/bsv)?/%s/block/%d/header$`, f.network, height)
+	rx := fmt.Sprintf(`=~^/v1(?:/bsv)?/%s/block/height/%d$`, f.network, height)
 	f.transport.RegisterResponder(http.MethodGet, rx, responder)
 }
 
@@ -779,6 +802,14 @@ func (b *scriptHistoryDataBuilder) WillBeReturned() {
 	b.fixture.Helper()
 
 	confirmedResp, unconfirmedResp := b.buildJSON()
+
+	// WhatsOnChain returns an empty body for a not-found script.
+	if b.confirmedStatusCode == http.StatusNotFound {
+		confirmedResp = ""
+	}
+	if b.unconfirmedStatusCode == http.StatusNotFound {
+		unconfirmedResp = ""
+	}
 
 	b.fixture.WillRespondWithConfirmedScriptHistory(b.confirmedStatusCode, b.scriptHash, confirmedResp)
 	b.fixture.WillRespondWithUnconfirmedScriptHistory(b.unconfirmedStatusCode, b.scriptHash, unconfirmedResp)

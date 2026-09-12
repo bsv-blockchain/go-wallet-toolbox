@@ -59,7 +59,7 @@ func TestWhatsOnChain_HashToHeader_ErrorStatus(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected response status")
+	assert.Contains(t, err.Error(), "HTTP 500")
 }
 
 func TestWhatsOnChain_HashToHeader_InvalidBits(t *testing.T) {
@@ -95,7 +95,7 @@ func TestWhatsOnChain_HashToHeader_HTTPError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected response status")
+	assert.Contains(t, err.Error(), "HTTP 500")
 }
 
 func TestWhatsOnChain_HashToHeader_InvalidJSON(t *testing.T) {

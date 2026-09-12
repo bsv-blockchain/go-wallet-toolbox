@@ -63,7 +63,7 @@ func TestWhatsOnChain_GetUtxoStatus_APIError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "WoC API error: scripthash not found")
+	assert.Contains(t, err.Error(), "scripthash not found")
 	assert.Nil(t, result)
 }
 
@@ -82,7 +82,7 @@ func TestWhatsOnChain_GetUtxoStatus_HTTPError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected status code 500")
+	assert.Contains(t, err.Error(), "HTTP 500")
 	assert.Nil(t, result)
 }
 

@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -22,6 +23,17 @@ func Given(t testing.TB) WoCServiceFixture {
 	}
 }
 
+// GivenWithNetwork builds a WoC service fixture bound to a specific network. The
+// mock fixture and the service under test both receive network, so the adapter's
+// network mapping (ttn/tstn/test all resolve to the SDK's "test" segment) and the
+// fixture's responder URLs must stay in sync.
+func GivenWithNetwork(t testing.TB, network defs.BSVNetwork) WoCServiceFixture {
+	return &wocServiceFixture{
+		ServicesFixture: testservices.GivenServicesWithNetwork(t, network),
+		t:               t,
+	}
+}
+
 // WithRequestsPerSecond reconfigures the client-side rate limiter of the WoC service under test.
 func WithRequestsPerSecond(requestsPerSecond float64) func(*whatsonchain.WhatsOnChain) {
 	return func(service *whatsonchain.WhatsOnChain) {
@@ -37,18 +49,16 @@ type wocServiceFixture struct {
 
 func (f *wocServiceFixture) NewWoCService(opts ...func(*whatsonchain.WhatsOnChain)) *whatsonchain.WhatsOnChain {
 	logger := logging.NewTestLogger(f.t)
-	client := f.WhatsOnChain().HttpClient()
 	network := f.Network()
+	httpClient := &http.Client{Transport: f.Transport()}
 
 	config := defs.WhatsOnChain{
-		BSVExchangeRate:            defs.BSVExchangeRate{},
-		RootForHeightRetryInterval: 0,
-		RootForHeightRetries:       1,
+		BSVExchangeRate: defs.BSVExchangeRate{},
 		// NOTE: tests should not be slowed down by the client-side WoC rate limiter
 		RequestsPerSecond: 10000,
 	}
 
-	service := whatsonchain.New(client, logger, network, config)
+	service := whatsonchain.New(logger, network, config, whatsonchain.WithHTTPClient(httpClient))
 
 	for _, opt := range opts {
 		opt(service)

@@ -10,6 +10,7 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	tst "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain/testabilities"
 )
 
@@ -54,7 +55,7 @@ func TestIsValidRootForHeight(t *testing.T) {
 			name: "retry succeeds after one failure",
 			setup: func(f tst.WoCServiceFixture) {
 				tr := f.WhatsOnChain().Transport()
-				pat := `=~.*?/block/` + strconv.Itoa(int(tst.TestBlockHeight)) + `/header$`
+				pat := `=~.*?/block/height/` + strconv.Itoa(int(tst.TestBlockHeight)) + `$`
 				tr.RegisterResponder(http.MethodGet, pat,
 					httpmock.NewStringResponder(http.StatusInternalServerError, "boom"))
 				f.WhatsOnChain().
@@ -101,7 +102,7 @@ func TestIsValidRootForHeight_ContextCancelled(t *testing.T) {
 	// given:
 	given := tst.Given(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
-	pat := `=~.*?/block/` + strconv.Itoa(int(tst.TestBlockHeight)) + `/header$`
+	pat := `=~.*?/block/height/` + strconv.Itoa(int(tst.TestBlockHeight)) + `$`
 	given.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, pat,
 		func(_ *http.Request) (*http.Response, error) {
 			cancel(context.Canceled)
@@ -142,4 +143,28 @@ func TestIsValidRootForHeight_NotFound(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.False(t, got)
+}
+
+// TestIsValidRootForHeight_TeranodeNetwork guards the fixture/adapter network mapping:
+// the adapter maps ttn/tstn to the SDK's "test" path segment, so the fixture must
+// register its responders under the same canonical segment. If the fixture used the
+// raw network ("ttn"), the mock transport would serve no responder for the adapter's
+// "/v1/bsv/test/..." request and the call would fail instead of reaching the mock.
+func TestIsValidRootForHeight_TeranodeNetwork(t *testing.T) {
+	validRoot, err := chainhash.NewHashFromHex(tst.TestMerkleRootHex)
+	require.NoError(t, err, "failed to parse test Merkle root hex")
+
+	// given:
+	given := tst.GivenWithNetwork(t, defs.NetworkTTN)
+	given.WhatsOnChain().WillRespondWithBlockHeaderByHeight(http.StatusOK, tst.TestBlockHeight, tst.TestMerkleRootHex)
+	svc := given.NewWoCService()
+	tr := given.WhatsOnChain().Transport()
+
+	// when:
+	got, err := svc.IsValidRootForHeight(t.Context(), validRoot, tst.TestBlockHeight)
+
+	// then:
+	require.NoError(t, err)
+	require.True(t, got)
+	require.Positive(t, tr.GetTotalCallCount(), "adapter request must reach the mock responder")
 }
