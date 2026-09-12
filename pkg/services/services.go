@@ -117,11 +117,16 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 	var wocService *whatsonchain.WhatsOnChain
 	if config.WhatsOnChain.Enabled {
-		var wocOpts []whatsonchain.Option
-		if options.WhatsOnChainHTTPClient != nil {
-			wocOpts = append(wocOpts, whatsonchain.WithHTTPClient(options.WhatsOnChainHTTPClient))
+		// Default WoC to the shared factory's HTTP client so it inherits the
+		// OpenTelemetry-wrapped, connection-pooled transport that every other
+		// service uses (falling back to http.DefaultTransport would drop tracing
+		// and cap idle connections at 2/host). An explicit WhatsOnChainHTTPClient
+		// still wins, matching WithRestyClient/WithWhatsOnChainHTTPClient.
+		wocHTTPClient := options.WhatsOnChainHTTPClient
+		if wocHTTPClient == nil {
+			wocHTTPClient = options.RestyClientFactory.New().GetClient()
 		}
-		wocService = whatsonchain.New(logger, config.Chain, config.WhatsOnChain, wocOpts...)
+		wocService = whatsonchain.New(logger, config.Chain, config.WhatsOnChain, whatsonchain.WithHTTPClient(wocHTTPClient))
 		wocImpl := Implementation{
 			RawTx:                wocService.RawTx,
 			MerklePath:           wocService.MerklePath,
