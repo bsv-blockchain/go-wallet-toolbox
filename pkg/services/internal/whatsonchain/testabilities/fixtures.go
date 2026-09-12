@@ -23,6 +23,17 @@ func Given(t testing.TB) WoCServiceFixture {
 	}
 }
 
+// GivenWithNetwork builds a WoC service fixture bound to a specific network. The
+// mock fixture and the service under test both receive network, so the adapter's
+// network mapping (ttn/tstn/test all resolve to the SDK's "test" segment) and the
+// fixture's responder URLs must stay in sync.
+func GivenWithNetwork(t testing.TB, network defs.BSVNetwork) WoCServiceFixture {
+	return &wocServiceFixture{
+		ServicesFixture: testservices.GivenServicesWithNetwork(t, network),
+		t:               t,
+	}
+}
+
 // WithRequestsPerSecond reconfigures the client-side rate limiter of the WoC service under test.
 func WithRequestsPerSecond(requestsPerSecond float64) func(*whatsonchain.WhatsOnChain) {
 	return func(service *whatsonchain.WhatsOnChain) {
