@@ -85,11 +85,23 @@ func NewWoCFixture(t testing.TB, opts ...Option) WhatsOnChainFixture {
 	fixture := &wocFixture{
 		TB:        t,
 		transport: options.transport,
-		network:   options.network,
+		network:   canonicalWoCNetwork(options.network),
 	}
 
 	fixture.getBeefFixture = newGetBeefFixture(t, fixture)
 	return fixture
+}
+
+// canonicalWoCNetwork mirrors the adapter's network mapping (mapNetwork in the
+// whatsonchain service): the WhatsOnChain SDK only distinguishes main from test,
+// so ttn/tstn/test all resolve to "test" in request paths. The fixture must
+// register responders under the same canonical segment the adapter requests,
+// otherwise the mock transport cannot service non-mainnet WoC tests.
+func canonicalWoCNetwork(network defs.BSVNetwork) defs.BSVNetwork {
+	if network == defs.NetworkMainnet {
+		return defs.NetworkMainnet
+	}
+	return defs.NetworkTestnet
 }
 
 func (f *wocFixture) WillRespondWithInternalFailure() {
