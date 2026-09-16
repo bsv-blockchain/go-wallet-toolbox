@@ -69,9 +69,9 @@ func unprovenChain(t *testing.T, db *database.Database, n int) []*transaction.Tr
 	for i := range n {
 		var tx *transaction.Transaction
 		if parent == nil {
-			tx = beefTestTx(uint32(500 + i)) //nolint:gosec // small test index
+			tx = beefTestTx(uint32(500 + i))
 		} else {
-			tx = beefTestTx(uint32(500+i), parent) //nolint:gosec // small test index
+			tx = beefTestTx(uint32(500+i), parent)
 		}
 		storeKnownTx(t, db, tx, blob)
 		chain = append(chain, tx)

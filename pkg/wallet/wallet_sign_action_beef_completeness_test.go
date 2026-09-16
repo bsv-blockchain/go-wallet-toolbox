@@ -76,7 +76,7 @@ func TestSignAction_TrustSelfReturnTXIDOnly_SignsAndBroadcasts(t *testing.T) {
 	require.NotEmpty(t, signable.Inputs)
 	for vin, input := range signable.Inputs {
 		require.NotNil(t, input.SourceTxOutput(), "input %d has no source output to sign against", vin)
-		_, err = signable.CalcInputSignatureHash(uint32(vin), sighash.AllForkID) //nolint:gosec // test-sized index
+		_, err = signable.CalcInputSignatureHash(uint32(vin), sighash.AllForkID)
 		require.NoError(t, err, "input %d sighash", vin)
 	}
 
