@@ -16,9 +16,9 @@ import (
 )
 
 // The signed transaction a sign action returns is what a caller hands to a
-// counterparty (the Enterprise Wallet's transfer-internalise does exactly that),
-// so it has to stand on its own: every input's ancestry down to a proven
-// transaction, with no txid-only stubs the receiver cannot resolve.
+// counterparty, for example to internalize, so it has to stand on its own: every
+// input's ancestry down to a proven transaction, with no txid-only stubs the
+// receiver cannot resolve.
 func TestSignAction_ReturnedBEEFIsComplete(t *testing.T) {
 	given, cleanup := testabilities.Given(t)
 	defer cleanup()
@@ -123,8 +123,8 @@ func TestSignAction_SpendsOwnOutputWithoutInputBEEF_AcrossUnconfirmedChain(t *te
 	}}
 
 	// given: a token output in the wallet's own basket (the mint)
-	// Delayed broadcast, as the Enterprise Wallet uses: each spend can arrive
-	// before the transaction it spends has been sent.
+	// Delayed broadcast: each spend can arrive before the transaction it spends
+	// has been sent.
 	mintArgs := fixtures.DefaultWalletCreateActionArgs(t, walletargs.WithDelayedBroadcast())
 	mintArgs.Outputs = tokenOutput
 	mintArgs.Options.TrustSelf = sdk.TrustSelfKnown

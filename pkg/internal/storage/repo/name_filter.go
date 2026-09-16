@@ -35,13 +35,12 @@ func taggedWith(tx *gorm.DB, userID int, tags []string, mode defs.QueryMode) fun
 // QueryModeAll intersects one subquery per distinct name. It used to be a single
 // subquery over all the names, grouped by id and kept where the distinct count
 // matched. That form has to read, sort and group every association of the
-// broadest name: EXISTS-style probes cannot short-circuit a GROUP BY. A label
-// most rows carry - the Enterprise Wallet puts a kind label on every action and
-// checks for an operation id plus that kind before each mint, transfer and burn -
-// then costs the whole label on every call. On a 51,000-action wallet that was
-// 51,006 index rows sorted on disk, 41 ms per query; intersected, Postgres
-// starts from the selective name and probes the other through the name index,
-// 0.2 ms, regardless of table size.
+// broadest name: EXISTS-style probes cannot short-circuit a GROUP BY. Pairing a
+// selective label with one most rows carry - an id label plus a label shared by
+// every action of its kind - then costs the whole broad label on every call. On
+// a 51,000-action wallet that was 51,006 index rows sorted on disk, 41 ms per
+// query; intersected, Postgres starts from the selective name and probes the
+// other through the name index, 0.2 ms, regardless of table size.
 //
 // Deduplicating also makes a repeated name harmless. The count form required as
 // many distinct names as the request listed, so a repeat could never match.
