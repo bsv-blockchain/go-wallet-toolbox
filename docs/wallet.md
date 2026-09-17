@@ -86,6 +86,33 @@ func main() {
 - Auth stubs: `IsAuthenticated`, `WaitForAuthentication`
 - Lifecycle: `Close`, `Destroy`
 
+### Network values and compatibility
+
+`GetNetwork` returns the BRC-100 values `mainnet` or `testnet`, using
+`sdk.NetworkMainnet` and `sdk.NetworkTestnet` respectively:
+
+| Configured internal chain | `GetNetwork().Network` |
+|---|---|
+| `main` | `mainnet` |
+| `test` | `testnet` |
+| `ttn` | `testnet` |
+| `tstn` | `testnet` |
+
+Earlier versions returned the internal chain identifier directly. Applications that
+compare the result against `main`, `test`, `ttn`, or `tstn` must update those comparisons.
+For Go callers, compare against the SDK network constants rather than casting `defs`
+constants. JSON consumers must expect `mainnet`/`testnet`. This also corrects mainnet
+responses through the SDK binary serializer, which treated the old `main` value as testnet.
+
+Existing wallets require no database migration, key regeneration, or movement of funds.
+Configuration and stored chain values remain `main`, `test`, `ttn`, and `tstn`; do not
+rename them to the BRC-100 values. Do not cast a `GetNetwork` result back to
+`defs.BSVNetwork` or pass it directly to `defs.ParseBSVNetworkStr`.
+
+Keep the configured internal chain separately when selecting service endpoints or
+distinguishing public testnet from TTN/TSTN. A `testnet` result indicates the network
+family, not that two wallets necessarily use the same test blockchain.
+
 ### Certificates and identity
 
 `AcquireCertificate` (both `issuance` and `direct` acquisition protocols),

@@ -296,11 +296,8 @@ Tracked in `plans/`, and mirrored in the ts-stack page's difference list:
 | `issue-776-inputbeef-json-array.md` | `inputBEEF` JSON wire format against TypeScript storage servers |
 | `issue-769-cert-type-serial-wire.md` | certificate type and serial wire format |
 
-Two further differences are not yet tracked as issues:
+One further difference is not yet tracked as an issue:
 
-- **`GetNetwork` returns `main` and `test`**, not the `mainnet` and `testnet` BRC-100
-  requires. The conformance suite documents this and configures around it
-  (`pkg/wallet/brc100_conformance_test.go`).
 - **The V1 storage client returns empty results for two methods.**
   `findOutputBasketsAuth` and `findOutputsAuth` in `pkg/storage/client.go` return empty
   collections with a nil error, which a caller cannot distinguish from a genuine empty

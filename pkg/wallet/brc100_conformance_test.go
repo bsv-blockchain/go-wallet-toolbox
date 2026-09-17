@@ -49,11 +49,6 @@ func shouldSkip(v BRC100Vector) bool {
 }
 
 // TestBRC100Conformance_GetNetwork covers all 5 BRC-100 getNetwork vectors.
-//
-// NOTE: The BRC-100 spec uses "mainnet"/"testnet" but this implementation returns
-// defs.BSVNetwork values ("main"/"test") stored throughout the system and database.
-// Vectors configure the wallet with the correct chain and assert the returned value
-// matches the internal representation for that chain.
 func TestBRC100Conformance_GetNetwork(t *testing.T) {
 	vectors := loadBRC100Vectors(t, brc100vectors.GetNetworkVectors)
 
@@ -80,7 +75,7 @@ func TestBRC100Conformance_GetNetwork(t *testing.T) {
 			res, err := w.GetNetwork(context.Background(), nil, originator)
 			require.NoError(t, err)
 			require.NotNil(t, res)
-			require.Equal(t, sdk.Network(net), res.Network)
+			require.Equal(t, expNetwork, string(res.Network))
 		})
 	}
 }
