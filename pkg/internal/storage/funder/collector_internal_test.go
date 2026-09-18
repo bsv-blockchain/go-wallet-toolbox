@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/seq"
 	"github.com/stretchr/testify/require"
 
@@ -60,7 +61,7 @@ func requireDistributableChange(t *testing.T, collector *utxoCollector, result *
 	require.NoError(t, err)
 	if result.ChangeOutputsCount > 0 {
 		outputs := seq.Collect(values)
-		require.Len(t, outputs, int(result.ChangeOutputsCount))
+		require.Len(t, outputs, must.ConvertToIntFromUnsigned(result.ChangeOutputsCount))
 		require.Equal(t, result.ChangeAmount, satoshi.MustSum(seq.FromSlice(outputs)))
 	}
 
