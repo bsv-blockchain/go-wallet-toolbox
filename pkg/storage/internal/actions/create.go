@@ -536,13 +536,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			logging.Number("changeAmount", funding.ChangeAmount),
 		)
 
-		changeInitialValue := satoshi.MustFrom(basket.MinimumDesiredUTXOValue)
-		if funding.DustFloor > changeInitialValue {
-			changeInitialValue = funding.DustFloor
-		}
-
-		changeDistribution := txutils.NewChangeDistribution(changeInitialValue, c.random.Uint64).
+		changeDistribution, distErr := txutils.NewChangeDistribution(funding.ChangeInitialValue, c.random.Uint64).
 			Distribute(funding.ChangeOutputsCount, funding.ChangeAmount)
+		if distErr != nil {
+			return fmt.Errorf("failed to distribute change: %w", distErr)
+		}
 
 		var dpErr error
 		derivationPrefix, dpErr = c.randomDerivation()

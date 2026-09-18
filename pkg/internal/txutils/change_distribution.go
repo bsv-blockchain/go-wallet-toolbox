@@ -1,6 +1,7 @@
 package txutils
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 
@@ -10,6 +11,8 @@ import (
 )
 
 type Randomizer func(max uint64) uint64
+
+var ErrCannotDistributeChange = errors.New("cannot distribute change among given outputs")
 
 type ChangeDistribution struct {
 	initialValue satoshi.Value
@@ -23,12 +26,27 @@ func NewChangeDistribution(initialValue satoshi.Value, randomizer Randomizer) *C
 	}
 }
 
-func (d *ChangeDistribution) Distribute(count uint64, amount satoshi.Value) iter.Seq[satoshi.Value] {
+// CanDistribute reports whether Distribute can split amount into count outputs.
+// For count > 1 this requires amount > (count-1) * initialValue, so that every output
+// except the first one can carry at least initialValue and the first one is positive.
+func (d *ChangeDistribution) CanDistribute(count uint64, amount satoshi.Value) bool {
+	if count <= 1 || amount == 0 {
+		return true
+	}
+	return amount > satoshi.MustMultiply(count-1, d.initialValue)
+}
+
+// Distribute splits amount into count outputs.
+// It returns ErrCannotDistributeChange when CanDistribute(count, amount) is false.
+func (d *ChangeDistribution) Distribute(count uint64, amount satoshi.Value) (iter.Seq[satoshi.Value], error) {
 	if count == 0 || amount == 0 {
-		return seq.Of[satoshi.Value]()
+		return seq.Of[satoshi.Value](), nil
 	}
 	if count == 1 {
-		return seq.Of(amount)
+		return seq.Of(amount), nil
+	}
+	if !d.CanDistribute(count, amount) {
+		return nil, fmt.Errorf("%w (count: %d, amount: %d, initial value: %d)", ErrCannotDistributeChange, count, amount, d.initialValue)
 	}
 
 	// saturation: a moment when all the outputs are equal to initialValue
@@ -36,11 +54,11 @@ func (d *ChangeDistribution) Distribute(count uint64, amount satoshi.Value) iter
 
 	switch {
 	case amount == saturationThreshold:
-		return seq.Repeat(d.initialValue, count)
+		return seq.Repeat(d.initialValue, count), nil
 	case amount > saturationThreshold:
-		return d.saturatedRandomDistribution(count, amount)
+		return d.saturatedRandomDistribution(count, amount), nil
 	default:
-		return d.notSaturatedDistribution(count, amount)
+		return d.notSaturatedDistribution(count, amount), nil
 	}
 }
 
@@ -92,18 +110,14 @@ func (d *ChangeDistribution) saturatedRandomDistribution(count uint64, amount sa
 // 4. number of outputs = count
 // e.g. For 3 outputs and 8 amount, we have:
 // [2, 3, 3]
-// WARNING: panics when amount is less than (1 + (count-1) * initialValue)
+// The caller must ensure CanDistribute(count, amount) holds.
 func (d *ChangeDistribution) notSaturatedDistribution(count uint64, amount satoshi.Value) iter.Seq[satoshi.Value] {
 	saturatedOutputs := count - 1
 	valueOfSatOuts := satoshi.MustMultiply(saturatedOutputs, d.initialValue)
-	if amount > valueOfSatOuts {
-		return seq.Concat(
-			seq.Of[satoshi.Value](amount-valueOfSatOuts),
-			seq.Repeat(satoshi.MustFrom(d.initialValue), saturatedOutputs),
-		)
-	}
-
-	panic(fmt.Sprintf("Cannot distribute change outputs among given outputs (count: %d) for given amount (%d)", count, amount))
+	return seq.Concat(
+		seq.Of[satoshi.Value](amount-valueOfSatOuts),
+		seq.Repeat(satoshi.MustFrom(d.initialValue), saturatedOutputs),
+	)
 }
 
 // randomNoise randomizes values for each output in the distribution;

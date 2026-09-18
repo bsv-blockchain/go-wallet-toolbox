@@ -473,6 +473,7 @@ type utxoCollector struct {
 	minimumDesiredUTXOValue uint64
 	maxChangeOutputsPerTx   uint64
 	changeOutputsCount      uint64
+	changeOutputsSize       uint64
 	minimumChange           uint64
 	// dustFloor is the minimum satoshi value a change output must have to be economically viable.
 	// An output below this threshold costs more to spend in a future transaction than it is worth.
@@ -643,23 +644,64 @@ func (c *utxoCollector) prepareResult() (*Result, error) {
 		ChangeAmount:       changeAmount,
 		ChangeOutputsCount: c.changeOutputsCount,
 		DustFloor:          c.dustFloor,
+		ChangeInitialValue: c.changeInitialValue(),
 	}, nil
 }
 
 func (c *utxoCollector) calculateChangeOutputs() error {
+	err := c.setChangeOutputsSize(0)
+	if err != nil {
+		return fmt.Errorf("failed to reset change outputs size: %w", err)
+	}
+
 	change := c.change()
 	if change <= 0 {
+		c.changeOutputsCount = 0
 		return nil
 	}
 
 	c.calculateChangeCount(must.ConvertToUInt64(change))
+	for {
+		err = c.setChangeOutputsSize(c.changeOutputsCount * changeOutputSize)
+		if err != nil {
+			return fmt.Errorf("failed to set change outputs size: %w", err)
+		}
 
-	err := c.increaseSize(c.changeOutputsCount * changeOutputSize)
-	if err != nil {
-		return fmt.Errorf("failed to increase transaction size: %w", err)
+		if c.changeOutputsCount <= 1 || c.changeFitsOutputs() {
+			return nil
+		}
+		c.changeOutputsCount--
+	}
+}
+
+// changeFitsOutputs reports whether the current change (after fee) can be distributed
+// among changeOutputsCount outputs the same way the change distribution will do it.
+func (c *utxoCollector) changeFitsOutputs() bool {
+	change := c.change()
+	if change <= 0 {
+		return false
 	}
 
-	return nil
+	if change.MustUInt64()/c.changeOutputsCount < c.dustFloor.MustUInt64() {
+		return false
+	}
+
+	return txutils.NewChangeDistribution(c.changeInitialValue(), nil).CanDistribute(c.changeOutputsCount, change)
+}
+
+// changeInitialValue is the minimal value of a (saturated) change output used by the change distribution.
+func (c *utxoCollector) changeInitialValue() satoshi.Value {
+	initialValue := satoshi.MustFrom(c.minimumDesiredUTXOValue)
+	if c.dustFloor > initialValue {
+		return c.dustFloor
+	}
+	return initialValue
+}
+
+func (c *utxoCollector) setChangeOutputsSize(size uint64) error {
+	c.txSize -= c.changeOutputsSize
+	c.changeOutputsSize = size
+	return c.increaseSize(size)
 }
 
 func (c *utxoCollector) calculateChangeCount(changeVal uint64) {
