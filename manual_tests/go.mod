@@ -39,6 +39,7 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bitcoin-sv/bdk/module/gobdk v1.2.5-0.20260526081552-cdfa7814ee5d // indirect
 	github.com/bsv-blockchain/aerospike-client-go/v8 v8.7.1-bsv5 // indirect
 	github.com/bsv-blockchain/go-batcher/v2 v2.1.0 // indirect
 	github.com/bsv-blockchain/go-bsv-middleware v0.15.1 // indirect

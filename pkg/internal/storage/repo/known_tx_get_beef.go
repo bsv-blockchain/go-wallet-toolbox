@@ -126,7 +126,17 @@ func (p *KnownTx) preFetchInto(ctx context.Context, dst map[string]models.KnownT
 // Bounded by maxDepthOfRecursion, which the recursion enforces too, and it
 // stops as soon as a generation adds nothing.
 func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.KnownTx, seedIDs []string, options entity.GetBEEFOptions) error {
-	frontier := seedIDs
+	frontier := withoutKnownTxIDs(seedIDs, options)
+
+	// Under TrustSelf the build turns every row storage holds into a bare txid
+	// stub without reading a single column of it, and never descends from it to
+	// its parents (see recursiveBuildValidBEEF). Walking the ancestry here would
+	// ship each generation's raw tx, proof and stored input beef across the wire
+	// for a result that discards all of it - on an unconfirmed chain, the whole
+	// unmined history per call. Existence of the subjects is all it needs.
+	if options.TrustsSelfAsKnown() {
+		return p.preFetchExistence(ctx, dst, frontier, options)
+	}
 
 	for depth := 0; depth < maxDepthOfRecursion && len(frontier) > 0; depth++ {
 		added, err := p.preFetchInto(ctx, dst, frontier, options)
@@ -143,10 +153,55 @@ func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.Kn
 			return nil
 		}
 
-		frontier = parentIDsOf(added, dst, options)
+		frontier = withoutKnownTxIDs(parentIDsOf(added, dst, options), options)
 	}
 
 	return nil
+}
+
+// preFetchExistence records which of txIDs storage holds, reading nothing but
+// the txid. A row filtered out by StatusesToFilterOut counts as absent, exactly
+// as it does for the build.
+func (p *KnownTx) preFetchExistence(ctx context.Context, dst map[string]models.KnownTx, txIDs []string, options entity.GetBEEFOptions) error {
+	wanted := make([]string, 0, len(txIDs))
+	for _, txID := range txIDs {
+		if _, ok := dst[txID]; !ok {
+			wanted = append(wanted, txID)
+		}
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
+
+	query := p.db.WithContext(ctx).Model(&models.KnownTx{})
+	if len(options.StatusesToFilterOut) > 0 {
+		query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+	}
+
+	var found []string
+	if err := query.Where("tx_id IN ?", wanted).Pluck("tx_id", &found).Error; err != nil {
+		return fmt.Errorf("failed to pre-fetch known tx existence: %w", err)
+	}
+
+	for _, txID := range found {
+		dst[txID] = models.KnownTx{TxID: txID}
+	}
+	return nil
+}
+
+// withoutKnownTxIDs drops txids the caller declared it already holds. The build
+// stubs those before any lookup, so reading them is always waste.
+func withoutKnownTxIDs(txIDs []string, options entity.GetBEEFOptions) []string {
+	if options.KnownTxIDsSet == nil {
+		return txIDs
+	}
+	kept := txIDs[:0:0]
+	for _, txID := range txIDs {
+		if !options.IsKnownTxID(txID) {
+			kept = append(kept, txID)
+		}
+	}
+	return kept
 }
 
 // needsInputBEEF reports whether the stored input beef has to be merged to
@@ -241,9 +296,16 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	if cachedModel, ok := preFetched[txID]; ok {
 		model = cachedModel
 	} else {
+		// Under TrustSelf a row found here becomes a stub before any of its
+		// columns are read, so only its existence is worth fetching.
+		columns := "raw_tx, input_beef, merkle_path"
+		if options.TrustsSelfAsKnown() {
+			columns = "tx_id"
+		}
+
 		query := p.db.WithContext(ctx).
 			Model(&model).
-			Select("raw_tx, input_beef, merkle_path")
+			Select(columns)
 
 		if len(options.StatusesToFilterOut) > 0 {
 			query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)

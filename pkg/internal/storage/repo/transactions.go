@@ -14,7 +14,6 @@ import (
 	"gorm.io/gen/field"
 	"gorm.io/gorm"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -580,7 +579,7 @@ func (txs *Transactions) ListAndCountActions(ctx context.Context, userID int, fi
 		}
 
 		if len(filter.Labels) > 0 {
-			query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+			query = query.Scopes(labelledWith(tx, userID, filter.Labels, filter.LabelQueryMode))
 		}
 
 		query = applyListActionsTimeFilters(query, filter)
@@ -622,7 +621,7 @@ func (txs *Transactions) buildSelectedActionsSubQuery(tx *gorm.DB, userID int, f
 		query = query.Where(statusInCondition, filter.Status)
 	}
 	if len(filter.Labels) > 0 {
-		query = query.Scopes(txs.labelFilterScope(tx, userID, filter))
+		query = query.Scopes(labelledWith(tx, userID, filter.Labels, filter.LabelQueryMode))
 	}
 
 	query = applyListActionsTimeFilters(query, filter)
@@ -789,21 +788,6 @@ func (txs *Transactions) AddLabels(ctx context.Context, userID int, transactionI
 	}
 
 	return nil
-}
-
-func (txs *Transactions) labelFilterScope(tx *gorm.DB, userID int, filter entity.ListActionsFilter) func(db *gorm.DB) *gorm.DB {
-	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.TransactionLabel{}).
-			Select("transaction_id").
-			Where("label_name IN ?", filter.Labels).
-			Where("label_user_id = ?", userID)
-
-		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
-		}
-
-		return query.Where("id IN (?)", subQuery)
-	}
 }
 
 func (txs *Transactions) FindTransactionIDsByStatuses(ctx context.Context, txStatus []wdk.TxStatus, opts ...queryopts.Options) ([]uint, error) {
