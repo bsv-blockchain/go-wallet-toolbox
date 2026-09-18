@@ -1403,6 +1403,7 @@ func (w *Wallet) GetHeaderForHeight(ctx context.Context, args sdk.GetHeaderArgs,
 }
 
 // GetNetwork retrieves the Bitcoin network the client is using (mainnet or testnet).
+// Teranode scaling networks (ttn/tstn) report testnet, matching their address/key parameters.
 func (w *Wallet) GetNetwork(ctx context.Context, _ any, originator string) (*sdk.GetNetworkResult, error) {
 	w.logger.DebugContext(ctx, "GetNetwork call", slogx.String("originator", originator))
 	err := validate.Originator(originator)
@@ -1410,8 +1411,14 @@ func (w *Wallet) GetNetwork(ctx context.Context, _ any, originator string) (*sdk
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
+	// Keep internal chain identifiers in configuration/storage, not on the BRC-100 wire.
+	network := sdk.NetworkMainnet
+	if w.chain.IsTestnetBased() {
+		network = sdk.NetworkTestnet
+	}
+
 	return &sdk.GetNetworkResult{
-		Network: sdk.Network(w.chain),
+		Network: network,
 	}, nil
 }
 
