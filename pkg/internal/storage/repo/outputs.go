@@ -16,7 +16,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
@@ -208,7 +207,7 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 		}
 
 		if len(filter.Tags) > 0 {
-			query = query.Scopes(o.tagFilterScope(tx, filter))
+			query = query.Scopes(taggedWith(tx, filter.UserID, filter.Tags, filter.TagsQueryMode))
 		}
 
 		allowedStatuses := []wdk.TxStatus{
@@ -471,14 +470,7 @@ func (o *Outputs) selectedActionsSubquery(tx *gorm.DB, userID int, filter entity
 		selected = selected.Where("status IN ?", filter.Status)
 	}
 	if len(filter.Labels) > 0 {
-		subQuery := tx.Model(&models.TransactionLabel{}).
-			Select("transaction_id").
-			Where("label_name IN ?", filter.Labels).
-			Where("label_user_id = ?", userID)
-		if filter.LabelQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("transaction_id").Having("COUNT(DISTINCT label_name) = ?", len(filter.Labels))
-		}
-		selected = selected.Where("id IN (?)", subQuery)
+		selected = selected.Scopes(labelledWith(tx, userID, filter.Labels, filter.LabelQueryMode))
 	}
 	selected = applyListActionsTimeFilters(selected, filter)
 	return selected.Order("id ASC").Limit(filter.Limit).Offset(filter.Offset)
@@ -825,21 +817,6 @@ func (o *Outputs) mapModelToOutputEntity(model *models.Output) *pkgentity.Output
 		output.UserUTXO = mapModelToEntityUserUTXO(model.UserUTXO)
 	}
 	return output
-}
-
-func (o *Outputs) tagFilterScope(tx *gorm.DB, filter entity.ListOutputsFilter) func(db *gorm.DB) *gorm.DB {
-	return func(query *gorm.DB) *gorm.DB {
-		subQuery := tx.Model(&models.OutputTag{}).
-			Select("output_id").
-			Where("tag_name IN ?", filter.Tags).
-			Where("tag_user_id = ?", filter.UserID)
-
-		if filter.TagsQueryMode == defs.QueryModeAll {
-			subQuery = subQuery.Group("output_id").Having("COUNT(DISTINCT tag_name) = ?", len(filter.Tags))
-		}
-
-		return query.Where("id IN (?)", subQuery)
-	}
 }
 
 func (o *Outputs) ShouldTxOutputsBeUnspent(ctx context.Context, transactionID uint) error {

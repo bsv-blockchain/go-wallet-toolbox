@@ -5,7 +5,7 @@
 # omitted on purpose (Docker ignores it alongside a digest, and using both trips
 # SonarCloud docker:S7018).
 # golang:1.27-alpine
-FROM golang@sha256:f44f6e88636cfb311f9ebace870ded69d943f227bb3cb27d32ffd84ea18c43ea AS builder
+FROM golang@sha256:4cb7ac979db5fcc41cae44b2227ba5ab8a51e8807f40d9ba4dee20a0ad960b5b AS builder
 
 # Install git, ca-certificates, and SQLite development libraries
 RUN apk add --no-cache git ca-certificates sqlite-dev gcc musl-dev
@@ -32,7 +32,7 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
 
 # Final stage
-# alpine:3.20
+# alpine:3.24
 FROM alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 # Install ca-certificates for HTTPS requests
