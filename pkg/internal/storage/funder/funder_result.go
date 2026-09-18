@@ -14,6 +14,7 @@ type Result struct {
 	ChangeAmount       satoshi.Value
 	Fee                satoshi.Value
 	DustFloor          satoshi.Value
+	ChangeInitialValue satoshi.Value
 }
 
 func (fr *Result) TotalAllocated() (satoshi.Value, error) {

@@ -1,6 +1,7 @@
 package txutils
 
 import (
+	"iter"
 	"slices"
 	"testing"
 
@@ -151,15 +152,17 @@ func TestChangeDistribution(t *testing.T) {
 			dist := NewChangeDistribution(test.initialValue, test.randomizer)
 
 			// when:
-			values := dist.Distribute(test.count, test.amount)
+			values, err := dist.Distribute(test.count, test.amount)
 
 			// then:
+			require.NoError(t, err)
+			require.True(t, dist.CanDistribute(test.count, test.amount))
 			require.Equal(t, test.expected, seq.Collect(values))
 		})
 	}
 }
 
-func TestChangeDistributionPanics(t *testing.T) {
+func TestChangeDistributionErrors(t *testing.T) {
 	tests := map[string]struct {
 		initialValue satoshi.Value
 		randomizer   func(uint64) uint64
@@ -184,21 +187,51 @@ func TestChangeDistributionPanics(t *testing.T) {
 			count:        6,
 			amount:       1,
 		},
+		"small initial value: amount equal to (count-1) * initialValue": {
+			initialValue: 50,
+			randomizer:   mockZeroRandomizer,
+			count:        8,
+			amount:       350,
+		},
+		"small initial value: amount below (count-1) * initialValue": {
+			initialValue: 50,
+			randomizer:   mockZeroRandomizer,
+			count:        8,
+			amount:       343,
+		},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
 			dist := NewChangeDistribution(test.initialValue, test.randomizer)
 
-			f := func() {
-				// when:
-				dist.Distribute(test.count, test.amount)
-			}
+			// when:
+			var (
+				values iter.Seq[satoshi.Value]
+				err    error
+			)
+			require.NotPanics(t, func() {
+				values, err = dist.Distribute(test.count, test.amount)
+			})
 
 			// then:
-			require.Panics(t, f)
+			require.ErrorIs(t, err, ErrCannotDistributeChange)
+			require.Nil(t, values)
+			require.False(t, dist.CanDistribute(test.count, test.amount))
 		})
 	}
+}
+
+func TestChangeDistributionSmallInitialValueBoundary(t *testing.T) {
+	// given:
+	dist := NewChangeDistribution(50, mockZeroRandomizer)
+
+	// when:
+	values, err := dist.Distribute(8, 351)
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, []satoshi.Value{1, 50, 50, 50, 50, 50, 50, 50}, seq.Collect(values))
 }
 
 func TestChangeDistributionWithActualRandomizer(t *testing.T) {
@@ -213,9 +246,10 @@ func TestChangeDistributionWithActualRandomizer(t *testing.T) {
 	dist := NewChangeDistribution(initialValue, random.Uint64)
 
 	// when:
-	values := dist.Distribute(count, satoshi.MustMultiply(2*count, initialValue))
+	values, err := dist.Distribute(count, satoshi.MustMultiply(2*count, initialValue))
 
 	// then:
+	require.NoError(t, err)
 	var i uint64
 	var equalsToInitial uint64
 	for v := range values {
