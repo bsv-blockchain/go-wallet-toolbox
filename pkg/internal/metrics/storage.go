@@ -1,9 +1,3 @@
-// Package metrics defines the storage-side OpenTelemetry instruments of the
-// throughput UTXO-management strategy (proposal §5.4). All instruments are
-// registered against the global meter: they are no-ops until the process
-// enables a MeterProvider (tracing.EnableMetrics), so the privacy strategy and
-// unconfigured deployments pay nothing. Thresholds and paging are an external
-// concern — the wallet only emits telemetry.
 package metrics
 
 import (
@@ -16,10 +10,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const meterName = "github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
+// storageMeterName keeps the original instrumentation scope of the storage
+// instruments so existing dashboards are unaffected by the package move.
+const storageMeterName = "github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 
 var (
-	initOnce sync.Once
+	storageInitOnce sync.Once
 
 	funderClaims         metric.Int64Counter
 	funderNotEnoughFunds metric.Int64Counter
@@ -27,9 +23,9 @@ var (
 	broadcasterOverflow  metric.Int64Counter
 )
 
-func ensureInstruments() {
-	initOnce.Do(func() {
-		meter := otel.Meter(meterName)
+func ensureStorageInstruments() {
+	storageInitOnce.Do(func() {
+		meter := otel.Meter(storageMeterName)
 		// Instrument creation only fails on invalid names; fall back to no-op
 		// instruments rather than propagating an error into the hot path.
 		funderClaims, _ = meter.Int64Counter("wallet.funder.claims",
@@ -45,7 +41,7 @@ func ensureInstruments() {
 
 // RecordFundingOutcome counts one funded request by outcome.
 func RecordFundingOutcome(ctx context.Context, outcome string) {
-	ensureInstruments()
+	ensureStorageInstruments()
 	if funderClaims != nil {
 		funderClaims.Add(ctx, 1, metric.WithAttributes(attribute.String("result", outcome)))
 	}
@@ -53,7 +49,7 @@ func RecordFundingOutcome(ctx context.Context, outcome string) {
 
 // RecordNotEnoughFunds counts one funding failure.
 func RecordNotEnoughFunds(ctx context.Context) {
-	ensureInstruments()
+	ensureStorageInstruments()
 	if funderNotEnoughFunds != nil {
 		funderNotEnoughFunds.Add(ctx, 1)
 	}
@@ -61,7 +57,7 @@ func RecordNotEnoughFunds(ctx context.Context) {
 
 // RecordContentionRetry counts one contention-triggered funding retry.
 func RecordContentionRetry(ctx context.Context) {
-	ensureInstruments()
+	ensureStorageInstruments()
 	if contentionRetries != nil {
 		contentionRetries.Add(ctx, 1)
 	}
@@ -72,7 +68,7 @@ func RecordContentionRetry(ctx context.Context) {
 // cron, which drains far more slowly, so a non-zero rate here is the early
 // signal that the queue is undersized for the offered burst.
 func RecordBroadcasterOverflow(ctx context.Context, count int) {
-	ensureInstruments()
+	ensureStorageInstruments()
 	if broadcasterOverflow != nil && count > 0 {
 		broadcasterOverflow.Add(ctx, int64(count))
 	}
@@ -94,7 +90,7 @@ type broadcasterQueueGauges struct {
 // Depth is what predicts an overflow; the overflow counter only reports one
 // after it already happened.
 func RegisterBroadcasterQueueGauges(stats QueueStatsFunc) (func(), error) {
-	meter := otel.Meter(meterName)
+	meter := otel.Meter(storageMeterName)
 
 	gauges, err := newBroadcasterQueueGauges(meter)
 	if err != nil {
@@ -167,7 +163,7 @@ type poolGauges struct {
 // snapshot. It returns an unregister func. With no MeterProvider set the
 // callback never fires.
 func RegisterPoolGauges(cfg PoolGaugeConfig, snapshot PoolSnapshotFunc) (func(), error) {
-	meter := otel.Meter(meterName)
+	meter := otel.Meter(storageMeterName)
 	gauges, err := newPoolGauges(meter)
 	if err != nil {
 		return nil, err

@@ -23,6 +23,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/satoshi"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -31,7 +32,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/commission"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
