@@ -103,6 +103,30 @@ service:
 | `wallet.topup.consecutive_failures` | gauge | rounds failed in a row |
 | `wallet.funder.fund_duration` / `wallet.topup.round_duration` | histogram | latency profiles |
 
+### Chain-state instruments
+
+Emitted from the chaintracks tip/reorg subscription whenever chaintracks is
+enabled, independent of the UTXO-management strategy.
+
+| Instrument | Type | Meaning |
+|---|---|---|
+| `wallet.chain.tip_height` | gauge | height of the latest tip broadcast by chaintracks |
+| `wallet.chain.reorgs_total` | counter | chain reorganizations reported by chaintracks |
+| `wallet.chain.reorg_depth_blocks` | histogram | blocks orphaned per reorg (buckets 1, 2, 3, 5, 10, 20, 50, 100) |
+
+```yaml
+      - alert: ChainTipStalled
+        expr: changes(wallet_chain_tip_height[30m]) == 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Chaintracks tip has not advanced for 30 minutes"
+      - alert: DeepReorg
+        expr: increase(wallet_chain_reorg_depth_blocks_bucket{le="3"}[1h]) < increase(wallet_chain_reorg_depth_blocks_count[1h])
+        labels: { severity: warning }
+        annotations:
+          summary: "Chain reorganization deeper than 3 blocks in the last hour"
+```
+
 ### Low-funds alert rules (Prometheus)
 
 ```yaml

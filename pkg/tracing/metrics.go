@@ -30,8 +30,10 @@ func EnableMetrics(logger *slog.Logger, serviceName, dialAddr string, exportInte
 		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
 	}
 
+	// Schemaless: resource.Default() carries the SDK's own semconv schema URL,
+	// and merging it with a different pinned schema URL fails.
 	res, err := resource.Merge(resource.Default(),
-		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName)))
+		resource.NewSchemaless(semconv.ServiceName(serviceName)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric resource: %w", err)
 	}

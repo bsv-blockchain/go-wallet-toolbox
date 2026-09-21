@@ -6,36 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/metrics"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 )
 
-func collect(t *testing.T, reader *sdkmetric.ManualReader) map[string]metricdata.Metrics {
-	t.Helper()
-	var data metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(t.Context(), &data))
-
-	byName := map[string]metricdata.Metrics{}
-	for _, scope := range data.ScopeMetrics {
-		for _, m := range scope.Metrics {
-			byName[m.Name] = m
-		}
-	}
-	return byName
-}
-
 func TestFunderCountersAndPoolGauges(t *testing.T) {
-	// given: a manual-reader meter provider installed globally
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	prev := otel.GetMeterProvider()
-	otel.SetMeterProvider(provider)
-	t.Cleanup(func() { otel.SetMeterProvider(prev) })
-
-	// and: pool gauges registered over a fake snapshot
+	// given: pool gauges registered over a fake snapshot
 	unregister, err := metrics.RegisterPoolGauges(metrics.PoolGaugeConfig{
 		PoolBasket:        "fuel",
 		ReserveBasket:     "reserve",
@@ -59,7 +36,7 @@ func TestFunderCountersAndPoolGauges(t *testing.T) {
 	metrics.RecordNotEnoughFunds(t.Context())
 	metrics.RecordContentionRetry(t.Context())
 
-	byName := collect(t, reader)
+	byName := collect(t)
 
 	// then: counters carry the recorded values
 	claims, ok := byName["wallet.funder.claims"].Data.(metricdata.Sum[int64])

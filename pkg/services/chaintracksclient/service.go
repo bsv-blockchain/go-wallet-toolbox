@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	p2p "github.com/bsv-blockchain/go-teranode-p2p-client"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -81,6 +82,7 @@ func (a *Adapter) subscribeToTipChan(ctx context.Context, cb func(*chaintracks.B
 				a.logger.WarnContext(ctx, "received nil chaintracks tip")
 				continue
 			}
+			metrics.RecordChainTipHeight(ctx, header.Height)
 			if err := cb(header); err != nil {
 				a.logger.ErrorContext(ctx, "onTip callback failed",
 					"height", header.Height,
@@ -106,6 +108,9 @@ func (a *Adapter) subscribeToReorgChan(ctx context.Context, cb func(*chaintracks
 				a.logger.WarnContext(ctx, "received nil chaintracks reorg event")
 				continue
 			}
+			// Record before the NewTip check: the reorg happened and Depth is valid
+			// even when the event is incomplete and skipped below.
+			metrics.RecordChainReorg(ctx, reorgEvent.Depth)
 			if reorgEvent.NewTip == nil {
 				a.logger.WarnContext(ctx, "received chaintracks reorg event without new tip",
 					"depth", reorgEvent.Depth,
