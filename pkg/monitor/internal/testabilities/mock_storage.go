@@ -80,11 +80,15 @@ func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) ([]wd
 }
 
 func (m *MockStorage) ProcessExternalTxStatusUpdate(_ context.Context, ev wdk.BroadcastStatusEvent) ([]wdk.TxSynchronizedStatus, error) {
-	m.ProcessExternalTxStatusUpdateCalled.Add(1)
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.externalEvents = append(m.externalEvents, ev)
+
+	// Bump the call counter last, under the lock, so a test that waits for the
+	// counter to reach N is guaranteed to also observe N appended events. Events
+	// apply concurrently through a bounded worker pool, so incrementing before the
+	// append let the counter hit N while the Nth event was not yet recorded.
+	m.ProcessExternalTxStatusUpdateCalled.Add(1)
 
 	return nil, nil
 }
