@@ -100,6 +100,13 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		slog.String("description", string(args.Description)),
 	)
 
+	// A payer may legally omit an ancestor this storage already holds, sending it as a BRC-96
+	// txid-only entry. Restore those from our own records before anything below inspects the
+	// BEEF, so verification sees the same complete graph it would have received in full.
+	if err = in.resolveTxidOnlyAncestors(ctx, beef); err != nil {
+		return nil, fmt.Errorf("failed to resolve txid-only ancestors: %w", err)
+	}
+
 	ok, err := in.beefVerifier.VerifyBeef(ctx, beef, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify beef: %w", err)
@@ -329,6 +336,44 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 	)
 
 	return result, nil
+}
+
+// resolveTxidOnlyAncestors restores, from this storage's own records, the ancestry the payer
+// was entitled to leave out of the BEEF.
+//
+// This function performs the following steps:
+//   - delegates to hydrateAncestryFromStorage, the same routine createAction uses for the same
+//     problem on inputBEEF
+//   - reports an ancestor this storage does not hold as a named error rather than letting
+//     verification refuse the BEEF without saying which transaction was missing
+//
+// Parameters:
+//   - ctx: cancellation and tracing for the repository reads
+//   - beef: the parsed payment BEEF, modified in place
+//
+// Returns:
+//   - an error when storage fails, or when the BEEF omits an ancestor storage cannot supply
+//
+// Side Effects:
+//   - mutates beef, replacing entries the caller omitted with the transactions behind them
+//   - performs repository reads, and none at all when the BEEF anchors itself
+//
+// Notes:
+//   - BRC-96 lets an ancestor travel as a bare txid "when parties exchanging BEEFs have already
+//     validated certain transactions". BRC-105 payers now do this: @bsv/sdk 2.7.0+ reads a list
+//     of already-known txids from the recipient's 402 and passes it to createAction as
+//     knownTxids. Only the recipient can populate that list, which is what makes the omission
+//     safe, and it is the recipient that must then be able to complete it.
+//   - Without this the payment is refused twice over: VerifyBeef runs with allowTxidOnly false,
+//     and script verification needs each input's source output, which a bare txid cannot supply.
+//   - Resolving rather than relaxing verification is deliberate. Skipping script checks for a
+//     declared ancestor would skip them for the transaction spending it, which on an internalize
+//     is the payment itself, letting a caller suppress verification by naming an ancestor.
+func (in *internalize) resolveTxidOnlyAncestors(ctx context.Context, beef *transaction.Beef) error {
+	return hydrateAncestryFromStorage(ctx, in.logger, in.knownTxRepo, beef,
+		func(needed []string) error {
+			return missingProofError(needed, "payment BEEF omits ancestors that are neither provided nor known to storage")
+		})
 }
 
 func (in *internalize) updateKnownTxAsMined(ctx context.Context, userID int, txID string, tx *transaction.Transaction) error {
