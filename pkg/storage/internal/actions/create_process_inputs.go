@@ -309,22 +309,41 @@ func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
 		return nil
 	}
 
+	return hydrateAncestryFromStorage(proc.ctx, proc.logger, proc.parent.knownTxRepo, proc.beef,
+		func(needed []string) error {
+			return missingProofError(needed, "inputBEEF spends transactions whose proof is neither provided nor known to storage")
+		})
+}
+
+// hydrateAncestryFromStorage completes, from storage, the ancestry a BEEF cannot
+// anchor on its own, and is shared by createAction and internalizeAction because
+// both receive BEEFs whose ancestors the caller was entitled to leave out.
+//
+// onMissing decides what an ancestor storage does not hold means for the caller,
+// which is the one thing the two paths disagree about.
+func hydrateAncestryFromStorage(
+	ctx context.Context,
+	logger *slog.Logger,
+	knownTxRepo KnownTxRepo,
+	beef *transaction.Beef,
+	onMissing func(needed []string) error,
+) error {
 	for round := 0; round < maxAncestryHydrationRounds; round++ {
-		needed := proc.unanchorableSources()
+		needed := unanchorableSources(beef)
 		if len(needed) == 0 {
 			return nil
 		}
 
-		allKnown, err := proc.parent.knownTxRepo.AllKnownTxsExist(proc.ctx, needed, readyToBeInputProvenTxStatuses)
+		allKnown, err := knownTxRepo.AllKnownTxsExist(ctx, needed, readyToBeInputProvenTxStatuses)
 		if err != nil {
 			return fmt.Errorf("failed to check if ancestor transactions are known: %w", err)
 		}
 
 		if !allKnown {
-			return missingProofError(needed, "inputBEEF spends transactions whose proof is neither provided nor known to storage")
+			return onMissing(needed)
 		}
 
-		proc.logger.DebugContext(proc.ctx, "Completing inputBEEF ancestry from storage",
+		logger.DebugContext(ctx, "Completing BEEF ancestry from storage",
 			slog.Int("round", round),
 			slog.Int("txIDsToHydrate", len(needed)),
 		)
@@ -341,10 +360,10 @@ func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
 		// persisting it, so the next transaction inherits a larger blob again.
 		// The broadcast path already asks for direct sources only for the same
 		// reason; this makes createAction consistent with it.
-		if _, err = proc.parent.knownTxRepo.GetBEEFForTxIDs(
-			proc.ctx,
+		if _, err = knownTxRepo.GetBEEFForTxIDs(
+			ctx,
 			seq.FromSlice(needed),
-			entity.WithMergeToBEEF(proc.beef),
+			entity.WithMergeToBEEF(beef),
 			entity.WithDirectSourcesOnly(),
 			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
 		); err != nil {
@@ -352,7 +371,7 @@ func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
 		}
 	}
 
-	return fmt.Errorf("inputBEEF ancestry still incomplete after %d hydration rounds", maxAncestryHydrationRounds)
+	return fmt.Errorf("BEEF ancestry still incomplete after %d hydration rounds", maxAncestryHydrationRounds)
 }
 
 // unanchorableSources lists the sources spent by unproven raw transactions in
@@ -364,12 +383,12 @@ func (proc *inputsProcessor) hydrateUnanchoredAncestry() error {
 // A bare txid covered by a BUMP is a valid anchor for the validator but still
 // has no output scripts, which the script verification that follows needs for
 // every unproven raw transaction. It is reported too.
-func (proc *inputsProcessor) unanchorableSources() []string {
-	proven := provenInBEEF(proc.beef)
+func unanchorableSources(beef *transaction.Beef) []string {
+	proven := provenInBEEF(beef)
 
 	var needed []string
 	seen := make(map[chainhash.Hash]struct{})
-	for txIDHash, beefTx := range proc.beef.Transactions {
+	for txIDHash, beefTx := range beef.Transactions {
 		if beefTx.Transaction == nil {
 			// A bare txid spends nothing as far as this BEEF is concerned.
 			continue
@@ -385,7 +404,7 @@ func (proc *inputsProcessor) unanchorableSources() []string {
 			if _, dup := seen[*input.SourceTXID]; dup {
 				continue
 			}
-			if source, inBEEF := proc.beef.Transactions[*input.SourceTXID]; inBEEF && source.Transaction != nil {
+			if source, inBEEF := beef.Transactions[*input.SourceTXID]; inBEEF && source.Transaction != nil {
 				continue
 			}
 
