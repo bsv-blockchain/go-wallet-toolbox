@@ -132,7 +132,10 @@ func (t *txGeneratorFixture) PreInternalized() (internalizeArgs *wdk.Internalize
 
 	require.Len(t, beef.BUMPs, 1)
 	bump := beef.BUMPs[0]
-	merkleRoot, err := bump.ComputeRoot(spec.ID())
+	// The BUMP proves the mined ancestor (input source tx), not spec.TX(), so
+	// compute the root from the txid the BUMP actually contains (passing nil lets
+	// ComputeRoot pick it) rather than spec.ID().
+	merkleRoot, err := bump.ComputeRoot(nil)
 	require.NoError(t, err)
 
 	t.parent.Provider().BHS().OnMerkleRootVerifyResponse(
