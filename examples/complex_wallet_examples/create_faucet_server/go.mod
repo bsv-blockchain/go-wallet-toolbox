@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox-faucet-server
 go 1.27.0
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.5.2
+	github.com/bsv-blockchain/go-sdk v1.6.0
 	github.com/bsv-blockchain/go-wallet-toolbox v0.186.3
 	github.com/go-softwarelab/common v1.8.0
 	github.com/gofiber/fiber/v2 v2.52.15
@@ -39,7 +39,7 @@ require (
 	github.com/bitcoin-sv/bdk/module/gobdk v1.2.5-0.20260526081552-cdfa7814ee5d // indirect
 	github.com/bsv-blockchain/aerospike-client-go/v8 v8.7.1-bsv5 // indirect
 	github.com/bsv-blockchain/go-batcher/v2 v2.1.0 // indirect
-	github.com/bsv-blockchain/go-bsv-middleware v0.15.1 // indirect
+	github.com/bsv-blockchain/go-bsv-middleware v0.16.0 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.7.1 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.7.0 // indirect
 	github.com/bsv-blockchain/go-chaintracks v1.3.0 // indirect
