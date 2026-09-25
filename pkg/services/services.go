@@ -549,8 +549,9 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 }
 
 // SubscribeReorgs registers a user-provided channel to receive reorg events.
-// The caller is responsible for creating the channel with an appropriate buffer size
-// and closing it after unsubscribing.
+// Events are never dropped: events the channel cannot take yet are buffered in
+// memory and delivered in order. The caller owns the channel and may close it
+// once the unsubscribe function has returned.
 // Returns an unsubscribe function, or nil if chaintracks is not enabled.
 func (s *WalletServices) SubscribeReorgs(ch chan *chaintracks.ReorgEvent) func() {
 	if s.reorgBroadcast == nil {
@@ -560,8 +561,9 @@ func (s *WalletServices) SubscribeReorgs(ch chan *chaintracks.ReorgEvent) func()
 }
 
 // SubscribeTips registers a user-provided channel to receive new tip events.
-// The caller is responsible for creating the channel with an appropriate buffer size
-// and closing it after unsubscribing.
+// Events are never dropped: events the channel cannot take yet are buffered in
+// memory and delivered in order. The caller owns the channel and may close it
+// once the unsubscribe function has returned.
 // Returns an unsubscribe function, or nil if chaintracks is not enabled.
 func (s *WalletServices) SubscribeTips(ch chan *chaintracks.BlockHeader) func() {
 	if s.tipBroadcast == nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -138,8 +139,10 @@ type BackgroundBroadcaster struct {
 	logger           *slog.Logger
 	broadcastHandler broadcaster
 
-	// optional notification channel
-	txBroadcastedChannel chan<- wdk.CurrentTxStatus
+	// txBroadcastedEvents feeds the optional subscriber channel. It never blocks
+	// the workers and never drops an event while the broadcaster runs.
+	txBroadcastedEvents        *eventqueue.Queue[wdk.CurrentTxStatus]
+	releaseTxBroadcastedEvents func(ctx context.Context)
 
 	// Dependency ordering: Arcade forwards to Teranode in the order it receives
 	// transactions, so a child that spends an unconfirmed parent must be POSTed
@@ -230,18 +233,20 @@ func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, br
 	bbContext, cancel := context.WithCancel(ctx)
 	logger := logging.Child(parentLogger, "BackgroundBroadcaster")
 	logger.InfoContext(ctx, "BackgroundBroadcaster", "workers", sizing.workers(), "channelSize", sizing.channelSize())
+	txBroadcastedEvents, releaseTxBroadcastedEvents := eventqueue.Acquire(eventqueue.StreamTxBroadcasted, txBroadcastedChannel, logger)
 	return &BackgroundBroadcaster{
-		sizing:               sizing,
-		ctx:                  bbContext,
-		cancel:               cancel,
-		broadcastChannel:     make(chan broadcastItem, sizing.channelSize()),
-		logger:               logger,
-		broadcastHandler:     broadcastHandler,
-		txBroadcastedChannel: txBroadcastedChannel,
-		enqueued:             newTxidSet(),
-		posted:               newTxidSet(),
-		waiting:              make(map[string][]broadcastItem),
-		requeueWake:          make(chan struct{}, 1),
+		sizing:                     sizing,
+		ctx:                        bbContext,
+		cancel:                     cancel,
+		broadcastChannel:           make(chan broadcastItem, sizing.channelSize()),
+		logger:                     logger,
+		broadcastHandler:           broadcastHandler,
+		txBroadcastedEvents:        txBroadcastedEvents,
+		releaseTxBroadcastedEvents: releaseTxBroadcastedEvents,
+		enqueued:                   newTxidSet(),
+		posted:                     newTxidSet(),
+		waiting:                    make(map[string][]broadcastItem),
+		requeueWake:                make(chan struct{}, 1),
 	}
 }
 
@@ -261,6 +266,7 @@ func (bb *BackgroundBroadcaster) Stop() {
 		bb.cancel()
 		bb.wg.Wait()
 		close(bb.broadcastChannel)
+		eventqueue.ReleaseWithDefaultTimeout(bb.releaseTxBroadcastedEvents)
 	})
 }
 
@@ -567,7 +573,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 		return fmt.Errorf("failed to broadcast beef: %w", err)
 	}
 
-	if bb.txBroadcastedChannel == nil || results == nil {
+	if bb.txBroadcastedEvents == nil || results == nil {
 		return nil
 	}
 
@@ -587,13 +593,7 @@ func (bb *BackgroundBroadcaster) broadcast(item *broadcastItem) (err error) {
 			msg.Error = broadcastError
 		}
 
-		select {
-		case bb.txBroadcastedChannel <- msg:
-		case <-bb.ctx.Done():
-			return fmt.Errorf("context done while sending tx status update: %w", bb.ctx.Err())
-		default:
-			bb.logger.WarnContext(bb.ctx, "TxBroadcasted channel in background broadcaster is full, dropping event")
-		}
+		bb.txBroadcastedEvents.Publish(msg)
 	}
 
 	return nil

@@ -1,6 +1,8 @@
 package tasks_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,10 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 func TestSendWaitingMonitorTask(t *testing.T) {
@@ -69,8 +73,8 @@ func TestSendWaitingMonitorTask_FirstRunWithZeroMinTransactionAge(t *testing.T) 
 	t.Parallel()
 	// given:
 	mockStorage := &testabilities.MockStorage{}
-	// pass nil channel and nil logger to match new constructor signature; task will return early because channel is nil
-	task := tasks.NewSendWaitingTask(mockStorage, nil, nil)
+	// pass a nil publisher; the task skips building events because nobody subscribed
+	task := tasks.NewSendWaitingTask(mockStorage, nil)
 
 	// when:
 	err := task.Run(t.Context())
@@ -96,7 +100,9 @@ func TestSendWaitingMonitorTask_ForwardsBroadcastedResultsToChannel(t *testing.T
 	// (storage always returned nil, so results.NotDelayedResults never flowed to the channel).
 	mockStorage := &testabilities.MockStorage{}
 	broadcasted := make(chan wdk.CurrentTxStatus, 4)
-	task := tasks.NewSendWaitingTask(mockStorage, broadcasted, logging.NewTestLogger(t))
+	events := eventqueue.New[wdk.CurrentTxStatus]("test", broadcasted, logging.NewTestLogger(t))
+	defer events.Discard()
+	task := tasks.NewSendWaitingTask(mockStorage, events)
 
 	// when:
 	err := task.Run(t.Context())
@@ -113,5 +119,46 @@ func TestSendWaitingMonitorTask_ForwardsBroadcastedResultsToChannel(t *testing.T
 		assert.Equal(t, "canned-reference", msg.Reference)
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected a TxBroadcasted message to be forwarded to the channel, but none arrived")
+	}
+}
+
+type burstSender struct {
+	count int
+}
+
+func (b burstSender) SendWaitingTransactions(context.Context, time.Duration) (*wdk.ProcessActionResult, error) {
+	results := make([]wdk.ReviewActionResult, 0, b.count)
+	for i := range b.count {
+		results = append(results, wdk.ReviewActionResult{
+			TxID:   primitives.TXIDHexString(fmt.Sprintf("%064x", i)),
+			Status: wdk.ReviewActionResultStatusSuccess,
+		})
+	}
+	return &wdk.ProcessActionResult{NotDelayedResults: results}, nil
+}
+
+func TestSendWaitingMonitorTask_BurstLargerThanChannelIsNotDropped(t *testing.T) {
+	t.Parallel()
+	// given: a subscriber channel much smaller than the number of results, and nobody reading
+	const count = 1000
+	broadcasted := make(chan wdk.CurrentTxStatus, 10)
+	events := eventqueue.New[wdk.CurrentTxStatus]("test", broadcasted, logging.NewTestLogger(t))
+	defer events.Discard()
+	task := tasks.NewSendWaitingTask(burstSender{count: count}, events)
+
+	// when:
+	err := task.Run(t.Context())
+
+	// then: the task finished without waiting for the subscriber
+	require.NoError(t, err)
+
+	// and: every result reaches the subscriber, in order
+	for i := range count {
+		select {
+		case msg := <-broadcasted:
+			require.Equal(t, fmt.Sprintf("%064x", i), msg.TxID)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for event %d", i)
+		}
 	}
 }

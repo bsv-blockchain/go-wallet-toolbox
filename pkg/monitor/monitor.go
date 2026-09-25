@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor/internal/tasks"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
@@ -40,6 +41,19 @@ type Daemon struct {
 
 	eventChannels          EventChannels
 	broadcastEventStreamer BroadcastEventStreamer
+
+	// txBroadcastedEvents and txProvenEvents feed the outbound subscriber
+	// channels without blocking the monitor and without dropping events. They
+	// are acquired in Start and released (drained) in Stop.
+	txBroadcastedEvents *eventqueue.Queue[wdk.CurrentTxStatus]
+	txProvenEvents      *eventqueue.Queue[wdk.CurrentTxStatus]
+	releaseEvents       []func(ctx context.Context)
+
+	// cancelHandlers stops the event handler goroutines started in Start, and
+	// handlers tracks them (and the per-tip goroutines they spawn) so Stop can
+	// wait until nothing publishes anymore.
+	cancelHandlers context.CancelFunc
+	handlers       sync.WaitGroup
 }
 
 // EventChannels holds channels for bidirectional communication with the monitor.
@@ -133,6 +147,8 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 		return nil
 	}
 
+	d.acquireEventQueues()
+
 	factories := d.allTasksFactories()
 	for taskName, taskConfig := range tasksToStart {
 		taskFactory, ok := factories[taskName]
@@ -142,20 +158,24 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 		}
 
 		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
+			d.releaseEventQueues()
 			return err
 		}
 	}
 
+	handlersCtx, cancel := context.WithCancel(ctx)
+	d.cancelHandlers = cancel
+
 	if d.eventChannels.OnReorg != nil {
-		go d.handleReorgEvents(ctx)
+		d.handlers.Go(func() { d.handleReorgEvents(handlersCtx) })
 	}
 
 	if d.eventChannels.OnTip != nil {
-		go d.handleNewTipEvents(ctx)
+		d.handlers.Go(func() { d.handleNewTipEvents(handlersCtx) })
 	}
 
 	if d.broadcastEventStreamer != nil {
-		go d.handleBroadcastEvents(ctx, d.broadcastEventStreamer)
+		d.handlers.Go(func() { d.handleBroadcastEvents(handlersCtx, d.broadcastEventStreamer) })
 	}
 
 	d.scheduler.Start()
@@ -195,10 +215,45 @@ func (d *Daemon) Stop() error {
 	}
 
 	err := d.scheduler.Shutdown()
+
+	// Stop the event handlers and wait for them (and the goroutines they spawned)
+	// to finish, so nothing publishes after the queues are released below.
+	if d.cancelHandlers != nil {
+		d.cancelHandlers()
+	}
+	d.handlers.Wait()
+
+	// Give the subscribers a bounded time to read the backlog. After this returns
+	// nothing sends to the subscriber channels, so their owner may close them.
+	d.releaseEventQueues()
+
 	if err != nil {
 		return fmt.Errorf("failed to clear jobs: %w", err)
 	}
 	return nil
+}
+
+func (d *Daemon) acquireEventQueues() {
+	var release func(ctx context.Context)
+
+	d.txBroadcastedEvents, release = eventqueue.Acquire(eventqueue.StreamTxBroadcasted, d.eventChannels.OnTxBroadcasted, d.logger)
+	d.releaseEvents = append(d.releaseEvents, release)
+
+	d.txProvenEvents, release = eventqueue.Acquire(eventqueue.StreamTxProven, d.eventChannels.OnTxProven, d.logger)
+	d.releaseEvents = append(d.releaseEvents, release)
+}
+
+func (d *Daemon) releaseEventQueues() {
+	ctx, cancel := context.WithTimeout(context.Background(), eventqueue.DefaultDrainTimeout)
+	defer cancel()
+
+	// The queues drain concurrently so the deadline applies to all of them at once.
+	var wg sync.WaitGroup
+	for _, release := range d.releaseEvents {
+		wg.Go(func() { release(ctx) })
+	}
+	wg.Wait()
+	d.releaseEvents = nil
 }
 
 // Get retrieves the active monitoring task associated with the given name.
@@ -328,7 +383,20 @@ func (d *Daemon) contextWithTimeout(ctx context.Context, interval time.Duration)
 func (d *Daemon) handleReorgEvents(ctx context.Context) {
 	d.logger.InfoContext(ctx, "Starting reorg event handler")
 
-	for event := range d.eventChannels.OnReorg {
+	for {
+		var event *chaintracks.ReorgEvent
+		select {
+		case <-ctx.Done():
+			d.logger.InfoContext(ctx, "reorg event handler stopped")
+			return
+		case ev, ok := <-d.eventChannels.OnReorg:
+			if !ok {
+				d.logger.InfoContext(ctx, "reorg event handler stopped")
+				return
+			}
+			event = ev
+		}
+
 		d.logger.InfoContext(
 			ctx, "Received reorg event",
 			"depth", event.Depth,
@@ -344,34 +412,43 @@ func (d *Daemon) handleReorgEvents(ctx context.Context) {
 			d.logger.ErrorContext(ctx, "Failed to handle reorg", "error", err)
 		}
 	}
-
-	d.logger.InfoContext(ctx, "reorg event handler stopped")
 }
 
 func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 	d.logger.InfoContext(ctx, "Starting new tip event handler")
 
-	for header := range d.eventChannels.OnTip {
+	for {
+		var header *chaintracks.BlockHeader
+		select {
+		case <-ctx.Done():
+			return
+		case h, ok := <-d.eventChannels.OnTip:
+			if !ok {
+				return
+			}
+			header = h
+		}
+
 		d.logger.InfoContext(
 			ctx, "New tip received and processing",
 			"height", header.Height,
 			"hash", header.Hash.String(),
 		)
 
-		go func(h *chaintracks.BlockHeader) {
-			results, err := d.storage.ProcessNewTip(ctx, h.Height, h.Hash.String())
+		d.handlers.Go(func() {
+			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
 			if err != nil {
 				d.logger.ErrorContext(ctx, "ProcessNewTip failed", "error", err)
 				return
 			}
 
 			d.sendProvenEvents(results)
-		}(header)
+		})
 	}
 }
 
 func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
-	if d.eventChannels.OnTxProven == nil {
+	if d.txProvenEvents == nil {
 		return
 	}
 
@@ -387,10 +464,6 @@ func (d *Daemon) sendProvenEvents(results []wdk.TxSynchronizedStatus) {
 			Labels:      res.Labels,
 		}
 
-		select {
-		case d.eventChannels.OnTxProven <- msg:
-		default:
-			d.logger.WarnContext(context.Background(), "OnTxProven channel in monitor is full, dropping event")
-		}
+		d.txProvenEvents.Publish(msg)
 	}
 }

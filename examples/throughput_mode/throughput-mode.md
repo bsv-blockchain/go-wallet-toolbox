@@ -127,6 +127,32 @@ enabled, independent of the UTXO-management strategy.
           summary: "Chain reorganization deeper than 3 blocks in the last hour"
 ```
 
+### Event subscriber instruments
+
+Subscriber channels (tx broadcasted, tx proven, reorg, tip) never drop events:
+what a channel cannot take yet is buffered in memory and delivered in order.
+These instruments show a subscriber falling behind. The `stream` attribute is
+one of `tx_broadcasted`, `tx_proven`, `reorg`, `tip`.
+
+| Instrument | Type | Meaning |
+|---|---|---|
+| `wallet.events.queue_depth` | gauge | events buffered for subscribers, not yet read |
+| `wallet.events.queue_oldest_age_seconds` | gauge | age of the oldest buffered event (delivery lag) |
+| `wallet.events.undelivered` | counter | events a subscriber never received; `reason` is `shutdown_timeout` (not read within 30s of shutdown), `unsubscribed` or `after_close` |
+
+```yaml
+      - alert: EventSubscriberLagging
+        expr: wallet_events_queue_oldest_age_seconds > 60
+        labels: { severity: warning }
+        annotations:
+          summary: "A subscriber is more than a minute behind on {{ $labels.stream }} events"
+      - alert: EventsUndelivered
+        expr: increase(wallet_events_undelivered_total[15m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "A subscriber missed {{ $labels.stream }} events ({{ $labels.reason }})"
+```
+
 ### Low-funds alert rules (Prometheus)
 
 ```yaml

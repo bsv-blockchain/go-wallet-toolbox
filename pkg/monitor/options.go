@@ -42,6 +42,10 @@ func DefaultDaemonEventOptions(opts ...DaemonEventOption) *DaemonEventOptions {
 }
 
 // WithBroadcastedTxChannel sets the channel for broadcasted transaction notifications.
+//
+// Events are never dropped and the monitor never waits for the reader: events the
+// channel cannot take yet are buffered in memory and delivered in order. The caller
+// owns the channel and may close it once Daemon.Stop has returned.
 func WithBroadcastedTxChannel(ch chan<- wdk.CurrentTxStatus) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTxBroadcasted = ch
@@ -49,6 +53,10 @@ func WithBroadcastedTxChannel(ch chan<- wdk.CurrentTxStatus) func(*DaemonEventOp
 }
 
 // WithProvenTxChannel sets the channel for proven transaction notifications.
+//
+// Events are never dropped and the monitor never waits for the reader: events the
+// channel cannot take yet are buffered in memory and delivered in order. The caller
+// owns the channel and may close it once Daemon.Stop has returned.
 func WithProvenTxChannel(ch chan<- wdk.CurrentTxStatus) func(*DaemonEventOptions) {
 	return func(o *DaemonEventOptions) {
 		o.onTxProven = ch

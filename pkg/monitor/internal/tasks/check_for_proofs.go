@@ -3,7 +3,6 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -16,16 +15,14 @@ type TransactionStatusesSynchronizer interface {
 // When Arcade is enabled this is a fallback: the preferred path is the Arcade
 // SSE broadcast-event handler, which pushes proofs without polling.
 type CheckForProofsTask struct {
-	storage         TransactionStatusesSynchronizer
-	txProvenChannel chan<- wdk.CurrentTxStatus
-	logger          *slog.Logger
+	storage        TransactionStatusesSynchronizer
+	txProvenEvents StatusPublisher
 }
 
-func NewCheckForProofsTask(storage TransactionStatusesSynchronizer, txProvenChannel chan<- wdk.CurrentTxStatus, log *slog.Logger) TaskInterface {
+func NewCheckForProofsTask(storage TransactionStatusesSynchronizer, txProvenEvents StatusPublisher) TaskInterface {
 	return &CheckForProofsTask{
-		storage:         storage,
-		txProvenChannel: txProvenChannel,
-		logger:          log,
+		storage:        storage,
+		txProvenEvents: txProvenEvents,
 	}
 }
 
@@ -35,7 +32,7 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 		return fmt.Errorf("synchronize transaction statuses failed: %w", err)
 	}
 
-	if t.txProvenChannel == nil {
+	if t.txProvenEvents == nil {
 		return nil
 	}
 
@@ -51,13 +48,7 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 			Labels:      res.Labels,
 		}
 
-		select {
-		case t.txProvenChannel <- msg:
-		case <-ctx.Done():
-			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
-		default:
-			t.logger.WarnContext(ctx, "TxProven channel full, dropping event")
-		}
+		t.txProvenEvents.Publish(msg)
 	}
 
 	return nil

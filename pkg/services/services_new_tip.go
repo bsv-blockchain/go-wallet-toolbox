@@ -1,71 +1,65 @@
 package services
 
 import (
-	"context"
 	"log/slog"
 	"sync"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
 )
 
 // tipBroadcaster allows multiple subscribers to receive new tip events
 type tipBroadcaster struct {
 	mu          sync.RWMutex
-	subscribers map[chan *chaintracks.BlockHeader]any
+	subscribers map[chan *chaintracks.BlockHeader]*eventqueue.Queue[*chaintracks.BlockHeader]
 	logger      *slog.Logger
 }
 
 func newTipBroadcaster(logger *slog.Logger) *tipBroadcaster {
 	return &tipBroadcaster{
 		logger:      logger,
-		subscribers: make(map[chan *chaintracks.BlockHeader]any, 0),
+		subscribers: make(map[chan *chaintracks.BlockHeader]*eventqueue.Queue[*chaintracks.BlockHeader]),
 	}
 }
 
 // Subscribe registers a user-provided channel to receive new tip events.
-// The caller is responsible for creating the channel with an appropriate buffer size
-// and closing it after unsubscribing.
-// Returns an unsubscribe function that removes the channel from the subscriber list.
+// Events are never dropped and the chaintracks event loop never waits for the
+// subscriber: events the channel cannot take yet are buffered in memory and
+// delivered in order. The caller owns the channel and may close it once the
+// unsubscribe function has returned.
+// Returns an unsubscribe function that removes the channel from the subscriber
+// list and discards events not yet delivered to it.
 func (t *tipBroadcaster) Subscribe(ch chan *chaintracks.BlockHeader) func() {
 	t.mu.Lock()
-	t.subscribers[ch] = struct{}{}
+	queue, ok := t.subscribers[ch]
+	if !ok {
+		queue = eventqueue.New(eventqueue.StreamTip, chan<- *chaintracks.BlockHeader(ch), t.logger)
+		t.subscribers[ch] = queue
+	}
 	t.mu.Unlock()
 
+	var once sync.Once
 	return func() {
-		t.mu.Lock()
-		delete(t.subscribers, ch)
-		t.mu.Unlock()
+		once.Do(func() {
+			t.mu.Lock()
+			if t.subscribers[ch] == queue {
+				delete(t.subscribers, ch)
+			}
+			t.mu.Unlock()
+
+			// Returns once the queue stopped sending, so the caller may close ch.
+			queue.Discard()
+		})
 	}
 }
 
-// broadcast sends the event to all subscribers.
-// If a subscriber's channel is full, the event is dropped for that subscriber.
+// broadcast hands the event to every subscriber's queue. It never blocks.
 func (t *tipBroadcaster) broadcast(tip *chaintracks.BlockHeader) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	for sub := range t.subscribers {
-		select {
-		case sub <- tip:
-		default:
-			t.logger.WarnContext(context.Background(), "new tip subscriber channel full, dropping event", tipLogAttrs(tip)...)
-		}
-	}
-}
-
-func tipLogAttrs(tip *chaintracks.BlockHeader) []any {
-	if tip == nil {
-		return []any{"tip", nil}
-	}
-
-	header := any(nil)
-	if tip.Header != nil {
-		header = tip.String()
-	}
-
-	return []any{
-		"tip hash", tip.Hash.String(),
-		"tip height", tip.Height,
-		"tip header", header,
+	for _, queue := range t.subscribers {
+		queue.Publish(tip)
 	}
 }

@@ -139,7 +139,10 @@ func WithBackgroundBroadcasterContext(ctx context.Context) ProviderOption {
 
 // WithBackgroundBroadcasterChannel sets the notification channel for the background broadcaster in provider options.
 // This channel is used to send transaction status updates when transactions are broadcasted in the background.
-// This same channel which is passed to the monitor to receive broadcasted transaction updates should be used.
+// This same channel which is passed to the monitor to receive broadcasted transaction updates should be used;
+// both then share a single delivery queue, so events keep one order.
+// Events are never dropped and the broadcaster never waits for the reader: events the channel
+// cannot take yet are buffered in memory until it is read. Stop the provider before closing the channel.
 func WithBackgroundBroadcasterChannel(txBroadcastedChannel chan<- wdk.CurrentTxStatus) ProviderOption {
 	return func(o *ProviderConfig) {
 		o.BackgroundBroadcasterChannel = txBroadcastedChannel
