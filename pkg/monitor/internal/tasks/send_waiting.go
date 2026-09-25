@@ -3,7 +3,6 @@ package tasks
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -14,18 +13,16 @@ type WaitingTransactionsSender interface {
 }
 
 type SendWaitingTask struct {
-	storage              WaitingTransactionsSender
-	firstRun             bool
-	txBroadcastedChannel chan<- wdk.CurrentTxStatus
-	logger               *slog.Logger
+	storage             WaitingTransactionsSender
+	firstRun            bool
+	txBroadcastedEvents StatusPublisher
 }
 
-func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedChannel chan<- wdk.CurrentTxStatus, log *slog.Logger) TaskInterface {
+func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedEvents StatusPublisher) TaskInterface {
 	return &SendWaitingTask{
-		storage:              storage,
-		firstRun:             true,
-		txBroadcastedChannel: txBroadcastedChannel,
-		logger:               log,
+		storage:             storage,
+		firstRun:            true,
+		txBroadcastedEvents: txBroadcastedEvents,
 	}
 }
 
@@ -35,7 +32,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 		return fmt.Errorf("send waiting transactions failed: %w", err)
 	}
 
-	if t.txBroadcastedChannel == nil || results == nil {
+	if t.txBroadcastedEvents == nil || results == nil {
 		return nil
 	}
 
@@ -55,13 +52,7 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 			msg.Error = broadcastError
 		}
 
-		select {
-		case t.txBroadcastedChannel <- msg:
-		case <-ctx.Done():
-			return fmt.Errorf("context done while sending tx status update: %w", ctx.Err())
-		default:
-			t.logger.WarnContext(ctx, "TxBroadcasted channel full, dropping event")
-		}
+		t.txBroadcastedEvents.Publish(msg)
 	}
 
 	return nil

@@ -109,6 +109,8 @@ func (t *TasksConfig) Validate() error {
 
 // EventConfig defines configuration parameters for monitoring events
 // If enabled is true, the event will be emitted with the specified channel size.
+// The channel size does not limit how many events are delivered: events the channel
+// cannot take yet are buffered in memory, so a slow reader never misses an event.
 type EventConfig struct {
 	Enabled     bool `mapstructure:"enabled"`
 	ChannelSize uint `mapstructure:"channel_size"`

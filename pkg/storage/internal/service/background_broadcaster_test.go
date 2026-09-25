@@ -18,6 +18,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk/primitives"
 )
 
 type mockBroadcaster struct {
@@ -25,9 +26,11 @@ type mockBroadcaster struct {
 	sleep           time.Duration
 	returnErr       error
 	panicDuringCall error
+	// returnResults makes the mock report a success result for every txID.
+	returnResults bool
 }
 
-func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, _ []string) ([]wdk.ReviewActionResult, error) {
+func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -41,6 +44,15 @@ func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transactio
 		return nil, m.returnErr
 	case m.panicDuringCall != nil:
 		panic(m.panicDuringCall)
+	case m.returnResults:
+		results := make([]wdk.ReviewActionResult, 0, len(txIDs))
+		for _, txID := range txIDs {
+			results = append(results, wdk.ReviewActionResult{
+				TxID:   primitives.TXIDHexString(txID),
+				Status: wdk.ReviewActionResultStatusSuccess,
+			})
+		}
+		return results, nil
 	default:
 		return nil, nil
 	}
@@ -271,4 +283,45 @@ func TestSizingDefaultsStaySmall(t *testing.T) {
 	sized := service.NewBackgroundBroadcaster(t.Context(), testLogger, &mockBroadcaster{}, nil,
 		service.Sizing{Workers: 64, ChannelSize: 4096})
 	require.NotNil(t, sized)
+}
+
+func TestBackgroundBroadcaster_SlowSubscriberMissesNoEvents(t *testing.T) {
+	// given: a subscriber channel far smaller than the burst
+	const count = 200
+	mockBroadcast := &mockBroadcaster{returnResults: true}
+	events := make(chan wdk.CurrentTxStatus, 1)
+
+	logger, _ := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, events, service.Sizing{})
+	bb.Start()
+
+	// when: the whole burst is broadcast while nobody reads the channel
+	sent := map[string]bool{}
+	for txSpec := range broadcastItemsGenerator(count) {
+		beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
+		require.NoError(t, err)
+		txID := txSpec.ID().String()
+		sent[txID] = true
+
+		require.True(t, bb.Add(beef, []string{txID}))
+	}
+
+	// then: the workers were not held back by the full channel
+	mockBroadcast.waitForBroadcastCalls(t, count)
+
+	// and: the slow subscriber still receives an event for every transaction
+	received := map[string]bool{}
+	for range count {
+		select {
+		case ev := <-events:
+			received[ev.TxID] = true
+			time.Sleep(time.Millisecond)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out after %d of %d events", len(received), count)
+		}
+	}
+	assert.Equal(t, sent, received)
+
+	bb.Stop()
+	assert.NotPanics(t, func() { close(events) }, "nothing sends after Stop")
 }
