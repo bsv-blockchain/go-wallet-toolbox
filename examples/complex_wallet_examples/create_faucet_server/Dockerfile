@@ -1,11 +1,10 @@
 # Multi-stage build for smaller final image
-# Base images are pinned by digest only (Scorecard Pinned-Dependencies). Digests
-# reference the multi-arch manifest list, so builds resolve the correct image
-# per platform (linux/amd64, linux/arm64, …) and stay reproducible. The tag is
-# omitted on purpose (Docker ignores it alongside a digest, and using both trips
-# SonarCloud docker:S7018).
-# golang:1.27-alpine
-FROM golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
+# Base images are pinned by tag + digest (Scorecard Pinned-Dependencies). Digests
+# reference the multi-arch manifest list, so builds resolve the correct image per
+# platform and stay reproducible; the tag is kept so Dependabot preserves the
+# -alpine variant on bumps (a digest alone is variant-ambiguous and can flip the
+# builder to Debian, which has no `apk`).
+FROM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
 
 # Install git, ca-certificates, and SQLite development libraries
 RUN apk add --no-cache git ca-certificates sqlite-dev gcc musl-dev
@@ -32,8 +31,7 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
 
 # Final stage
-# alpine:3.24
-FROM alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates
