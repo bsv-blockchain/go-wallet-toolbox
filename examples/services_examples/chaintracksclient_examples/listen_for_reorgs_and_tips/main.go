@@ -40,11 +40,15 @@ func main() {
 
 	err = svc.Start(ctx, chaintracksclient.Callbacks{
 		OnReorg: func(event *chaintracks.ReorgEvent) error {
+			newTip := ""
+			if event.NewTip != nil {
+				newTip = event.NewTip.Hash.String()
+			}
 			logger.InfoContext(
 				ctx, "new reorg event received",
 				"depth", event.Depth,
-				"tip", event.NewTip,
-				"orhpaned hashes", event.OrphanedHashes,
+				"tip", newTip,
+				"orphaned hashes", event.OrphanedHashes,
 			)
 			return nil
 		},
