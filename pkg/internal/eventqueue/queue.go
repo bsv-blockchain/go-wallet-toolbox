@@ -204,7 +204,7 @@ func (q *Queue[T]) forward() {
 
 // next returns the event to deliver, whether there was one, and whether the
 // queue is closed.
-func (q *Queue[T]) next() (_ entry[T], ok bool, closed bool) {
+func (q *Queue[T]) next() (_ entry[T], ok, closed bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if len(q.buf) == 0 {
