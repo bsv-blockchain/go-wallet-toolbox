@@ -127,7 +127,7 @@ This module's `go.mod` pins one transitive dependency via a `replace` directive:
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
 ```
 
-It holds `kube-openapi` at the commit compatible with `k8s.io/apimachinery` v0.37.0 (which uses `structured-merge-diff/v6`); a newer `kube-openapi` pulled in transitively switched to `structured-merge-diff/v7` and breaks the build.
+It holds `kube-openapi` at the commit that `k8s.io/apimachinery` v0.37.x requires (v0.37.1 here; it uses `structured-merge-diff/v6`); a newer `kube-openapi` pulled in transitively switched to `structured-merge-diff/v7` and breaks the build.
 
 Go only applies `replace` directives from the **main module** being built — they are ignored when this module is imported as a dependency. If you import `go-wallet-toolbox` from your own module, `go build` may fail with a `structured-merge-diff` type mismatch in `apimachinery` unless you copy the `replace` line above into your own `go.mod`.
 
