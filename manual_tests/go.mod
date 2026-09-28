@@ -139,7 +139,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
-	github.com/libp2p/go-libp2p v0.49.0 // indirect
+	github.com/libp2p/go-libp2p v0.50.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-libp2p-kad-dht v0.42.2 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.9.0 // indirect
@@ -312,14 +312,8 @@ require (
 
 replace github.com/bsv-blockchain/go-wallet-toolbox => ../
 
-replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
-
-replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
-
-replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
-
-// Pin kube-openapi to the v0.37.0-compatible commit: newer kube-openapi switched to
-// structured-merge-diff/v7, which breaks k8s apimachinery v0.37.0 (still on v6). Must be
+// Pin kube-openapi to the commit k8s v0.37.x requires: newer kube-openapi switched to
+// structured-merge-diff/v7, which breaks k8s apimachinery v0.37.x (still on v6). Must be
 // repeated here because Go ignores replace directives from dependencies. See the main
 // module go.mod for the full explanation.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad

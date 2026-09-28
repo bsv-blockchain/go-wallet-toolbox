@@ -152,7 +152,7 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.3.0 // indirect
-	github.com/libp2p/go-libp2p v0.49.0 // indirect
+	github.com/libp2p/go-libp2p v0.50.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-libp2p-kad-dht v0.42.2 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.9.0 // indirect
@@ -292,25 +292,11 @@ require (
 
 tool go.uber.org/mock/mockgen
 
-// The go-libp2p / quic-go / webtransport-go trio below is pinned because the
-// latest go-libp2p (v0.49.0) does not compile against the latest
-// quic-go/webtransport-go (v0.12.0): it references a webtransport.Dialer type
-// that v0.12.0 removed. These replaces only apply when this module is built
-// standalone — Go ignores replace directives from dependencies, so consumers
-// importing this module as a library must copy the same replace lines below
-// into their own go.mod. See README.md "Consuming as a library" and
-// https://github.com/bsv-blockchain/go-wallet-toolbox/issues/983.
-replace github.com/libp2p/go-libp2p => github.com/libp2p/go-libp2p v0.48.1-0.20260709142922-ec408fcc60c9
-
-replace github.com/quic-go/webtransport-go => github.com/quic-go/webtransport-go v0.11.1
-
-replace github.com/quic-go/quic-go => github.com/quic-go/quic-go v0.60.0
-
-// k8s.io/{api,apimachinery,client-go} v0.37.0 use sigs.k8s.io/structured-merge-diff/v6
+// k8s.io/{api,apimachinery,client-go} v0.37.x (v0.37.1 here) use sigs.k8s.io/structured-merge-diff/v6
 // via kube-openapi ...20260721. A newer kube-openapi (...20260908, pulled in transitively
 // by go-teranode-p2p-client) switched to structured-merge-diff/v7, which breaks
 // apimachinery's managedfields typeconverter (it mixes v6 and v7 schema types). Pin
-// kube-openapi back to the v0.37.0-compatible commit. go-teranode-p2p-client already
+// kube-openapi back to the commit v0.37.x requires. go-teranode-p2p-client already
 // carries the same replace, but Go ignores replaces from dependencies, so it must be
 // repeated here (and by library consumers).
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
