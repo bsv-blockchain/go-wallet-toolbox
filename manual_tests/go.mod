@@ -297,7 +297,7 @@ require (
 	k8s.io/apimachinery v0.37.1 // indirect
 	k8s.io/client-go v0.37.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260908163437-c4db2bdfbfe6 // indirect
+	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.77.1 // indirect
@@ -311,9 +311,3 @@ require (
 )
 
 replace github.com/bsv-blockchain/go-wallet-toolbox => ../
-
-// Pin kube-openapi to the commit k8s v0.37.x requires: newer kube-openapi switched to
-// structured-merge-diff/v7, which breaks k8s apimachinery v0.37.x (still on v6). Must be
-// repeated here because Go ignores replace directives from dependencies. See the main
-// module go.mod for the full explanation.
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad

@@ -291,6 +291,7 @@ require (
 
 // Pin kube-openapi to the commit k8s v0.37.x requires: newer kube-openapi switched to
 // structured-merge-diff/v7, which breaks k8s apimachinery v0.37.x (still on v6). Must be
-// repeated here because Go ignores replace directives from dependencies. See the main
-// module go.mod for the full explanation.
+// repeated here because Go ignores replace directives from dependencies. Released
+// go-wallet-toolbox versions up to v0.187.x still require the newer kube-openapi; remove
+// this pin once this example requires a release that no longer does.
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
