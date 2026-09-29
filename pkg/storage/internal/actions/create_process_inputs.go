@@ -365,6 +365,11 @@ func hydrateAncestryFromStorage(
 			seq.FromSlice(needed),
 			entity.WithMergeToBEEF(beef),
 			entity.WithDirectSourcesOnly(),
+			// unanchorableSources, just above, rejects a full proof-less transaction and
+			// demands its sources -- so a bare parent would move this loop one generation
+			// further back instead of ending it, into transactions the caller was entitled
+			// to omit and storage may never have internalized.
+			entity.WithAnchoredParents(),
 			entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
 		); err != nil {
 			return fmt.Errorf("failed to merge storage ancestry for %s: %w", strings.Join(needed, ", "), err)

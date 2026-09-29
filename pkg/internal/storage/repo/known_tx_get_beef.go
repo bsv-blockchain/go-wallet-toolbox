@@ -355,16 +355,69 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
 
-	// DirectSourcesOnly: parents are terminal — merge the raw tx alone. No
-	// merkle proof (skips BUMP root validation, the hot spot at high TPS), no
-	// input-beef merge, no deeper recursion. Script verification and EF
-	// construction only need the parent's outputs.
+	// DirectSourcesOnly: parents are terminal, so nothing below them is walked.
+	// Terminal still has to mean ANCHORED, though, and that is the part this
+	// branch used to get wrong.
+	//
+	// It merged the parent's raw tx alone — no proof, no input beef — to skip
+	// BUMP root validation, the hot spot at high TPS. But unanchorableSources
+	// treats a full, proof-less transaction as unanchored and demands ITS
+	// sources. So a parent handed over bare does not end the walk; it moves the
+	// walk one generation further back, into transactions the caller never sent
+	// and storage may never have internalized. The optimisation paid for itself
+	// only while the caller's own BEEF still carried the proofs.
+	//
+	// Collapsing an ancestry with knownTxids is what makes storage responsible
+	// for supplying them. Seen on mainnet 2026-09-29: a payment declared an
+	// ancestor whose stored record was itself collapsed, the parent hydrated
+	// proof-less, the next round demanded a grandparent that was a previously
+	// refused payment and therefore unknown, and the payment was rejected after
+	// the payer had already broadcast it.
+	//
+	// So a caller whose validator will reject a bare parent asks for AnchoredParents,
+	// and gets a parent made terminal the only two ways a parent can be: with its own
+	// merkle proof, or with the input beef that anchors it. Every other caller --
+	// script verification, EF construction, the broadcast path -- keeps the cheap
+	// bare parent, because that is all it needs and anchoring is not free.
 	if options.DirectSourcesOnly && depth >= 1 {
 		if model.RawTx == nil {
 			return fmt.Errorf("raw tx is nil in transaction %s", txID)
 		}
+
+		if !options.AnchoredParents {
+			if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
+				return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+			}
+			return nil
+		}
+
+		// Proven: the proof IS the anchor and the walk stops here for good.
+		if model.HasMerklePath() {
+			merklePath, pathErr := transaction.NewMerklePathFromBinary(model.MerklePath)
+			if pathErr != nil {
+				return fmt.Errorf("failed to build merkle path from binary for source tx (id: %s): %w", txID, pathErr)
+			}
+			if proofErr := tx.AddMerkleProof(merklePath); proofErr != nil {
+				return fmt.Errorf("failed to add merkle proof to source tx (id: %s): %w", txID, proofErr)
+			}
+			if _, mergeErr := mergeToBeef.MergeTransaction(tx); mergeErr != nil {
+				return fmt.Errorf("failed to merge proven source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+			}
+			return nil
+		}
+
 		if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
 			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+		}
+
+		// Unproven: its own input beef carries the proofs that anchor it. This is
+		// one blob for one generation, not the recursive walk DirectSourcesOnly
+		// exists to prevent, and without it the caller is asked for ancestors it
+		// was entitled to leave out.
+		if len(model.InputBeef) > 0 {
+			if mergeErr := mergeToBeef.MergeBeefBytes(model.InputBeef); mergeErr != nil {
+				return fmt.Errorf("failed to merge input beef of unproven source tx (id: %s): %w", txID, mergeErr)
+			}
 		}
 		return nil
 	}

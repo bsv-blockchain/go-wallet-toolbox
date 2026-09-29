@@ -25,6 +25,22 @@ type GetBEEFOptions struct {
 	// only need each input's source output), and skips the dominant costs of a
 	// full build: per-ancestor BUMP root validation and recursive DB walks.
 	DirectSourcesOnly bool
+
+	// AnchoredParents makes the terminal parents of a DirectSourcesOnly build
+	// ANCHORED rather than bare: proven ones keep their merkle proof, unproven
+	// ones bring the input beef that anchors them. It has no effect without
+	// DirectSourcesOnly.
+	//
+	// Off by default, because it is not free: an unproven parent's input beef is
+	// its own unmined ancestry, and merging it is the cost DirectSourcesOnly
+	// exists to avoid. Callers that only need each input's source output -- script
+	// verification, EF construction, the broadcast path -- must leave it off.
+	//
+	// It is for callers who hand the result to a validator that will REJECT a
+	// full, proof-less transaction and demand its sources. For those, a bare
+	// parent does not end the walk; it moves the walk one generation further
+	// back, into transactions the caller never sent. See hydrateAncestryFromStorage.
+	AnchoredParents bool
 }
 
 type GetBEEFOption = func(*GetBEEFOptions)
@@ -69,6 +85,14 @@ func WithTrustSelf(trust wallet.TrustSelf) GetBEEFOption {
 func WithDirectSourcesOnly() GetBEEFOption {
 	return func(opts *GetBEEFOptions) {
 		opts.DirectSourcesOnly = true
+	}
+}
+
+// WithAnchoredParents keeps a DirectSourcesOnly build's terminal parents anchored.
+// See GetBEEFOptions.AnchoredParents.
+func WithAnchoredParents() GetBEEFOption {
+	return func(opts *GetBEEFOptions) {
+		opts.AnchoredParents = true
 	}
 }
 
