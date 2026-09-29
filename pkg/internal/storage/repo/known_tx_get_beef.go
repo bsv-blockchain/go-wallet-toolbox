@@ -374,11 +374,21 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	// refused payment and therefore unknown, and the payment was rejected after
 	// the payer had already broadcast it.
 	//
-	// So a parent is made terminal the only two ways a parent can be: with its
-	// own merkle proof, or with the input beef that anchors it.
+	// So a caller whose validator will reject a bare parent asks for AnchoredParents,
+	// and gets a parent made terminal the only two ways a parent can be: with its own
+	// merkle proof, or with the input beef that anchors it. Every other caller --
+	// script verification, EF construction, the broadcast path -- keeps the cheap
+	// bare parent, because that is all it needs and anchoring is not free.
 	if options.DirectSourcesOnly && depth >= 1 {
 		if model.RawTx == nil {
 			return fmt.Errorf("raw tx is nil in transaction %s", txID)
+		}
+
+		if !options.AnchoredParents {
+			if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
+				return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+			}
+			return nil
 		}
 
 		// Proven: the proof IS the anchor and the walk stops here for good.
