@@ -277,7 +277,12 @@ require (
 	k8s.io/apimachinery v0.37.1 // indirect
 	k8s.io/client-go v0.37.1 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260908163437-c4db2bdfbfe6 // indirect
+	// Keep kube-openapi at ...20260721 until k8s.io/apimachinery moves past v0.37:
+	// newer kube-openapi uses structured-merge-diff/v7, which v0.37 cannot build
+	// against. Go selects the highest version any module requires and ignores a
+	// dependency's replace directives, so requiring a newer one here breaks every
+	// module that imports this one.
+	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 	modernc.org/libc v1.77.1 // indirect
@@ -291,12 +296,3 @@ require (
 )
 
 tool go.uber.org/mock/mockgen
-
-// k8s.io/{api,apimachinery,client-go} v0.37.x (v0.37.1 here) use sigs.k8s.io/structured-merge-diff/v6
-// via kube-openapi ...20260721. A newer kube-openapi (...20260908, pulled in transitively
-// by go-teranode-p2p-client) switched to structured-merge-diff/v7, which breaks
-// apimachinery's managedfields typeconverter (it mixes v6 and v7 schema types). Pin
-// kube-openapi back to the commit v0.37.x requires. go-teranode-p2p-client already
-// carries the same replace, but Go ignores replaces from dependencies, so it must be
-// repeated here (and by library consumers).
-replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
