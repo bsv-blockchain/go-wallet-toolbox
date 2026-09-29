@@ -110,6 +110,10 @@ func (h *Handler) writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
+// ErrCodeOutputNotFound is sent as "code" next to "error" when the requested output is not found;
+// the storage client maps it back to wdk.ErrOutputNotFound.
+const ErrCodeOutputNotFound = "ERR_OUTPUT_NOT_FOUND"
+
 // writeError matches the error shape expected by the conformance vectors.
 func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 	h.writeJSON(w, status, map[string]any{
@@ -625,6 +629,10 @@ func (h *Handler) relinquishOutput(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = h.provider.RelinquishOutput(r.Context(), auth, args)
+	if errors.Is(err, wdk.ErrOutputNotFound) {
+		h.writeJSON(w, http.StatusNotFound, map[string]any{"error": err.Error(), "code": ErrCodeOutputNotFound})
+		return
+	}
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
