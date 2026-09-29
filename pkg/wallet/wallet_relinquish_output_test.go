@@ -14,6 +14,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestRelinquishOutputOriginatorValidation(t *testing.T) {
@@ -81,6 +82,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// then:
 		require.Error(t, err)
 		require.Nil(t, result)
+		require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 		assert.Contains(t, err.Error(), "no output found")
 	})
 
@@ -111,6 +113,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// then:
 		require.Error(t, err)
 		require.Nil(t, result)
+		require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 		assert.Contains(t, err.Error(), "no output found")
 		assert.Contains(t, err.Error(), "wrong-basket")
 	})
@@ -143,6 +146,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// then:
 		require.Error(t, err)
 		require.Nil(t, result)
+		require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 		assert.Contains(t, err.Error(), "no output found")
 		assert.Contains(t, err.Error(), "vout 1")
 	})
@@ -177,6 +181,7 @@ func (s *WalletTestSuite) TestWalletRelinquishOutputErrorPaths() {
 		// then:
 		require.Error(t, err)
 		require.Nil(t, result)
+		require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 		assert.Contains(t, err.Error(), "no output found")
 	})
 }

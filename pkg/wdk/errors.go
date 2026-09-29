@@ -8,6 +8,10 @@ import (
 // ErrNotFoundError represents an error indicating that a requested resource or item was not found.
 var ErrNotFoundError = fmt.Errorf("not found")
 
+// ErrOutputNotFound is returned by RelinquishOutput when the requested output is not held by the user
+// in the given basket (e.g. it was already relinquished). It wraps ErrNotFoundError.
+var ErrOutputNotFound = fmt.Errorf("output %w", ErrNotFoundError)
+
 // ErrNotEnoughFunds is returned when a transaction cannot be funded due to insufficient UTXOs.
 var ErrNotEnoughFunds = errors.New("not enough funds")
 
