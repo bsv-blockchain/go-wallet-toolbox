@@ -16,6 +16,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/to"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/v1adapter"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -342,11 +343,15 @@ func (r *authriteRequester) post(ctx context.Context, path string, payload, resu
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check for error shape { "error": "..." }
+	// Check for error shape { "error": "...", "code": "..." }
 	var errResp struct {
 		Error string `json:"error"`
+		Code  string `json:"code"`
 	}
 	if json.Unmarshal(data, &errResp) == nil && errResp.Error != "" {
+		if errResp.Code == v1adapter.ErrCodeOutputNotFound {
+			return fmt.Errorf("storage v1 error: %s: %w", errResp.Error, wdk.ErrOutputNotFound)
+		}
 		return fmt.Errorf("storage v1 error: %s", errResp.Error)
 	}
 

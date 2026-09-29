@@ -104,7 +104,7 @@ func TestRelinquishNotExistingOutput(t *testing.T) {
 	)
 
 	// then:
-	require.Error(t, err)
+	require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 }
 
 func TestRelinquishOutputOneOfTwo(t *testing.T) {
@@ -159,5 +159,5 @@ func TestRelinquishOutputWithNotMatchingBasket(t *testing.T) {
 	)
 
 	// then:
-	require.Error(t, err)
+	require.ErrorIs(t, err, wdk.ErrOutputNotFound)
 }
