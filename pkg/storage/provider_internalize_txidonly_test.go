@@ -125,3 +125,73 @@ func TestInternalizeActionRefusesTxidOnlyAncestorNotHeld(t *testing.T) {
 	// then:
 	require.Error(t, err, "an ancestor we cannot resolve must still be refused")
 }
+
+// TestInternalizeActionAcceptsTxidOnlyAncestorWhoseOwnRecordIsCollapsed is the SECOND
+// generation, and the one a single declared ancestor does not cover.
+//
+// Once a payer starts declaring, the record storage keeps for each payment is itself collapsed:
+// it holds the parent as a bare txid, because that is how the payment arrived. So the next
+// payment declares an ancestor whose stored record is ALSO missing its ancestry, and restoring
+// it is no longer one lookup — storage has to re-anchor what it handed back.
+//
+// That is where DirectSourcesOnly used to break the chain. It made the parent terminal by
+// merging its raw tx alone, proof and input beef stripped; unanchorableSources then treated
+// that proof-less parent as unanchored and demanded ITS parent, one generation further back
+// than the payer ever sent.
+//
+// Observed on mainnet 2026-09-29 against pay-ovh: payment 2 of a self-chaining wallet was
+// accepted and payment 3 was refused with "payment BEEF omits ancestors that are neither
+// provided nor known to storage", naming a grandparent the payer had every right to omit. The
+// payer had already broadcast, so it cost real satoshis and bought nothing.
+func TestInternalizeActionAcceptsTxidOnlyAncestorWhoseOwnRecordIsCollapsed(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+
+	// given: a grandparent internalized in full, the way a first payment arrives
+	// Each generation's sender must be the previous generation's recipient: WithP2PKHOutput
+	// locks to the spec's recipient and WithInputFromUTXO unlocks with the spec's sender, so a
+	// mismatched pair fails script verification long before any ancestry is resolved.
+	grandparentSpec := testvectors.GivenTX().
+		WithRecipient(testvectors.Bob).
+		WithInput(1000).
+		WithP2PKHOutput(900)
+	grandparentTx := grandparentSpec.TX()
+
+	grandparentBEEF, err := grandparentTx.AtomicBEEF(false)
+	require.NoError(t, err)
+
+	_, err = activeStorage.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgsFor(grandparentBEEF))
+	require.NoError(t, err, "the grandparent must internalize normally")
+
+	// and: a parent internalized with the grandparent declared away, so the record STORED for
+	// the parent is itself collapsed. This is the generation that already worked.
+	parentSpec := testvectors.GivenTX().
+		WithSender(testvectors.Bob).
+		WithRecipient(testvectors.Charlie).
+		WithInputFromUTXO(grandparentTx, 0).
+		WithP2PKHOutput(800)
+	parentTx := parentSpec.TX()
+
+	parentBEEF := beefWithTxidOnlyParent(t, parentTx, grandparentTx.TxID())
+
+	_, err = activeStorage.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgsFor(parentBEEF))
+	require.NoError(t, err, "the first declared generation must be accepted")
+
+	// when: a child declares that parent, whose own stored record is collapsed
+	childSpec := testvectors.GivenTX().
+		WithSender(testvectors.Charlie).
+		WithRecipient(testvectors.Bob).
+		WithInputFromUTXO(parentTx, 0).
+		WithP2PKHOutput(700)
+
+	childBEEF := beefWithTxidOnlyParent(t, childSpec.TX(), parentTx.TxID())
+
+	result, err := activeStorage.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgsFor(childBEEF))
+
+	// then:
+	require.NoError(t, err, "a declared ancestor must be restored even when its own stored record is collapsed")
+	assert.True(t, result.Accepted)
+	assert.Equal(t, childSpec.TX().TxID().String(), result.TxID)
+}
