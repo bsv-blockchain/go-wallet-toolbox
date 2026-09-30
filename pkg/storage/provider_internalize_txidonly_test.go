@@ -195,3 +195,79 @@ func TestInternalizeActionAcceptsTxidOnlyAncestorWhoseOwnRecordIsCollapsed(t *te
 	assert.True(t, result.Accepted)
 	assert.Equal(t, childSpec.TX().TxID().String(), result.TxID)
 }
+
+// TestInternalizeActionAcceptsALongCollapsedChain is the one that fails if internalize stores
+// the BEEF it was GIVEN rather than the one it resolved.
+//
+// The two tests above cover one and two declared generations. Neither is deep enough to show
+// the real cost, because the damage is cumulative: when the record stored for each payment is
+// itself collapsed, restoring the Nth payment's ancestry means re-anchoring a chain of N
+// collapsed records, and hydrateAncestryFromStorage resolves one generation per round under a
+// fixed maxAncestryHydrationRounds. A payer chaining faster than blocks confirm therefore walks
+// into "BEEF ancestry still incomplete after N hydration rounds" -- thrown AFTER it has signed
+// and broadcast, so the input is spent, the fee is paid, and no service is rendered. The payer's
+// own wallet records every one of those as a success, so it cannot even tell which bought
+// nothing.
+//
+// Measured on a local mainnet stack 2026-09-30, woc-api's BRC-105 surface against this storage:
+// with args.Tx stored, refused on the 17th consecutive chained payment; with the resolved BEEF
+// stored, 27 consecutive payments and no refusal, the payment header flat at 594 bytes
+// throughout. The run ended because it ran out of distinct endpoints to buy, not because
+// anything refused.
+//
+// chainDepth is set past where that refusal was observed, so the test exercises the cumulative
+// case rather than a single generation.
+func TestInternalizeActionAcceptsALongCollapsedChain(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	activeStorage := given.Provider().GORM()
+
+	const chainDepth = 20
+
+	// given: a root internalized in full, the way a first payment arrives
+	rootSpec := testvectors.GivenTX().
+		WithRecipient(testvectors.Bob).
+		WithInput(1_000_000).
+		WithP2PKHOutput(900_000)
+	prevTx := rootSpec.TX()
+
+	rootBEEF, err := prevTx.AtomicBEEF(false)
+	require.NoError(t, err)
+
+	_, err = activeStorage.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgsFor(rootBEEF))
+	require.NoError(t, err, "the root must internalize normally")
+
+	// and: every following generation spends the one before it and declares it away, so each
+	// record STORED is collapsed -- exactly what a self-chaining BRC-105 payer produces.
+	//
+	// Sender and recipient alternate because WithP2PKHOutput locks to the spec's recipient while
+	// WithInputFromUTXO unlocks with the spec's sender; a mismatched pair fails script
+	// verification long before any ancestry is resolved.
+	satoshis := int64(900_000)
+	for generation := 1; generation <= chainDepth; generation++ {
+		sender, recipient := testvectors.Bob, testvectors.Charlie
+		if generation%2 == 0 {
+			sender, recipient = testvectors.Charlie, testvectors.Bob
+		}
+
+		satoshis -= 1_000
+		nextTx := testvectors.GivenTX().
+			WithSender(sender).
+			WithRecipient(recipient).
+			WithInputFromUTXO(prevTx, 0).
+			WithP2PKHOutput(uint64(satoshis)).
+			TX()
+
+		collapsed := beefWithTxidOnlyParent(t, nextTx, prevTx.TxID())
+
+		result, err := activeStorage.InternalizeAction(t.Context(), testusers.Alice.AuthID(), internalizeArgsFor(collapsed))
+
+		// then: every generation is accepted. Storing the collapsed BEEF makes this fail partway
+		// down, once the accumulated re-anchoring exhausts the hydration rounds.
+		require.NoErrorf(t, err, "generation %d of %d was refused -- a declared ancestor must stay resolvable however long the chain", generation, chainDepth)
+		assert.True(t, result.Accepted)
+
+		prevTx = nextTx
+	}
+}

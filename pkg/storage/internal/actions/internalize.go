@@ -120,6 +120,14 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
+	// THE ANCHORED GRAPH, CAPTURED FOR STORAGE -- see storeNewTx for why it is not args.Tx.
+	// Taken here because this is the point where beef is known complete: the omitted ancestors
+	// are back, VerifyBeef has accepted it, and HydrateBEEF has filled it in.
+	anchoredBeef, err := beef.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize anchored beef: %w", err)
+	}
+
 	// verify scripts for all unmined transactions in BEEF
 	for txIDHash, beefTx := range beef.Transactions {
 		// there shouldn't happen a situation when transaction will be nil in beef
@@ -251,7 +259,7 @@ func (in *internalize) Internalize(ctx context.Context, userID int, args *wdk.In
 				slog.String("description", string(args.Description)),
 			)
 
-			shouldBroadcast, uowErr = in.storeNewTx(txCtx, userID, args, txID, tx, cumulativeSatoshis, outputs, repos)
+			shouldBroadcast, uowErr = in.storeNewTx(txCtx, userID, args, anchoredBeef, txID, tx, cumulativeSatoshis, outputs, repos)
 			if uowErr != nil {
 				return fmt.Errorf("failed to store new transaction: %w", uowErr)
 			}
@@ -491,6 +499,7 @@ func (in *internalize) storeNewTx(
 	ctx context.Context,
 	userID int,
 	args *wdk.InternalizeActionArgs,
+	anchoredBeef []byte,
 	txID string,
 	tx *transaction.Transaction,
 	cumulativeSatoshis satoshi.Value,
@@ -535,10 +544,30 @@ func (in *internalize) storeNewTx(
 		skipForStatuses = append(skipForStatuses, wdk.ProvenTxStatusUnmined, wdk.ProvenTxStatusSending, wdk.ProvenTxStatusUnsent)
 	}
 
+	// InputBeef IS THE ANCHORED GRAPH, NOT THE ONE THAT ARRIVED.
+	//
+	// It used to be args.Tx -- what the payer sent. Under a BRC-105 knownTxids declaration that is
+	// the COLLAPSED graph: ancestors the recipient told the payer it could omit arrive as BRC-96
+	// txid-only entries. Persisting that makes every internalized record depend on some OTHER
+	// record to be readable, and the bill arrives on the next payment.
+	//
+	// hydrateAncestryFromStorage resolves one generation per round, bounded by
+	// maxAncestryHydrationRounds (create_process_inputs.go). A chain of collapsed records spends
+	// roughly half a round each, so a payer chaining faster than blocks confirm eventually meets
+	// "BEEF ancestry still incomplete after N hydration rounds". That is thrown AFTER the payer has
+	// signed and broadcast, so the input is spent, the miner fee is paid, and no service is
+	// rendered -- and the payer's own wallet records the payment as a success, so it cannot even
+	// tell which ones bought nothing. Measured on a local mainnet stack 2026-09-30: refused on the
+	// 17th consecutive chained payment, with all 18 showing as successes payer-side.
+	//
+	// Storing the anchored graph makes each record self-sufficient, so hydration terminates in one
+	// round and the accumulation never begins. The trade is size -- an anchored BEEF is larger than
+	// a collapsed one -- which is the same trade DirectSourcesOnly makes in the other direction,
+	// bought here to remove a failure that costs the payer real satoshis.
 	err = repos.KnownTxRepo().UpsertKnownTx(ctx, &entity.UpsertKnownTx{
 		TxID:            txID,
 		RawTx:           tx.Bytes(),
-		InputBeef:       args.Tx,
+		InputBeef:       anchoredBeef,
 		Status:          knownTxStatus,
 		SkipForStatuses: skipForStatuses,
 	}, history.NewBuilder().InternalizeAction(userID))
