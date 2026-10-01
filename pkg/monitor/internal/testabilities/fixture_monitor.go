@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
@@ -45,7 +46,7 @@ func (m *monitorFixture) Daemon() *monitor.Daemon {
 	m.daemon = daemon
 
 	m.t.Cleanup(func() {
-		_ = daemon.Stop()
+		_ = daemon.Stop(context.Background())
 	})
 
 	return daemon

@@ -49,8 +49,8 @@ func TestTwoDaemons_LeaseAdmitsOneRunPerSlot(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = daemonA.Stop()
-		_ = daemonB.Stop()
+		_ = daemonA.Stop(context.Background())
+		_ = daemonB.Stop(context.Background())
 	})
 
 	tasksToStart := map[defs.MonitorTask]defs.TaskConfig{
@@ -70,8 +70,8 @@ func TestTwoDaemons_LeaseAdmitsOneRunPerSlot(t *testing.T) {
 	time.Sleep(3500 * time.Millisecond)
 
 	// Stop both before reading the counters so no run is in flight.
-	require.NoError(t, daemonA.Stop())
-	require.NoError(t, daemonB.Stop())
+	require.NoError(t, daemonA.Stop(context.Background()))
+	require.NoError(t, daemonB.Stop(context.Background()))
 
 	callsA := storageA.SendWaitingTransactionsCalled.Load()
 	callsB := storageB.SendWaitingTransactionsCalled.Load()

@@ -132,7 +132,7 @@ func TestBackgroundBroadcaster_HappyPath(t *testing.T) {
 			}
 
 			mockBroadcast.waitForBroadcastCalls(t, int64(tt.length))
-			bb.Stop()
+			bb.Stop(context.Background())
 		})
 	}
 }
@@ -159,7 +159,7 @@ func TestBackgroundBroadcaster_WhenProducerIsSlowerThanConsumer(t *testing.T) {
 	}
 
 	mockBroadcast.waitForBroadcastCalls(t, 1)
-	bb.Stop()
+	bb.Stop(context.Background())
 }
 
 func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
@@ -188,7 +188,7 @@ func TestBackgroundBroadcaster_WhenProducerIsFasterThanConsumer(t *testing.T) {
 
 	assert.True(t, channelIsFull, "channel should be full at some point")
 
-	bb.Stop()
+	bb.Stop(context.Background())
 }
 
 func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
@@ -209,7 +209,7 @@ func TestBackgroundBroadcast_StopDuringProcessing(t *testing.T) {
 		added := bb.Add(beef, txIDs)
 		assert.True(t, added, "item should be added to broadcast channel")
 	}
-	bb.Stop()
+	bb.Stop(context.Background())
 	processed := mockBroadcast.called.Load()
 	require.Zero(t, processed)
 }
@@ -236,7 +236,7 @@ func TestBackgroundBroadcast_BroadcasterReturnsError(t *testing.T) {
 	mockBroadcast.waitForBroadcastCalls(t, count)
 	assert.Contains(t, logsBuffer.String(), mockBroadcast.returnErr.Error())
 
-	bb.Stop()
+	bb.Stop(context.Background())
 }
 
 func TestBackgroundBroadcast_BroadcasterPanics(t *testing.T) {
@@ -261,7 +261,7 @@ func TestBackgroundBroadcast_BroadcasterPanics(t *testing.T) {
 	mockBroadcast.waitForBroadcastCalls(t, count)
 	assert.Contains(t, logsBuffer.String(), mockBroadcast.panicDuringCall.Error())
 
-	bb.Stop()
+	bb.Stop(context.Background())
 }
 
 // TestSizingDefaultsStaySmall guards the delayed-broadcast pool's default size.
@@ -322,6 +322,68 @@ func TestBackgroundBroadcaster_SlowSubscriberMissesNoEvents(t *testing.T) {
 	}
 	assert.Equal(t, sent, received)
 
-	bb.Stop()
+	bb.Stop(context.Background())
 	assert.NotPanics(t, func() { close(events) }, "nothing sends after Stop")
+}
+
+func TestBackgroundBroadcaster_StopHonoursCallerContextWhileSubscriberIsNotReading(t *testing.T) {
+	t.Parallel()
+
+	const items = 5
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := map[string]struct {
+		newCtx func(t *testing.T) context.Context
+	}{
+		"already cancelled context": {
+			newCtx: func(*testing.T) context.Context { return cancelled },
+		},
+		"short deadline": {
+			newCtx: func(t *testing.T) context.Context {
+				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+				t.Cleanup(cancel)
+				return ctx
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// given: broadcasts whose tx-broadcasted events nobody is reading
+			mockBroadcast := &mockBroadcaster{returnResults: true}
+			txBroadcastedCh := make(chan wdk.CurrentTxStatus, 1)
+
+			logger, _ := loggerForTestBroadcaster()
+			bb := service.NewBackgroundBroadcaster(t.Context(), logger, mockBroadcast, txBroadcastedCh, service.Sizing{})
+			bb.Start()
+
+			for txSpec := range broadcastItemsGenerator(items) {
+				beef, err := transaction.NewBeefFromTransaction(txSpec.TX())
+				require.NoError(t, err)
+				require.True(t, bb.Add(beef, []string{txSpec.ID().String()}))
+			}
+			mockBroadcast.waitForBroadcastCalls(t, items)
+
+			// when: the broadcaster is stopped with a context that ends long before the default drain timeout
+			stopped := make(chan struct{})
+			go func() {
+				bb.Stop(tt.newCtx(t))
+				close(stopped)
+			}()
+
+			// then: Stop gives up on the backlog instead of waiting for the subscriber
+			select {
+			case <-stopped:
+			case <-time.After(5 * time.Second):
+				t.Fatal("Stop did not honour the caller's context")
+			}
+
+			// and: nothing sends anymore, so the owner can still close the channel
+			assert.NotPanics(t, func() { close(txBroadcastedCh) })
+		})
+	}
 }

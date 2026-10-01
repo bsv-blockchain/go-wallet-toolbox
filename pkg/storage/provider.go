@@ -221,8 +221,12 @@ func (p *Provider) poolSnapshot(ctx context.Context) ([]metrics.PoolRow, error) 
 }
 
 // Stop gracefully terminates the background broadcaster and releases related resources.
-func (p *Provider) Stop() {
-	p.actions.StopBackgroundBroadcaster()
+//
+// The background broadcaster drains its event queue before Stop returns, waiting for the
+// subscriber to read the backlog until ctx is done; cancelling ctx aborts that delivery.
+// Once Stop returns nothing sends to the subscriber channel, so its owner may close it.
+func (p *Provider) Stop(ctx context.Context) {
+	p.actions.StopBackgroundBroadcaster(ctx)
 
 	if p.unregisterPoolGauges != nil {
 		p.unregisterPoolGauges()

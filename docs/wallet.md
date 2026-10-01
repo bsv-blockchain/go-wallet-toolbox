@@ -34,7 +34,7 @@ func main() {
         storage.WithDBConfig(defs.DefaultDBConfig()),
     )
     if err != nil { panic(err) }
-    defer provider.Stop()
+    defer provider.Stop(context.Background())
 
     ctx := context.Background()
     if _, err = provider.Migrate(ctx, "My Wallet Storage", "my-identity-key"); err != nil { panic(err) }

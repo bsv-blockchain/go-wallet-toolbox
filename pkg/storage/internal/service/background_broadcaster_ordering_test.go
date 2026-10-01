@@ -70,7 +70,7 @@ func TestBackgroundBroadcaster_PostsUnconfirmedParentBeforeChild(t *testing.T) {
 	logger, _ := loggerForTestBroadcaster()
 	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{Workers: 1})
 	bb.Start()
-	defer bb.Stop()
+	defer bb.Stop(context.Background())
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
@@ -104,7 +104,7 @@ func TestBackgroundBroadcaster_PostsParentAndChildOfSameBatchWithoutWaiting(t *t
 	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil,
 		service.Sizing{Workers: 1, MaxParentWait: time.Minute})
 	bb.Start()
-	defer bb.Stop()
+	defer bb.Stop(context.Background())
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
@@ -144,7 +144,7 @@ func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) 
 		SweepInterval: time.Minute,
 	})
 	bb.Start()
-	defer bb.Stop()
+	defer bb.Stop(context.Background())
 
 	// An unrelated transaction occupies the single worker while parent and child
 	// queue up behind it.
@@ -190,7 +190,7 @@ func TestBackgroundBroadcaster_DoesNotStallOnParentItWillNeverPost(t *testing.T)
 		SweepInterval:     10 * time.Millisecond,
 	})
 	bb.Start()
-	defer bb.Stop()
+	defer bb.Stop(context.Background())
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
@@ -222,7 +222,7 @@ func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
 		SweepInterval:     10 * time.Millisecond,
 	})
 	bb.Start()
-	defer bb.Stop()
+	defer bb.Stop(context.Background())
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
