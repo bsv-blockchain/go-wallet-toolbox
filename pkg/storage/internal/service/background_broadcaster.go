@@ -261,12 +261,15 @@ func (bb *BackgroundBroadcaster) Start() {
 	go bb.requeueDispatcher()
 }
 
-func (bb *BackgroundBroadcaster) Stop() {
+// Stop stops the workers and drains the tx-broadcasted event queue. The drain
+// waits for the subscriber to read the backlog until ctx is done, after which
+// nothing sends to the subscriber channel and its owner may close it.
+func (bb *BackgroundBroadcaster) Stop(ctx context.Context) {
 	bb.stopOnce.Do(func() {
 		bb.cancel()
 		bb.wg.Wait()
 		close(bb.broadcastChannel)
-		eventqueue.ReleaseWithDefaultTimeout(bb.releaseTxBroadcastedEvents)
+		bb.releaseTxBroadcastedEvents(ctx)
 	})
 }
 

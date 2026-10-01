@@ -1155,9 +1155,9 @@ func (p *process) singleTxBroadcastResult(aggBroadcastResult *wdk.AggregatedPost
 	return reqStatus, txStatus, spendable, reviewActionResult, sendWithResult, err
 }
 
-func (p *process) StopBackgroundBroadcaster() {
+func (p *process) StopBackgroundBroadcaster(ctx context.Context) {
 	if p.backgroundBroadcaster != nil {
-		p.backgroundBroadcaster.Stop()
+		p.backgroundBroadcaster.Stop(ctx)
 	}
 }
 

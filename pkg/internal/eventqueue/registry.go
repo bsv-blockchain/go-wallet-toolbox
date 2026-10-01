@@ -120,11 +120,3 @@ func Acquire[T any](stream string, out chan<- T, logger *slog.Logger) (*Queue[T]
 
 	return q, release
 }
-
-// ReleaseWithDefaultTimeout calls release with a DefaultDrainTimeout deadline,
-// for owners whose shutdown path has no context of its own.
-func ReleaseWithDefaultTimeout(release func(ctx context.Context)) {
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultDrainTimeout)
-	defer cancel()
-	release(ctx)
-}

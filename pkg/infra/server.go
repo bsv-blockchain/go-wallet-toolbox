@@ -13,6 +13,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -252,7 +253,10 @@ func (s *Server) Cleanup() {
 	s.logger.InfoContext(context.Background(), "Cleaning up resources...")
 
 	if s.monitor != nil {
-		_ = s.monitor.Stop()
+		stopCtx, cancel := context.WithTimeout(context.Background(), eventqueue.DefaultDrainTimeout)
+		defer cancel()
+
+		_ = s.monitor.Stop(stopCtx)
 	}
 
 	for _, fn := range s.cleanupFunc {
