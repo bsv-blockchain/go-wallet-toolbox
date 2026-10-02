@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/examples/internal/show"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -18,6 +19,9 @@ import (
 
 const (
 	SQLiteStorageFile = "storage.sqlite"
+
+	// stopTimeout bounds how long shutdown waits for event subscribers to read the backlog.
+	stopTimeout = 30 * time.Second
 )
 
 // getExamplesDir returns the absolute path to the examples directory
@@ -82,12 +86,15 @@ func CreateLocalStorage(ctx context.Context, network defs.BSVNetwork, serverPriv
 	}
 
 	cleanup := func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		defer cancel()
+
 		if daemon != nil {
-			if err := daemon.Stop(); err != nil {
+			if err := daemon.Stop(stopCtx); err != nil {
 				show.Error(fmt.Sprintf("failed to stop storage monitor: %v", err))
 			}
 		}
-		activeStorage.Stop()
+		activeStorage.Stop(stopCtx)
 	}
 
 	return activeStorage, cleanup, nil

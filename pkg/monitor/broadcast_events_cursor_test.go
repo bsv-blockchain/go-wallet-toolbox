@@ -172,7 +172,7 @@ func TestBroadcastEvents_PersistErrorDoesNotAdvanceCursor(t *testing.T) {
 	}
 	daemon, err := monitor.NewDaemon(logger, storage, monitor.DefaultDaemonEventOptions(opts...))
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = daemon.Stop() })
+	t.Cleanup(func() { _ = daemon.Stop(context.Background()) })
 	require.NoError(t, daemon.Start(ctx, nil))
 
 	waitForReconnect(t, streamer)

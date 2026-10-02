@@ -60,7 +60,7 @@ func main() {
         storage.WithDBConfig(defs.DefaultDBConfig()),
     )
     if err != nil { panic(err) }
-    defer provider.Stop()
+    defer provider.Stop(context.Background())
 
     ctx := context.Background()
     _, err = provider.Migrate(ctx, "My Storage", "my-storage-identity-key")

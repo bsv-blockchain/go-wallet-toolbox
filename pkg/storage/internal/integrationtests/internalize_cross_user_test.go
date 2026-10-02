@@ -1,6 +1,7 @@
 package integrationtests
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,5 +85,5 @@ func TestInternalizeCrossUser(t *testing.T) {
 		assert.Equal(t, wdk.ProvenTxStatusSending, check.Status, "KnownTx was correctly preserved as Sending")
 	})
 
-	activeStorage.Stop()
+	activeStorage.Stop(context.Background())
 }

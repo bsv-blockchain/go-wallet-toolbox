@@ -57,6 +57,9 @@ const (
 	changeBasket    = "default"
 	fundingWaitMax  = 10 * time.Minute
 	fundingWaitStep = 15 * time.Second
+
+	// stopTimeout bounds how long shutdown waits for event subscribers to read the backlog.
+	stopTimeout = 30 * time.Second
 )
 
 type runtimeConfig struct {
@@ -252,12 +255,15 @@ func createStorage(ctx context.Context, logger *slog.Logger, cfg *infra.Config, 
 	}
 
 	cleanup := func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		defer cancel()
+
 		if daemon != nil {
-			if err := daemon.Stop(); err != nil {
+			if err := daemon.Stop(stopCtx); err != nil {
 				logger.Error("failed to stop monitor daemon", "error", err)
 			}
 		}
-		activeStorage.Stop()
+		activeStorage.Stop(stopCtx)
 	}
 	return activeStorage, cleanup, nil
 }

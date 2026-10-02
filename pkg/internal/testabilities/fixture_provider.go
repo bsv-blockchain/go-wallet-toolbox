@@ -1,6 +1,7 @@
 package testabilities
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"testing"
@@ -206,7 +207,7 @@ func (p *providerFixture) seedUsers(provider *storage.Provider) {
 func (p *providerFixture) Cleanup() {
 	p.t.Helper()
 	for _, provider := range p.providers {
-		provider.Stop()
+		provider.Stop(context.Background())
 	}
 }
 

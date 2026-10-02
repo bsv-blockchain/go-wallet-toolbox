@@ -158,7 +158,7 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 		}
 
 		if err := d.initializeTask(taskFactory(), taskName, taskConfig); err != nil {
-			d.releaseEventQueues()
+			d.releaseEventQueues(ctx)
 			return err
 		}
 	}
@@ -205,7 +205,11 @@ func (d *Daemon) Pause() error {
 // Stop shuts down the daemon, releasing all resources and clearing scheduled jobs.
 // If the daemon is not running, logs a warning and returns nil.
 // The Daemon cannot be restarted after stopping.
-func (d *Daemon) Stop() error {
+//
+// Before returning, Stop gives the subscribers of the outbound event channels until ctx is
+// done to read the backlog; cancelling ctx aborts that delivery. Once Stop returns nothing
+// sends to those channels, so their owner may close them.
+func (d *Daemon) Stop(ctx context.Context) error {
 	d.startLock.Lock()
 	defer d.startLock.Unlock()
 
@@ -223,9 +227,9 @@ func (d *Daemon) Stop() error {
 	}
 	d.handlers.Wait()
 
-	// Give the subscribers a bounded time to read the backlog. After this returns
+	// Give the subscribers until ctx is done to read the backlog. After this returns
 	// nothing sends to the subscriber channels, so their owner may close them.
-	d.releaseEventQueues()
+	d.releaseEventQueues(ctx)
 
 	if err != nil {
 		return fmt.Errorf("failed to clear jobs: %w", err)
@@ -243,10 +247,7 @@ func (d *Daemon) acquireEventQueues() {
 	d.releaseEvents = append(d.releaseEvents, release)
 }
 
-func (d *Daemon) releaseEventQueues() {
-	ctx, cancel := context.WithTimeout(context.Background(), eventqueue.DefaultDrainTimeout)
-	defer cancel()
-
+func (d *Daemon) releaseEventQueues(ctx context.Context) {
 	// The queues drain concurrently so the deadline applies to all of them at once.
 	var wg sync.WaitGroup
 	for _, release := range d.releaseEvents {

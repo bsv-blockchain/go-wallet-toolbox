@@ -89,7 +89,7 @@ func newTestDaemon(t *testing.T, logger *slog.Logger, storage monitor.MonitoredS
 	daemon, err := monitor.NewDaemon(logger, storage, monitor.DefaultDaemonEventOptions(opts...))
 	require.NoError(t, err)
 
-	t.Cleanup(func() { _ = daemon.Stop() })
+	t.Cleanup(func() { _ = daemon.Stop(context.Background()) })
 	return daemon
 }
 
@@ -203,7 +203,7 @@ func TestBroadcastEvents_ProvenEventsForwarded(t *testing.T) {
 	}
 	daemon, err := monitor.NewDaemon(logger, storage, monitor.DefaultDaemonEventOptions(opts...))
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = daemon.Stop() })
+	t.Cleanup(func() { _ = daemon.Stop(context.Background()) })
 	require.NoError(t, daemon.Start(ctx, nil))
 
 	// Wait until the proven event lands on the channel.
