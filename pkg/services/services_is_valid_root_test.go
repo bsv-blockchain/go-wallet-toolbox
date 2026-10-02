@@ -487,14 +487,17 @@ func givenCacheStore(t *testing.T, cfg defs.Cache) cachestore.Provider {
 // givenCountingRootProvider replaces every IsValidRootForHeight provider with one that
 // counts its calls and accepts only validRoot.
 func givenCountingRootProvider(t *testing.T, validRoot *chainhash.Hash, calls *int) testservices.WalletServicesFixture {
-	provider := func(_ context.Context, root *chainhash.Hash, _ uint32) (bool, error) {
-		*calls++
-		return root.IsEqual(validRoot), nil
+	counting := services.Named[services.IsValidRootForHeightFunc]{
+		Name: "counting",
+		Item: func(_ context.Context, root *chainhash.Hash, _ uint32) (bool, error) {
+			*calls++
+			return root.IsEqual(validRoot), nil
+		},
 	}
 
 	return testservices.GivenServices(t).Services().
 		Opts(services.WithIsValidRootForHeightMethodsModifier(
 			func([]services.Named[services.IsValidRootForHeightFunc]) []services.Named[services.IsValidRootForHeightFunc] {
-				return []services.Named[services.IsValidRootForHeightFunc]{{Name: "counting", Item: provider}}
+				return []services.Named[services.IsValidRootForHeightFunc]{counting}
 			}))
 }
