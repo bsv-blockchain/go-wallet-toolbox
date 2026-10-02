@@ -2,6 +2,12 @@ background_broadcaster:
   channel_size: 0
   workers: 0
 bsv_network: main
+cache:
+  redis:
+    prefix: wtb
+    url: ""
+  size: 10000
+  type: memory
 change_basket:
   max_change_outputs_per_tx: 8
   minimum_desired_utxo_value: 1000
