@@ -12,6 +12,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/must"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/internal/config"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/cachestore"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
@@ -102,7 +103,12 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		cfg.Services.Arcade.CallbackToken = wdk.DeriveArcadeCallbackToken(storageIdentityKey)
 	}
 
-	activeServices := services.New(logger, cfg.Services)
+	cacheStore, err := cachestore.New(logger, cfg.Cache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache store: %w", err)
+	}
+
+	activeServices := services.New(logger, cfg.Services, services.WithCacheStore(cacheStore))
 
 	providerOptions := append(
 		GORMProviderOptionsFromConfig(&cfg),

@@ -167,6 +167,28 @@ Selecting `tstn` without at least `TSTN_ARCADE_URL` fails startup with an action
 
 <br>
 
+### Cache store
+
+Components that repeat expensive lookups keep their results in a shared cache store, configured once
+under the top-level `cache` key (env: `INFRA_CACHE_*`). Each component uses its own namespace and
+picks its own entry lifetime; purging one namespace never touches another.
+
+| `type` | Behaviour |
+|---|---|
+| `memory` (default) | Per-process LRU of `size` entries per namespace. |
+| `redis` | Shared by every instance pointing at the same Redis (`redis.url`, e.g. `redis://user:pass@host:6379/0`, `rediss://` for TLS). Keys live under `redis.prefix`. If Redis is unreachable, lookups miss and a warning is logged (at most once a minute). |
+| `none` | No caching. |
+
+Current users:
+- **Merkle roots** (`validroot:<network>`): confirmed `(merkle root, height)` pairs, so BEEF verification
+  does not ask the header service again for blocks it has already checked. Only positive answers are
+  cached, for 1h, and the namespace is purged on every reorg reported by ChainTracks.
+
+Library users pass a store to `services.New` with `services.WithCacheStore(cachestore.New(logger, cfg))`;
+without it `WalletServices` uses an in-memory store.
+
+<br>
+
 ## 📚 Documentation
 - Core concepts and examples: `./examples/README.md`
 - Complex example: `./examples/complex_wallet_examples/create_faucet_server/QUICK_START.md`

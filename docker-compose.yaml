@@ -27,6 +27,19 @@ services:
       retries: 5
       start_period: 10s
 
+  # Optional shared cache store (see "Cache store" in README.md). Uncomment this service,
+  # the redis entry under infra.depends_on and the INFRA_CACHE_* variables under
+  # infra.environment. Without it infra caches in memory.
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "127.0.0.1:6379:6379"
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+
   infra:
     build:
       context: .
@@ -34,6 +47,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # redis:
+      #   condition: service_healthy
     ports:
       - "8100:8100"
     volumes:
@@ -44,6 +59,8 @@ services:
     # Optional: increase max body size further via env if you extend the app to read it
     # environment:
     #   - MAX_REQUEST_BODY_BYTES=524288000   # 500 MiB
+    #   - INFRA_CACHE_TYPE=redis
+    #   - INFRA_CACHE_REDIS_URL=redis://redis:6379/0
 
 volumes:
   db-data:
