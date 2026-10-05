@@ -3,6 +3,7 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.27.0
 
 require (
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/bsv-blockchain/go-bsv-middleware v0.16.1
 	github.com/bsv-blockchain/go-chaintracks v1.4.1
 	github.com/bsv-blockchain/go-sdk v1.7.0
@@ -14,10 +15,12 @@ require (
 	github.com/go-softwarelab/common v1.8.0
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/google/uuid v1.6.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jarcoal/httpmock v1.4.2
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/mrz1836/go-whatsonchain v1.3.0
+	github.com/redis/go-redis/v9 v9.22.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.71.0
@@ -125,7 +128,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/ipfs/boxo v0.43.0 // indirect
 	github.com/ipfs/go-cid v0.6.2 // indirect
@@ -248,6 +250,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0-rc.1 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

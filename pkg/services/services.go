@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 	"github.com/go-softwarelab/common/pkg/to"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/cachestore"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
@@ -61,6 +63,18 @@ type WalletServices struct {
 	chaintracks    *chaintracksclient.Adapter
 	reorgBroadcast *reorgBroadcaster
 	tipBroadcast   *tipBroadcaster
+
+	// validRoots caches positive IsValidRootForHeight answers.
+	validRoots cachestore.Store
+}
+
+// validRootTTL bounds how long a confirmed root is trusted without asking again. It is what
+// limits staleness on providers without a reorg feed; with chaintracks the cache is also
+// purged on every reorg.
+const validRootTTL = time.Hour
+
+func validRootKey(root *chainhash.Hash, height uint32) string {
+	return strconv.FormatUint(uint64(height), 10) + ":" + root.String()
 }
 
 // New will return a new WalletServices
@@ -432,6 +446,12 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 		arcadeService.SetChainTipHeight(walletServices.CurrentHeight)
 	}
 
+	cacheStore := options.CacheStore
+	if cacheStore == nil {
+		cacheStore = cachestore.NewMemory(defs.DefaultCacheSize)
+	}
+	walletServices.validRoots = cacheStore.Store("validroot:" + string(config.Chain))
+
 	walletServices.logActiveServices()
 	return walletServices
 }
@@ -536,6 +556,8 @@ func (s *WalletServices) StartChaintracks(ctx context.Context) error {
 				"new_tip_hash", event.NewTip.Hash.String(),
 				"orphaned_count", len(event.OrphanedHashes),
 			)
+			// ponytail: purges every cached root; purge only heights above the fork point if reorgs get frequent.
+			_ = s.validRoots.Purge(ctx) // a failure is logged by the store; entries then expire via TTL
 			s.reorgBroadcast.broadcast(event)
 			return nil
 		},
@@ -761,12 +783,22 @@ func (s *WalletServices) IsValidRootForHeight(ctx context.Context, root *chainha
 		tracing.EndTracing(span, err)
 	}()
 
+	// A cache error is just a miss: the store logs it and the providers are asked as usual.
+	if _, hit, _ := s.validRoots.Get(ctx, validRootKey(root, height)); hit {
+		return true, nil
+	}
+
 	ok, err := s.isValidRootForHeightServices.OneByOne(ctx, root, height)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
 			return false, fmt.Errorf("all IsValidRootForHeight providers failed for height %d", height)
 		}
 		return false, fmt.Errorf("failed to validate Merkle root %s for height %d: %w", root, height, err)
+	}
+
+	// Only a positive answer is cached: false can mean the provider has not caught up with the tip yet.
+	if ok {
+		_ = s.validRoots.Set(ctx, validRootKey(root, height), nil, validRootTTL)
 	}
 	return ok, nil
 }
