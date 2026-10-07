@@ -56,7 +56,7 @@ func (c *configurer) WithCustomHandler(handler slog.Handler) LoggerMaker {
 
 // WithHandler sets a handler for the logger (provided by slog package).
 func (c *configurer) WithHandler(handlerType defs.LogHandler, writer io.Writer) LoggerMaker {
-	opts := &slog.HandlerOptions{Level: c.level}
+	opts := &slog.HandlerOptions{Level: c.level, ReplaceAttr: renderTraceLevel}
 
 	switch handlerType {
 	case defs.JSONHandler:
@@ -72,4 +72,14 @@ func (c *configurer) WithHandler(handlerType defs.LogHandler, writer io.Writer) 
 // Logger creates a new logger from the configuration.
 func (c *configurer) Logger() *slog.Logger {
 	return slog.New(c.handler)
+}
+
+// renderTraceLevel prints LevelTrace as "TRACE" instead of slog's default "DEBUG-4".
+func renderTraceLevel(_ []string, a slog.Attr) slog.Attr {
+	if a.Key == slog.LevelKey {
+		if lvl, ok := a.Value.Any().(slog.Level); ok && lvl == LevelTrace {
+			a.Value = slog.StringValue("TRACE")
+		}
+	}
+	return a
 }

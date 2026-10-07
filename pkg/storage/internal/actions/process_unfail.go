@@ -34,7 +34,7 @@ func (p *process) UnFail(ctx context.Context) error {
 	}()
 
 	log := p.logger.With("action", "unfail")
-	log.InfoContext(ctx, "Attempting to process 'unfail' transactions")
+	logging.Trace(ctx, log, "Attempting to process 'unfail' transactions")
 
 	startTime := time.Now()
 
@@ -54,7 +54,7 @@ func (p *process) UnFail(ctx context.Context) error {
 
 		if len(itemsPage) == 0 {
 			if processed == 0 {
-				log.InfoContext(ctx, "No transactions found to unfail")
+				logging.Trace(ctx, log, "No transactions found to unfail")
 			}
 			return nil
 		}

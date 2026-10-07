@@ -122,7 +122,7 @@ func (l *LeaseLocker) Lock(ctx context.Context, key string) (gocron.Lock, error)
 		return nil, fmt.Errorf("lease claim failed for %s: %w", key, res.Error)
 	}
 	if res.RowsAffected == 0 {
-		l.logger.WarnContext(ctx, "monitor job skipped: lease held by another instance",
+		logging.Trace(ctx, l.logger, "monitor job skipped: lease held by another instance",
 			slog.String("job", key))
 		return nil, fmt.Errorf("lease for %s held by another instance", key)
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -39,11 +40,11 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	}()
 
 	log := p.logger.With("action", "sendWaitingTransactions").With(slog.Duration("minTransactionAge", minTransactionAge))
-	log.InfoContext(ctx, "Attempting to send waiting transactions")
+	logging.Trace(ctx, log, "Attempting to send waiting transactions")
 
 	lockAcquired := p.sendWaitingLock.TryLock()
 	if !lockAcquired {
-		log.WarnContext(ctx, "SendWaitingTransactions is already running, skipping this run")
+		log.DebugContext(ctx, "SendWaitingTransactions is already running, skipping this run")
 		return nil, nil
 	}
 	defer p.sendWaitingLock.Unlock()
@@ -63,7 +64,7 @@ func (p *process) SendWaitingTransactions(ctx context.Context, minTransactionAge
 	}
 
 	if len(batchesToBroadcast) == 0 {
-		log.InfoContext(ctx, "No transactions found to send")
+		logging.Trace(ctx, log, "No transactions found to send")
 		return nil, nil
 	}
 

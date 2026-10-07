@@ -9,6 +9,7 @@ type LogLevel string
 
 // Supported log levels (based on slog).
 const (
+	LogLevelTrace LogLevel = "trace"
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"
 	LogLevelWarn  LogLevel = "warn"
@@ -17,7 +18,7 @@ const (
 
 // ParseLogLevelStr parses a string into a LogLevel (case-insensitive).
 func ParseLogLevelStr(level string) (LogLevel, error) {
-	return parseEnumCaseInsensitive(level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError)
+	return parseEnumCaseInsensitive(level, LogLevelTrace, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError)
 }
 
 // LogHandler represents different log handler types which can be configured.
