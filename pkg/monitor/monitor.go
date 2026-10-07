@@ -337,7 +337,7 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 			tracing.EndTracing(span, err)
 		}()
 
-		d.logger.InfoContext(ctx, "Run task", slog.Any("task", activeTask.TaskName))
+		logging.Trace(ctx, d.logger, "Run task", slog.Any("task", activeTask.TaskName))
 		defer func() {
 			if err != nil {
 				d.logger.ErrorContext(ctx, "Task failed", slog.Any("task", activeTask.TaskName), slog.Any("error", err))
@@ -347,7 +347,7 @@ func (d *Daemon) singleTaskRunner(activeTask *ActiveTask) func(ctx context.Conte
 				return
 			}
 			nextRun, _ := activeTask.Cronjob.NextRun()
-			d.logger.InfoContext(ctx, "Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
+			logging.Trace(ctx, d.logger, "Finish task", slog.Any("task", activeTask.TaskName), slog.Any("next_run", nextRun))
 		}()
 
 		ctx, cancel := d.contextWithTimeout(ctx, activeTask.Interval)

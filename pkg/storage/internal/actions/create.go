@@ -79,7 +79,7 @@ func retryOnContention(ctx context.Context, logger *slog.Logger, random wdk.Rand
 		}
 
 		metrics.RecordContentionRetry(ctx)
-		logger.WarnContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt), logging.Error(err))
+		logger.DebugContext(ctx, "retrying funding after UTXO contention", slog.Int("attempt", attempt), logging.Error(err))
 	}
 }
 
@@ -485,7 +485,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 			// override → mined, unproven, + sending when the action is
 			// delayed): correctness must match the privacy strategy exactly,
 			// so the spend policy narrows only pool claims, never the fallback.
-			c.logger.WarnContext(ctx, "funding basket exhausted, falling back to default basket",
+			c.logger.DebugContext(ctx, "funding basket exhausted, falling back to default basket",
 				logging.UserID(userID), logging.Reference(reference), slog.String("fundingBasket", fundingBasket.Name))
 			funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, funder.FundArgs{
 				TargetSat:          targetSat,

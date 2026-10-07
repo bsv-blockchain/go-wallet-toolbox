@@ -150,7 +150,7 @@ func (p *process) applyExternalMined(ctx context.Context, ev *wdk.BroadcastStatu
 		return nil, err
 	}
 	if merklePath == nil {
-		p.logger.InfoContext(
+		p.logger.DebugContext(
 			ctx, "Merkle path for externally mined tx is not available yet - leaving the tx to the polling safety net",
 			slog.String("txID", ev.TxID),
 		)
@@ -374,7 +374,7 @@ func (p *process) requeueExternallyRejectedTx(ctx context.Context, ev *wdk.Broad
 		return nil, fmt.Errorf("failed to requeue externally rejected tx %s for rebroadcast: %w", ev.TxID, err)
 	}
 	if !applied {
-		p.logger.InfoContext(
+		p.logger.DebugContext(
 			ctx, "External REJECTED event could not be confirmed - tx is not in a requeueable status, leaving it untouched",
 			slog.String("txID", ev.TxID),
 			slog.String("storedStatus", string(current)),
@@ -419,7 +419,7 @@ func (p *process) failExternallyRejectedTx(ctx context.Context, ev *wdk.Broadcas
 		return nil, fmt.Errorf("failed to apply terminal double-spend failure for externally rejected tx %s: %w", ev.TxID, err)
 	}
 	if !applied {
-		p.logger.InfoContext(
+		p.logger.DebugContext(
 			ctx, "Externally rejected tx reached a protected status concurrently (e.g. completed) - leaving the stored state untouched",
 			slog.String("txID", ev.TxID),
 		)
