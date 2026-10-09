@@ -47,8 +47,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      # redis:
-      #   condition: service_healthy
+        # redis:
+        #   condition: service_healthy
     ports:
       - "8100:8100"
     volumes:
