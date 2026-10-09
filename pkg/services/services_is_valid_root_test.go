@@ -499,5 +499,6 @@ func givenCountingRootProvider(t *testing.T, validRoot *chainhash.Hash, calls *i
 		Opts(services.WithIsValidRootForHeightMethodsModifier(
 			func([]services.Named[services.IsValidRootForHeightFunc]) []services.Named[services.IsValidRootForHeightFunc] {
 				return []services.Named[services.IsValidRootForHeightFunc]{counting}
-			}))
+			},
+		))
 }
