@@ -45,3 +45,31 @@ func TestJSONLogger(t *testing.T) {
 	require.Contains(t, msg, `"level":"DEBUG"`)
 	require.Contains(t, msg, `"msg":"debug message"`)
 }
+
+func TestTraceLevel(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("hidden at debug level", func(t *testing.T) {
+		// given:
+		w := &logging.TestWriter{}
+		logger := logging.New().WithLevel(defs.LogLevelDebug).WithHandler(defs.TextHandler, w).Logger()
+
+		// when:
+		logging.Trace(ctx, logger, "heartbeat")
+
+		// then:
+		require.Empty(t, w.String())
+	})
+
+	t.Run("shown as TRACE at trace level", func(t *testing.T) {
+		// given:
+		w := &logging.TestWriter{}
+		logger := logging.New().WithLevel(defs.LogLevelTrace).WithHandler(defs.JSONHandler, w).Logger()
+
+		// when:
+		logging.Trace(ctx, logger, "heartbeat")
+
+		// then:
+		require.Contains(t, w.String(), `"level":"TRACE"`)
+	})
+}

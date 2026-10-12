@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/cachestore"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/httpx"
 )
@@ -33,9 +34,21 @@ type Options struct {
 	IsUtxoModifier               func([]Named[IsUtxo]) []Named[IsUtxo]
 	BsvExchangeRateModifier      func([]Named[BsvExchangeRateFunc]) []Named[BsvExchangeRateFunc]
 
+	// CacheStore backs every cache WalletServices keeps (e.g. confirmed merkle roots).
+	// Defaults to an in-memory store when not set.
+	CacheStore cachestore.Provider
+
 	customImplementations []Named[Implementation]
 
 	chaintracksAdapter *chaintracksclient.Adapter
+}
+
+// WithCacheStore sets the cache store WalletServices keeps its caches in, so they can
+// live in Redis and be shared between instances. See cachestore.New.
+func WithCacheStore(store cachestore.Provider) func(*Options) {
+	return func(o *Options) {
+		o.CacheStore = store
+	}
 }
 
 // WithHttpClient sets the http client for the service.

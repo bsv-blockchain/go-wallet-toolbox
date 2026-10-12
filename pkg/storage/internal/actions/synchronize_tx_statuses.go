@@ -284,7 +284,7 @@ func (s *synchronizeTxStatuses) filterTxsByConfirmationDepth(ctx context.Context
 func (s *synchronizeTxStatuses) synchronizeTxStatusesInternal(ctx context.Context, heightForCheck uint, hashForCheck string) ([]wdk.TxSynchronizedStatus, error) {
 	lockAcquired := s.lock.TryLock()
 	if !lockAcquired {
-		s.logger.WarnContext(ctx, "synchronizeTxStatuses is already running, skipping this run")
+		s.logger.DebugContext(ctx, "synchronizeTxStatuses is already running, skipping this run")
 		return nil, nil
 	}
 	defer s.lock.Unlock()
@@ -342,7 +342,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	}
 
 	if len(txsToSync) == 0 {
-		s.logger.InfoContext(ctx, "no transactions need synchronization", slog.Any("height", heightForCheck))
+		logging.Trace(ctx, s.logger, "no transactions need synchronization", slog.Any("height", heightForCheck))
 		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
 			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
 		}
@@ -356,7 +356,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	}
 
 	if len(txsToSync) == 0 && len(absentTxIDs) == 0 {
-		s.logger.InfoContext(ctx, "no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
+		logging.Trace(ctx, s.logger, "no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
 		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
 			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
 		}
@@ -407,7 +407,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		}
 
 		if err != nil || merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
-			s.logger.InfoContext(
+			s.logger.DebugContext(
 				ctx,
 				"merkle path result is empty, this may be normal if the transaction is not yet mined",
 				slog.String("txID", txToSync.TxID),

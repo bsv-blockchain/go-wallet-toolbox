@@ -83,7 +83,7 @@ func (l *SignActionLocalRepository) checkForCleanup() {
 }
 
 func (l *SignActionLocalRepository) cleanup() {
-	l.logger.InfoContext(context.Background(), "cleaning up old pending sign actions cache")
+	logging.Trace(context.Background(), l.logger, "cleaning up old pending sign actions cache")
 
 	cutoff := time.Now().Add(-l.ttl)
 	l.actions.Range(func(key, value any) bool {

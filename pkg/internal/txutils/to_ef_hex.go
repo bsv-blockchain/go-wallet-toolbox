@@ -7,6 +7,8 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 )
 
 // ValidateSingleLeafTx checks that BEEF contains exactly one leaf transaction.
@@ -72,7 +74,9 @@ func BindBumpsAndTransactions(beef *transaction.Beef, logger *slog.Logger) {
 				}
 				tx, ok := beef.Transactions[*element.Hash]
 				if !ok {
-					logger.WarnContext(context.Background(), "got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
+					// expected when the BEEF is trimmed (txid-only / known-tx stubs / direct sources only)
+					metrics.RecordBumpLeafMissing(context.Background())
+					logger.DebugContext(context.Background(), "got leaf marked as txid in BUMP that is not part of the BEEF", slog.String("txid", element.Hash.String()))
 					continue
 				}
 				tx.BumpIndex = i

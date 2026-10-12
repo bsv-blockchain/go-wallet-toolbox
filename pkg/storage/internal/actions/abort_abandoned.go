@@ -25,11 +25,11 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 	}()
 
 	log := a.logger.With("action", "failAbandonedTransactions").With(slog.Duration("minTransactionAge", minTransactionAge))
-	log.InfoContext(ctx, "Attempting to fail abandoned transactions")
+	logging.Trace(ctx, log, "Attempting to fail abandoned transactions")
 
 	lockAcquired := a.failAbandonedLock.TryLock()
 	if !lockAcquired {
-		log.WarnContext(ctx, "FailAbandonedTransactions is already running, skipping this run")
+		log.DebugContext(ctx, "FailAbandonedTransactions is already running, skipping this run")
 		return nil
 	}
 	defer a.failAbandonedLock.Unlock()
@@ -61,7 +61,7 @@ func (a *abortAction) AbortAbandoned(ctx context.Context, minTransactionAge time
 	}
 
 	if len(idsToAbort) == 0 {
-		log.InfoContext(ctx, "No abandoned transactions found to fail")
+		logging.Trace(ctx, log, "No abandoned transactions found to fail")
 		return nil
 	}
 

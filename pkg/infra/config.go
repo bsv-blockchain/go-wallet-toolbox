@@ -32,6 +32,7 @@ type Config struct {
 	UTXOManagement        defs.UTXOManagement        `mapstructure:"utxo_management"`
 	BackgroundBroadcaster defs.BackgroundBroadcaster `mapstructure:"background_broadcaster"`
 	Observability         defs.Observability         `mapstructure:"observability"`
+	Cache                 defs.Cache                 `mapstructure:"cache"`
 }
 
 // DBConfig is the configuration for the database
@@ -96,6 +97,7 @@ func Defaults() Config {
 		UTXOManagement:        defs.DefaultUTXOManagement(),
 		BackgroundBroadcaster: defs.DefaultBackgroundBroadcaster(),
 		Observability:         defs.DefaultObservability(),
+		Cache:                 defs.DefaultCache(),
 	}
 }
 
@@ -205,6 +207,10 @@ func (c *Config) Validate() (err error) {
 
 	if err = c.Services.Validate(); err != nil {
 		return fmt.Errorf("invalid services config: %w", err)
+	}
+
+	if err = c.Cache.Validate(); err != nil {
+		return fmt.Errorf("invalid cache config: %w", err)
 	}
 
 	if err = c.Monitor.Validate(); err != nil {

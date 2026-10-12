@@ -19,7 +19,11 @@ const (
 	ReferenceKey = "reference"
 )
 
+// LevelTrace is below debug; used for periodic heartbeat logs that are only useful when tracing a scheduler.
+const LevelTrace = slog.Level(-8)
+
 var strLevelToSlog = map[defs.LogLevel]slog.Level{
+	defs.LogLevelTrace: LevelTrace,
 	defs.LogLevelDebug: slog.LevelDebug,
 	defs.LogLevelInfo:  slog.LevelInfo,
 	defs.LogLevelWarn:  slog.LevelWarn,
@@ -103,6 +107,11 @@ func DefaultIfNil(logger *slog.Logger) *slog.Logger {
 		return slog.Default()
 	}
 	return logger
+}
+
+// Trace logs msg at LevelTrace.
+func Trace(ctx context.Context, logger *slog.Logger, msg string, args ...any) {
+	logger.Log(ctx, LevelTrace, msg, args...)
 }
 
 // IsDebug returns true if the logger has debug level enabled.
