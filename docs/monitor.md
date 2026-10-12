@@ -129,3 +129,32 @@ _ = daemon.Start(map[defs.MonitorTask]defs.TaskConfig{
     },
 })
 ```
+
+### Reorg handling
+When chaintracks is enabled, the monitor subscribes to reorg events. Each event lists the hashes of the blocks that are no longer on the main chain. Set `monitor.reorg.mode` to choose how those blocks are handled.
+
+**`immediate` (default)**
+1. `HandleReorg` clears the merkle proof (path, root, height, block hash) of every known transaction proven in an orphaned block.
+2. Each of those transactions is set to status `reorg` and gets a `reorgInvalidatedProof` history note.
+3. The `check_for_proofs` task (`SynchronizeTransactionStatuses`) re-proves them like any other unproven transaction, and they return to `completed` once mined again.
+
+**`delayed` (TypeScript `TaskReorg` behaviour)**
+1. Orphaned block hashes are queued in memory and nothing is changed while the tip may still be unstable. The queue is de-duplicated and bounded by `max_queued_headers`; when it is full the oldest entry is dropped.
+2. After `age_seconds`, `ReproveHeader` fetches a fresh merkle path for every transaction proven in that block and sorts it:
+   - **updated**: the proof is now in another block and its root is confirmed by the chain tracker. The new proof is stored and a `tx_proven` event is emitted.
+   - **unchanged**: the services still return the proof in the orphaned block.
+   - **unavailable**: there is no proof yet, or it does not validate.
+3. A block with unchanged or unavailable transactions is queued again for another `age_seconds`. After `max_retries` attempts it is dropped and the original proofs are kept.
+
+```yaml
+monitor:
+  reorg:
+    mode: delayed          # immediate | delayed
+    age_seconds: 600       # wait before the first attempt and between retries
+    max_retries: 3
+    max_queued_headers: 4096
+```
+
+**Which mode to choose**
+- `immediate` never keeps a proof from an orphaned block. If the tip flips back and forth it does extra work, but `check_for_proofs` repairs it. It suits most deployments.
+- `delayed` matches the TypeScript toolbox and avoids touching proofs while a reorg settles. It can keep a stale proof until a replacement is confirmed, or for good after `max_retries`. Its queue is in memory, so a restart forgets pending blocks. Every instance handles the events it receives; this is safe because re-proving is idempotent.

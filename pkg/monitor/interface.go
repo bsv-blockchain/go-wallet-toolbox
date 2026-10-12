@@ -15,6 +15,7 @@ type MonitoredStorage interface {
 	UnFail(ctx context.Context) error
 
 	HandleReorg(ctx context.Context, orphanedBlockHashes []string) error
+	ReproveHeader(ctx context.Context, orphanedHash string) (*wdk.ReproveHeaderResult, error)
 	ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error)
 
 	// ProcessExternalTxStatusUpdate applies a broadcaster-pushed lifecycle update

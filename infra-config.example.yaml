@@ -88,6 +88,11 @@ monitor:
     tx_proven:
       channel_size: 100
       enabled: false
+  reorg:
+    age_seconds: 600
+    max_queued_headers: 4096
+    max_retries: 3
+    mode: immediate
   tasks:
     check_for_proofs:
       enabled: true

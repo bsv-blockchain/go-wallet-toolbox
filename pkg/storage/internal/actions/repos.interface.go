@@ -59,6 +59,7 @@ type KnownTxRepo interface {
 	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
+	FindKnownTxIDsByBlockHash(ctx context.Context, blockHash string) ([]string, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error)

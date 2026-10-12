@@ -431,6 +431,26 @@ func (p *KnownTx) FindKnownTxRawTxs(ctx context.Context, txIDs []string) (map[st
 	return rawTxMap, nil
 }
 
+// FindKnownTxIDsByBlockHash returns the txIDs whose stored proof points at blockHash.
+func (p *KnownTx) FindKnownTxIDsByBlockHash(ctx context.Context, blockHash string) ([]string, error) {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsByBlockHash", attribute.String("BlockHash", blockHash))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	var txIDs []string
+	err = p.db.WithContext(ctx).
+		Model(&models.KnownTx{}).
+		Where("block_hash = ?", blockHash).
+		Pluck("tx_id", &txIDs).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find known tx IDs by block hash: %w", err)
+	}
+
+	return txIDs, nil
+}
+
 func (p *KnownTx) FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxStatuses", attribute.StringSlice("TxIDs", txIDs))

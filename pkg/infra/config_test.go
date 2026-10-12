@@ -248,6 +248,33 @@ func TestMonitorTaskZeroInterval(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMonitorReorgDefaultsToImmediate(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, defs.ReorgModeImmediate, infraSrv.Config.Monitor.Reorg.Mode)
+	require.Equal(t, 10*time.Minute, infraSrv.Config.Monitor.Reorg.Age())
+	require.Equal(t, uint(3), infraSrv.Config.Monitor.Reorg.MaxRetries)
+}
+
+func TestMonitorReorgDelayedWithZeroAge(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_MONITOR_REORG_MODE", "delayed")
+	t.Setenv("TEST_MONITOR_REORG_AGE_SECONDS", "0")
+
+	// when:
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.Error(t, err)
+}
+
 func TestValidHTTPPort(t *testing.T) {
 	tests := map[string]struct{ port string }{
 		"zero (ephemeral) port": {port: "0"},

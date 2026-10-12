@@ -227,26 +227,9 @@ func (p *process) resolveExternalMerklePath(ctx context.Context, ev *wdk.Broadca
 		)
 	}
 
-	txID := ev.TxID
-	merkleRoot, err := merklePath.ComputeRootHex(&txID)
+	merkleRoot, err := p.validatedMerkleRoot(ctx, merklePath, ev.TxID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to compute merkle root from external merkle path for tx %s: %w", ev.TxID, err)
-	}
-
-	rootHash, err := chainhash.NewHashFromHex(merkleRoot)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse computed merkle root %s for tx %s: %w", merkleRoot, ev.TxID, err)
-	}
-
-	valid, err := p.services.IsValidRootForHeight(ctx, rootHash, merklePath.BlockHeight)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to validate merkle root for height %d for tx %s: %w", merklePath.BlockHeight, ev.TxID, err)
-	}
-	if !valid {
-		return nil, nil, fmt.Errorf(
-			"merkle root %s from external status event is not valid for height %d (tx %s)",
-			merkleRoot, merklePath.BlockHeight, ev.TxID,
-		)
+		return nil, nil, fmt.Errorf("external status event: %w", err)
 	}
 
 	return merklePath, &wdk.MerklePathBlockHeader{
@@ -254,6 +237,31 @@ func (p *process) resolveExternalMerklePath(ctx context.Context, ev *wdk.Broadca
 		Hash:       ev.BlockHash,
 		MerkleRoot: merkleRoot,
 	}, nil
+}
+
+// validatedMerkleRoot computes the merkle root of txID from merklePath and confirms via the
+// chain tracker that it is a valid root for the path's block height. An error means the
+// path does not prove txID on the active chain.
+func (p *process) validatedMerkleRoot(ctx context.Context, merklePath *transaction.MerklePath, txID string) (string, error) {
+	merkleRoot, err := merklePath.ComputeRootHex(&txID)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute merkle root for tx %s: %w", txID, err)
+	}
+
+	rootHash, err := chainhash.NewHashFromHex(merkleRoot)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse computed merkle root %s for tx %s: %w", merkleRoot, txID, err)
+	}
+
+	valid, err := p.services.IsValidRootForHeight(ctx, rootHash, merklePath.BlockHeight)
+	if err != nil {
+		return "", fmt.Errorf("failed to validate merkle root for height %d for tx %s: %w", merklePath.BlockHeight, txID, err)
+	}
+	if !valid {
+		return "", fmt.Errorf("merkle root %s is not valid for height %d (tx %s)", merkleRoot, merklePath.BlockHeight, txID)
+	}
+
+	return merkleRoot, nil
 }
 
 // merklePathFromServices fetches the merkle proof for a txID from the configured services

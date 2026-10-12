@@ -1242,6 +1242,26 @@ func (p *Provider) HandleReorg(ctx context.Context, orphanedBlockHashes []string
 	return nil
 }
 
+// ReproveHeader re-proves the transactions whose stored proof points at a block orphaned by
+// a reorg, keeping the stored proof for those without a valid replacement yet.
+// Used by the monitor in delayed reorg mode.
+func (p *Provider) ReproveHeader(ctx context.Context, orphanedHash string) (*wdk.ReproveHeaderResult, error) {
+	var err error
+
+	ctx, span := tracing.StartTracing(ctx, "StorageProvider-ReproveHeader",
+		attribute.String("orphaned_hash", orphanedHash))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	result, err := p.actions.ReproveHeader(ctx, orphanedHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reprove header %s: %w", orphanedHash, err)
+	}
+
+	return result, nil
+}
+
 // ListTransactions retrieves a list of transactions with their status updates for the authenticated user.
 // It fetches transactions from the KnownTx table and converts them to CurrentTxStatus format.
 func (p *Provider) ListTransactions(ctx context.Context, auth wdk.AuthID, args wdk.ListTransactionsArgs) (*wdk.ListTransactionsResult, error) {

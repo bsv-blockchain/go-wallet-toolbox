@@ -122,16 +122,86 @@ type EventsConfig struct {
 	TxProven      EventConfig `mapstructure:"tx_proven"`
 }
 
+// ReorgMode selects how the monitor reacts to chain reorganization events.
+type ReorgMode string
+
+const (
+	// ReorgModeImmediate invalidates merkle proofs of orphaned blocks as soon as the reorg
+	// is reported; the check_for_proofs task then re-proves the affected transactions.
+	ReorgModeImmediate ReorgMode = "immediate"
+
+	// ReorgModeDelayed queues orphaned block hashes and re-proves their transactions only
+	// after AgeSeconds, retrying up to MaxRetries times (TypeScript TaskReorg behaviour).
+	ReorgModeDelayed ReorgMode = "delayed"
+)
+
+// ParseReorgMode parses a string to a ReorgMode or returns an error
+func ParseReorgMode(mode string) (ReorgMode, error) {
+	return parseEnumCaseInsensitive(mode, ReorgModeImmediate, ReorgModeDelayed)
+}
+
+// Reorg configures how the monitor handles chain reorganizations.
+type Reorg struct {
+	Mode ReorgMode `mapstructure:"mode"`
+
+	// AgeSeconds is how long an orphaned block hash waits before its transactions are
+	// re-proved, and again before each retry. Used only in delayed mode.
+	AgeSeconds uint `mapstructure:"age_seconds"`
+
+	// MaxRetries is how many re-prove attempts are made for an orphaned block before giving
+	// up and keeping the original proof. Used only in delayed mode.
+	MaxRetries uint `mapstructure:"max_retries"`
+
+	// MaxQueuedHeaders bounds the delayed-mode queue; the oldest entry is evicted when full.
+	MaxQueuedHeaders uint `mapstructure:"max_queued_headers"`
+}
+
+// Age returns AgeSeconds as a time.Duration.
+func (r *Reorg) Age() time.Duration {
+	return time.Duration(must.ConvertToInt64FromUnsigned(r.AgeSeconds)) * time.Second
+}
+
+// Validate verifies the reorg configuration.
+func (r *Reorg) Validate() error {
+	mode, err := ParseReorgMode(string(r.Mode))
+	if err != nil {
+		return fmt.Errorf("invalid reorg mode: %w", err)
+	}
+
+	if mode != ReorgModeDelayed {
+		return nil
+	}
+
+	if r.AgeSeconds == 0 || r.MaxRetries == 0 || r.MaxQueuedHeaders == 0 {
+		return fmt.Errorf("reorg mode %q requires age_seconds, max_retries and max_queued_headers to be greater than 0", mode)
+	}
+	return nil
+}
+
+// DefaultReorg returns the default reorg configuration (immediate mode).
+func DefaultReorg() Reorg {
+	return Reorg{
+		Mode:             ReorgModeImmediate,
+		AgeSeconds:       must.ConvertToUInt((10 * time.Minute).Seconds()),
+		MaxRetries:       3,
+		MaxQueuedHeaders: 4096,
+	}
+}
+
 // Monitor represents a monitoring system configuration with tasks
 type Monitor struct {
 	Enabled bool         `mapstructure:"enabled"`
 	Tasks   TasksConfig  `mapstructure:"tasks"`
 	Events  EventsConfig `mapstructure:"events"`
+	Reorg   Reorg        `mapstructure:"reorg"`
 }
 
 // Validate verifies the monitor configuration, including its tasks.
 func (m *Monitor) Validate() error {
-	return m.Tasks.Validate()
+	if err := m.Tasks.Validate(); err != nil {
+		return err
+	}
+	return m.Reorg.Validate()
 }
 
 // DefaultMonitorConfig returns a default monitoring configuration
@@ -171,5 +241,6 @@ func DefaultMonitorConfig() Monitor {
 				ChannelSize: 100,
 			},
 		},
+		Reorg: DefaultReorg(),
 	}
 }

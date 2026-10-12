@@ -157,7 +157,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 			reorgChan := make(chan *chaintracks.ReorgEvent, 10)
 			unsubReorg := activeServices.SubscribeReorgs(reorgChan)
 			if unsubReorg != nil {
-				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan))
+				monitorOpts = append(monitorOpts, monitor.WithReorgChannel(reorgChan), monitor.WithReorgConfig(cfg.Monitor.Reorg))
 				cleanupFuncs = append(cleanupFuncs, func() {
 					unsubReorg()
 					close(reorgChan)

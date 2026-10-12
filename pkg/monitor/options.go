@@ -3,6 +3,7 @@ package monitor
 import (
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -15,6 +16,8 @@ type DaemonEventOptions struct {
 	onTip   <-chan *chaintracks.BlockHeader
 
 	broadcastEventStreamer BroadcastEventStreamer
+
+	reorg defs.Reorg
 }
 
 // DaemonEventOption defines a function type for setting DaemonEventOptions.
@@ -27,6 +30,7 @@ func defaultDaemonEventOptions() *DaemonEventOptions {
 		onReorg:                nil,
 		onTip:                  nil,
 		broadcastEventStreamer: nil,
+		reorg:                  defs.DefaultReorg(),
 	}
 }
 
@@ -93,5 +97,15 @@ func WithTipChannel(ch <-chan *chaintracks.BlockHeader) func(*DaemonEventOptions
 func WithBroadcastEventStream(streamer BroadcastEventStreamer) DaemonEventOption {
 	return func(o *DaemonEventOptions) {
 		o.broadcastEventStreamer = streamer
+	}
+}
+
+// WithReorgConfig selects how reorg events received via WithReorgChannel are handled:
+// immediately (proofs invalidated, re-proved by check_for_proofs) or delayed (queued in
+// memory and re-proved after the configured age, TypeScript TaskReorg behaviour).
+// NewDaemon rejects an invalid config (defs.Reorg.Validate).
+func WithReorgConfig(cfg defs.Reorg) DaemonEventOption {
+	return func(o *DaemonEventOptions) {
+		o.reorg = cfg
 	}
 }
