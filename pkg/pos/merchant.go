@@ -24,6 +24,9 @@ type MerchantWallet interface {
 // validation; Accepted must be true before any signed receipt is issued.
 func MerchantAcceptor(wallet MerchantWallet) func(context.Context, Frame, int64) (string, error) {
 	return func(ctx context.Context, f Frame, amount int64) (string, error) {
+		if amount <= 0 {
+			return "", errors.New("payment amount must be positive")
+		}
 		raw, err := byteArray(f.Transaction, 2000000)
 		if err != nil {
 			return "", err

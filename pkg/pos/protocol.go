@@ -20,8 +20,10 @@ import (
 
 var authorizationProtocol = sdk.Protocol{SecurityLevel: 2, Protocol: "bsv pos authorization"}
 
-const originator = "pos.bsv"
-const maxSafeInteger int64 = 9007199254740991
+const (
+	originator           = "pos.bsv"
+	maxSafeInteger int64 = 9007199254740991
+)
 
 type Signer interface {
 	GetPublicKey(context.Context, sdk.GetPublicKeyArgs, string) (*sdk.GetPublicKeyResult, error)
@@ -99,12 +101,14 @@ func marshal(v any) ([]byte, error) {
 	}
 	return bytes.TrimSuffix(b.Bytes(), []byte("\n")), nil
 }
+
 func identity(value string) (*ec.PublicKey, error) {
 	if len(value) != 66 || (!strings.HasPrefix(value, "02") && !strings.HasPrefix(value, "03")) {
 		return nil, errors.New("invalid identity")
 	}
 	return ec.PublicKeyFromString(value)
 }
+
 func randomID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -112,6 +116,7 @@ func randomID() string {
 	}
 	return hex.EncodeToString(b)
 }
+
 func Sign(ctx context.Context, wallet Signer, payload any) (*Signed, error) {
 	raw, err := canonical(payload)
 	if err != nil {
@@ -135,6 +140,7 @@ func Sign(ctx context.Context, wallet Signer, payload any) (*Signed, error) {
 	}
 	return &Signed{Payload: raw, IdentityKey: strings.ToLower(public.PublicKey.ToDERHex()), Signature: numbers}, nil
 }
+
 func Verify(ctx context.Context, value Signed) error {
 	public, err := identity(value.IdentityKey)
 	if err != nil {
@@ -148,7 +154,7 @@ func Verify(ctx context.Context, value Signed) error {
 	if err != nil {
 		return err
 	}
-	canonicalBytes, err := canonical(json.RawMessage(value.Payload))
+	canonicalBytes, err := canonical(value.Payload)
 	if err != nil {
 		return err
 	}
@@ -165,6 +171,7 @@ func Verify(ctx context.Context, value Signed) error {
 	}
 	return nil
 }
+
 func byteArray(numbers []int, limit int) ([]byte, error) {
 	if len(numbers) == 0 || len(numbers) > limit {
 		return nil, errors.New("invalid byte array length")
@@ -178,6 +185,7 @@ func byteArray(numbers []int, limit int) ([]byte, error) {
 	}
 	return b, nil
 }
+
 func decodeSession(text string) (Session, error) {
 	var s Session
 	if !strings.HasPrefix(text, "bsvpay1:") || len(text) > 4096 {
@@ -214,6 +222,7 @@ func decodeSession(text string) (Session, error) {
 	}
 	return s, nil
 }
+
 func validateURL(value string) error {
 	u, err := url.Parse(value)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {

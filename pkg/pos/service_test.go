@@ -6,14 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
-	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 func testSigner(t *testing.T, hex string) *sdk.ProtoWallet {
@@ -28,6 +29,7 @@ func testSigner(t *testing.T, hex string) *sdk.ProtoWallet {
 	}
 	return w
 }
+
 func call(t *testing.T, s *Service, w Signer, method string, body any) (any, error) {
 	t.Helper()
 	raw, _ := marshal(body)
@@ -37,6 +39,7 @@ func call(t *testing.T, s *Service, w Signer, method string, body any) (any, err
 	}
 	return s.Call(context.Background(), *signed)
 }
+
 func signerIdentity(t *testing.T, w Signer) string {
 	t.Helper()
 	p, e := w.GetPublicKey(context.Background(), sdk.GetPublicKeyArgs{IdentityKey: true}, originator)
@@ -45,10 +48,12 @@ func signerIdentity(t *testing.T, w Signer) string {
 	}
 	return p.PublicKey.ToDERHex()
 }
+
 func sessionText(merchant string) string {
 	raw, _ := marshal(map[string]any{"v": 1, "c": 0, "s": base64.RawURLEncoding.EncodeToString(make([]byte, 16)), "k": base64.RawURLEncoding.EncodeToString(make([]byte, 32)), "i": merchant, "a": 123, "p": "cHJlZml4", "x": "c3VmZml4"})
 	return "bsvpay1:" + base64.RawURLEncoding.EncodeToString(raw)
 }
+
 func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 	ctx := context.Background()
 	owner, cashier, other := testSigner(t, "01"), testSigner(t, "02"), testSigner(t, "03")
@@ -78,7 +83,9 @@ func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 		t.Fatal(e)
 	}
 	var invitation Invite
-	json.Unmarshal(inv.(*Signed).Payload, &invitation)
+	if e = json.Unmarshal(inv.(*Signed).Payload, &invitation); e != nil {
+		t.Fatal(e)
+	}
 	if _, e = call(t, s, cashier, "enroll", map[string]any{"invite": invitation.ID, "name": "Sam"}); e != nil {
 		t.Fatal(e)
 	}
@@ -96,7 +103,9 @@ func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 		t.Fatal(e)
 	}
 	var terms Request
-	json.Unmarshal(req.(*Signed).Payload, &terms)
+	if e = json.Unmarshal(req.(*Signed).Payload, &terms); e != nil {
+		t.Fatal(e)
+	}
 	frame := Frame{Version: 5, Kind: "bsv", SenderIdentityKey: signerIdentity(t, other), OutputIndex: 0, DerivationPrefix: "cHJlZml4", DerivationSuffix: "c3VmZml4", Transaction: []int{1, 2, 3}}
 	if _, e = call(t, s, other, "settle", map[string]any{"invoice": terms.Invoice, "frame": frame}); e == nil {
 		t.Fatal("other cashier settled")
@@ -148,6 +157,7 @@ func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 		t.Fatal("revoked cashier invoiced")
 	}
 }
+
 func TestSignatureReplayAndTampering(t *testing.T) {
 	owner := testSigner(t, "01")
 	s, e := New(Config{Wallet: owner, Merchant: signerIdentity(t, owner), Name: "Cafe", URL: "https://merchant.example", Chain: "test", Store: FileStore{filepath.Join(t.TempDir(), "state.json")}, Accept: func(context.Context, Frame, int64) (string, error) { t.Fatal("unexpected settlement"); return "", nil }})
@@ -171,6 +181,7 @@ func TestSignatureReplayAndTampering(t *testing.T) {
 		t.Fatal("tampered signature accepted")
 	}
 }
+
 func TestInvalidSession(t *testing.T) {
 	merchant := signerIdentity(t, testSigner(t, "01"))
 	session, e := decodeSession(sessionText(merchant))
@@ -226,7 +237,9 @@ func TestConcurrentDeliveriesAcceptOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	var invitation Invite
-	json.Unmarshal(inv.(*Signed).Payload, &invitation)
+	if err = json.Unmarshal(inv.(*Signed).Payload, &invitation); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = call(t, s, cashier, "enroll", map[string]any{"invite": invitation.ID, "name": "Sam"}); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +251,9 @@ func TestConcurrentDeliveriesAcceptOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	var terms Request
-	json.Unmarshal(req.(*Signed).Payload, &terms)
+	if err = json.Unmarshal(req.(*Signed).Payload, &terms); err != nil {
+		t.Fatal(err)
+	}
 	frame := Frame{Version: 5, Kind: "bsv", SenderIdentityKey: signerIdentity(t, owner), DerivationPrefix: "cHJlZml4", DerivationSuffix: "c3VmZml4", Transaction: []int{1}}
 	body, _ := marshal(map[string]any{"invoice": terms.Invoice, "frame": frame})
 	requests := make([]*Signed, 8)

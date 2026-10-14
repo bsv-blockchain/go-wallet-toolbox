@@ -30,6 +30,7 @@ func (s FileStore) Load(ctx context.Context) (*State, error) {
 	}
 	return state, nil
 }
+
 func (s FileStore) Save(ctx context.Context, state *State) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -38,10 +39,10 @@ func (s FileStore) Save(ctx context.Context, state *State) error {
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(filepath.Dir(s.Path), 0700); err != nil {
+	if err = os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.Path+".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(s.Path+".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
@@ -62,6 +63,10 @@ func (s FileStore) Save(ctx context.Context, state *State) error {
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
-	return dir.Sync()
+	syncErr := dir.Sync()
+	closeErr = dir.Close()
+	if syncErr != nil {
+		return syncErr
+	}
+	return closeErr
 }

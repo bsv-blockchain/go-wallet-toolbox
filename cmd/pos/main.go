@@ -6,6 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -13,12 +20,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
 )
 
 func run() error {
@@ -29,7 +30,7 @@ func run() error {
 		return errors.New("configure POS_MERCHANT_KEY_FILE, POS_STORAGE_URL (HTTPS), POS_PUBLIC_URL (HTTPS), and POS_MERCHANT_NAME")
 	}
 	// Mount this file from the deployment secret store, never from a cashier.
-	raw, err := os.ReadFile(keyFile)
+	raw, err := os.ReadFile(keyFile) // #nosec G304,G703 -- Operator-configured mounted secret path; never derived from an RPC request.
 	if err != nil {
 		return err
 	}
@@ -78,6 +79,7 @@ func run() error {
 	}
 	return err
 }
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

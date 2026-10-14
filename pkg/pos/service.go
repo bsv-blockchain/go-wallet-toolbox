@@ -5,10 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"strings"
 	"sync"
 	"time"
+
+	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 )
 
 type Cashier struct {
@@ -76,6 +77,7 @@ func New(config Config) (*Service, error) {
 	config.Merchant = strings.ToLower(config.Merchant)
 	return &Service{config: config}, nil
 }
+
 func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -130,9 +132,9 @@ func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 			return nil, errors.New("merchant authorization required")
 		}
 		id := randomID()
-		invite, err := Sign(ctx, s.config.Wallet, Invite{"invite", s.config.Merchant, s.config.Name, strings.TrimRight(s.config.URL, "/"), s.config.Chain, id, now + 600000})
-		if err != nil {
-			return nil, err
+		invite, signErr := Sign(ctx, s.config.Wallet, Invite{"invite", s.config.Merchant, s.config.Name, strings.TrimRight(s.config.URL, "/"), s.config.Chain, id, now + 600000})
+		if signErr != nil {
+			return nil, signErr
 		}
 		state.Invites[id] = invite
 		return save(invite)
@@ -212,17 +214,17 @@ func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 		if !active {
 			return nil, errors.New("cashier access inactive")
 		}
-		session, err := decodeSession(body.Session)
-		if err != nil {
-			return nil, err
+		session, sessionErr := decodeSession(body.Session)
+		if sessionErr != nil {
+			return nil, sessionErr
 		}
 		if !strings.EqualFold(session.Identity, s.config.Merchant) {
 			return nil, errors.New("incorrect payee")
 		}
 		id := randomID()
-		request, err := Sign(ctx, s.config.Wallet, Request{"payment", s.config.Merchant, s.config.Name, caller, id, s.config.Chain, now + 300000, body.Session})
-		if err != nil {
-			return nil, err
+		request, requestErr := Sign(ctx, s.config.Wallet, Request{"payment", s.config.Merchant, s.config.Name, caller, id, s.config.Chain, now + 300000, body.Session})
+		if requestErr != nil {
+			return nil, requestErr
 		}
 		state.Sales[id] = &Sale{Request: request}
 		return save(request)
@@ -291,9 +293,10 @@ func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 	}
 	return nil, errors.New("unsupported request")
 }
+
 func isHex(s string) bool {
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}

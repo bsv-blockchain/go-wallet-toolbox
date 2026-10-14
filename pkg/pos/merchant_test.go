@@ -2,16 +2,18 @@ package pos
 
 import (
 	"context"
+	"testing"
+
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/template/p2pkh"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
-	"testing"
 )
 
 type acceptingWallet struct {
 	*sdk.ProtoWallet
+
 	accepted     bool
 	status       sdk.ActionStatus
 	txid         string
@@ -22,6 +24,7 @@ func (w *acceptingWallet) InternalizeAction(ctx context.Context, args sdk.Intern
 	w.internalized++
 	return &sdk.InternalizeActionResult{Accepted: w.accepted}, nil
 }
+
 func (w *acceptingWallet) ListActions(ctx context.Context, args sdk.ListActionsArgs, origin string) (*sdk.ListActionsResult, error) {
 	hash, e := chainhash.NewHashFromHex(w.txid)
 	if e != nil {
@@ -29,6 +32,7 @@ func (w *acceptingWallet) ListActions(ctx context.Context, args sdk.ListActionsA
 	}
 	return &sdk.ListActionsResult{Actions: []sdk.Action{{Txid: *hash, Status: w.status}}}, nil
 }
+
 func TestMerchantAcceptanceRequiresDestinationAmountAndBroadcast(t *testing.T) {
 	ctx := context.Background()
 	owner := testSigner(t, "01")
@@ -64,6 +68,11 @@ func TestMerchantAcceptanceRequiresDestinationAmountAndBroadcast(t *testing.T) {
 	f := Frame{Version: 5, Kind: "bsv", SenderIdentityKey: senderKey, DerivationPrefix: "cHJlZml4", DerivationSuffix: "c3VmZml4", Transaction: numbers}
 	w := &acceptingWallet{ProtoWallet: owner, accepted: true, status: sdk.ActionStatusSending, txid: tx.TxID().String()}
 	accept := MerchantAcceptor(w)
+	for _, invalidAmount := range []int64{-1, 0} {
+		if _, err = accept(ctx, f, invalidAmount); err == nil {
+			t.Fatal("non-positive amount accepted")
+		}
+	}
 	if _, err = accept(ctx, f, 124); err == nil {
 		t.Fatal("wrong amount accepted")
 	}
