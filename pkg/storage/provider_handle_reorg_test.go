@@ -2,11 +2,15 @@ package storage_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/go-softwarelab/common/pkg/must"
 	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	pkgtestabilities "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
@@ -220,6 +224,78 @@ func TestHandleReorg_ReorgedTxCanBeReprovenBySyncTask(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+}
+
+func TestHandleReorg_DelayedModeReprovesOnlyAfterAge(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider().WithReorg(defs.Reorg{Mode: defs.ReorgModeDelayed, AgeSeconds: 600})
+	activeStorage := givenProvider.GORM()
+
+	// and: mined tx with block hash
+	txSpec, _ := given.Faucet(activeStorage, testusers.Alice).TopUp(100_000)
+	txID := txSpec.ID().String()
+
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// and: the tx was proven long ago
+	backdateKnownTx := func() {
+		err = activeStorage.Database.DB.Model(&models.KnownTx{}).
+			Where("tx_id = ?", txID).
+			UpdateColumn("updated_at", time.Now().Add(-11*time.Minute)).Error
+		require.NoError(t, err)
+	}
+	backdateKnownTx()
+
+	// when: the block is orphaned
+	err = activeStorage.HandleReorg(t.Context(), []string{pkgtestabilities.TestBlockHash})
+	require.NoError(t, err)
+
+	// then: the proof is cleared right away, as in immediate mode
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusReorg).
+		NotMined().
+		WithBlockHash(nil)
+
+	// when: the sync task runs within the age window (tx is already mined in a new block)
+	syncOnNewTip := func(height uint) {
+		givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+		givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList(
+			testservices.WithTipBlockHeaderHeight(height),
+		)
+		givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+			ExpectBlockHash:   testservices.TestBlockHash,
+			ExpectBlockHeight: must.ConvertToInt64FromUnsigned(height),
+		})
+		_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+		require.NoError(t, err)
+	}
+	syncOnNewTip(testservices.TestBlockHeight + 1)
+
+	// then: the tx is not re-proved yet, and no attempt is counted
+	thenDBState.HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusReorg).
+		NotMined().
+		WithAttempts(0)
+
+	// when: the age has passed
+	backdateKnownTx()
+	syncOnNewTip(testservices.TestBlockHeight + 2)
+
+	// then:
 	thenDBState.HasKnownTX(txID).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		IsMined()

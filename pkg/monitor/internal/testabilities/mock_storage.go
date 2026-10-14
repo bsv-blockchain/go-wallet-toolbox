@@ -37,7 +37,6 @@ type MockStorage struct {
 	SendWaitingLastMinTransactionAge time.Duration
 	UnFailCalled                     atomic.Int64
 	HandleReorgCalled                atomic.Int64
-	ReproveHeaderCalled              atomic.Int64
 	ProcessNewTipCalled              atomic.Int64
 
 	ProcessExternalTxStatusUpdateCalled atomic.Int64
@@ -73,11 +72,6 @@ func (m *MockStorage) UnFail(_ context.Context) error {
 func (m *MockStorage) HandleReorg(_ context.Context, _ []string) error {
 	m.HandleReorgCalled.Add(1)
 	return nil
-}
-
-func (m *MockStorage) ReproveHeader(_ context.Context, _ string) (*wdk.ReproveHeaderResult, error) {
-	m.ReproveHeaderCalled.Add(1)
-	return &wdk.ReproveHeaderResult{}, nil
 }
 
 func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) ([]wdk.TxSynchronizedStatus, error) {

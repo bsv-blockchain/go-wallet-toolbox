@@ -31,6 +31,9 @@ type ProviderConfig struct {
 	SynchronizeTxStatusesConfig defs.SynchronizeTxStatuses
 	FailAbandonedConfig         defs.FailAbandoned
 
+	// Reorg selects when transactions whose proof was cleared by a reorg are re-proved.
+	Reorg defs.Reorg
+
 	FeeModel       defs.FeeModel
 	Commission     defs.Commission
 	ChangeBasket   defs.ChangeBasket
@@ -94,6 +97,14 @@ func WithFunder(f *funder.SQL) ProviderOption {
 func WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderOption {
 	return func(o *ProviderConfig) {
 		o.SynchronizeTxStatusesConfig = config
+	}
+}
+
+// WithReorg sets how reorged transactions are re-proved: right away (immediate mode) or only
+// after the configured age (delayed mode). Proofs are cleared on the reorg event either way.
+func WithReorg(config defs.Reorg) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.Reorg = config
 	}
 }
 
@@ -191,6 +202,7 @@ func defaultProviderOptions(chaintracker chaintracker.ChainTracker) ProviderConf
 		ScriptsVerifierFactory:       func() wdk.ScriptsVerifier { return NewDefaultScriptsVerifier() },
 		SynchronizeTxStatusesConfig:  defs.DefaultSynchronizeTxStatuses(),
 		FailAbandonedConfig:          defs.DefaultFailAbandoned(),
+		Reorg:                        defs.DefaultReorg(),
 		FeeModel:                     defs.DefaultFeeModel(),
 		Commission:                   defs.DefaultCommission(),
 		ChangeBasket:                 defs.DefaultChangeBasket(),

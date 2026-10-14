@@ -50,12 +50,16 @@ type synchronizeTxStatuses struct {
 	transactionRepo      TransactionsRepo
 	outputRepo           OutputRepo
 	checkNoSendDuration  time.Duration
-	uow                  UnitOfWork
+	// reorgReproveDelay holds back re-proving reorged txs (status reorg) until their proof
+	// was cleared at least this long ago. Zero re-proves them on the next run.
+	reorgReproveDelay time.Duration
+	uow               UnitOfWork
 }
 
 func newSynchronizeTxStatuses(
 	logger *slog.Logger,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+	reorgReproveDelay time.Duration,
 	services wdk.Services,
 	provenTxRepo KnownTxRepo,
 	keyValueRepo KeyValueRepo,
@@ -78,6 +82,7 @@ func newSynchronizeTxStatuses(
 		transactionRepo:      transactionRepo,
 		outputRepo:           outputRepo,
 		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
+		reorgReproveDelay:    reorgReproveDelay,
 		uow:                  uow,
 	}
 }
@@ -327,7 +332,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
 		var txsPage []*entity.KnownTxForStatusSync
-		txsPage, err = s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, queryopts.WithPage(paging))
+		txsPage, err = s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, s.reorgReproveDelay, queryopts.WithPage(paging))
 		if err != nil {
 			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
 		}

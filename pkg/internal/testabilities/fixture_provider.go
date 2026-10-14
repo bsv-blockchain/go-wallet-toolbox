@@ -38,6 +38,7 @@ type ProviderFixture interface {
 	WithRandomizer(randomizer wdk.Randomizer) ProviderFixture
 	WithFailAbandonedMinTxAge(seconds uint) ProviderFixture
 	WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderFixture
+	WithReorg(config defs.Reorg) ProviderFixture
 	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
 	WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture
 
@@ -58,6 +59,7 @@ type providerFixture struct {
 	feeModel               defs.FeeModel
 	failAbandoned          defs.FailAbandoned
 	syncTxStatuses         defs.SynchronizeTxStatuses
+	reorg                  defs.Reorg
 	changeBasket           defs.ChangeBasket
 	utxoManagement         defs.UTXOManagement
 	randomizer             wdk.Randomizer
@@ -104,6 +106,11 @@ func (p *providerFixture) WithFailAbandonedMinTxAge(seconds uint) ProviderFixtur
 
 func (p *providerFixture) WithSynchronizeTxStatuses(config defs.SynchronizeTxStatuses) ProviderFixture {
 	p.syncTxStatuses = config
+	return p
+}
+
+func (p *providerFixture) WithReorg(config defs.Reorg) ProviderFixture {
+	p.reorg = config
 	return p
 }
 
@@ -174,6 +181,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithCommission(p.commission),
 		storage.WithFailAbandoned(p.failAbandoned),
 		storage.WithSynchronizeTxStatuses(p.syncTxStatuses),
+		storage.WithReorg(p.reorg),
 		storage.WithChangeBasket(p.changeBasket),
 		storage.WithUTXOManagement(p.utxoManagement),
 	)

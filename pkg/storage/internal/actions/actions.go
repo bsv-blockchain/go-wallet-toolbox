@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -90,6 +91,7 @@ func New(
 	randomizer wdk.Randomizer,
 	services wdk.Services,
 	syncTxStatusesConfig defs.SynchronizeTxStatuses,
+	reorgReproveDelay time.Duration,
 	beefVerifier wdk.BeefVerifier,
 	scriptsVerifier wdk.ScriptsVerifier,
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
@@ -153,7 +155,7 @@ func New(
 		),
 		process:               processAction,
 		listOutputs:           newListOutputs(logger, repos.Outputs, repos.KnownTx, repos.Transactions),
-		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, services, repos.KnownTx, repos.KeyValue, repos.Transactions, repos.Outputs, uow),
+		synchronizeTxStatuses: newSynchronizeTxStatuses(logger, syncTxStatusesConfig, reorgReproveDelay, services, repos.KnownTx, repos.KeyValue, repos.Transactions, repos.Outputs, uow),
 		listActions:           newListActions(logger, repos.Transactions, repos.Outputs, repos.KnownTx, repos.OutputBaskets),
 		abortAction:           abortAction,
 		getBeef:               newGetBeef(logger, repos.KnownTx, services),

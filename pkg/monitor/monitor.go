@@ -54,12 +54,6 @@ type Daemon struct {
 	// wait until nothing publishes anymore.
 	cancelHandlers context.CancelFunc
 	handlers       sync.WaitGroup
-
-	// reorgConfig selects immediate or delayed reorg handling; reorgQueue is used only in
-	// delayed mode.
-	reorgConfig             defs.Reorg
-	reorgQueue              *reorgQueue
-	reorgQueueCheckInterval time.Duration
 }
 
 // EventChannels holds channels for bidirectional communication with the monitor.
@@ -123,10 +117,6 @@ func NewDaemonWithGORMLocker(ctx context.Context, logger *slog.Logger, storage M
 // NewDaemon creates a new Daemon instance with the provided logger and scheduler options.
 // NOTE: To use a distributed scheduler, you need to provide a locker in the scheduler options or use NewDaemonWithGORMLocker.
 func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *DaemonEventOptions, schedulerOptions ...gocron.SchedulerOption) (*Daemon, error) {
-	if err := eventOptions.reorg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid reorg config: %w", err)
-	}
-
 	scheduler, err := gocron.NewScheduler(schedulerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scheduler: %w", err)
@@ -143,10 +133,7 @@ func NewDaemon(logger *slog.Logger, storage MonitoredStorage, eventOptions *Daem
 			OnReorg:         eventOptions.onReorg,
 			OnTip:           eventOptions.onTip,
 		},
-		broadcastEventStreamer:  eventOptions.broadcastEventStreamer,
-		reorgConfig:             eventOptions.reorg,
-		reorgQueue:              newReorgQueue(int(eventOptions.reorg.MaxQueuedHeaders)),
-		reorgQueueCheckInterval: min(reorgQueueCheckInterval, eventOptions.reorg.Age()),
+		broadcastEventStreamer: eventOptions.broadcastEventStreamer,
 	}, nil
 }
 
@@ -181,10 +168,6 @@ func (d *Daemon) Start(ctx context.Context, tasksToStart map[defs.MonitorTask]de
 
 	if d.eventChannels.OnReorg != nil {
 		d.handlers.Go(func() { d.handleReorgEvents(handlersCtx) })
-
-		if d.reorgDelayed() {
-			d.handlers.Go(func() { d.processReorgQueue(handlersCtx) })
-		}
 	}
 
 	if d.eventChannels.OnTip != nil {
@@ -426,23 +409,10 @@ func (d *Daemon) handleReorgEvents(ctx context.Context) {
 			orphanedHashes[i] = hash.String()
 		}
 
-		if d.reorgDelayed() {
-			now := time.Now()
-			for _, hash := range orphanedHashes {
-				d.enqueueDeactivatedHeader(ctx, deactivatedHeader{hash: hash, when: now})
-			}
-			d.logger.InfoContext(ctx, "Reorg queued for delayed reprove", "orphaned_count", len(orphanedHashes))
-			continue
-		}
-
 		if err := d.storage.HandleReorg(ctx, orphanedHashes); err != nil {
 			d.logger.ErrorContext(ctx, "Failed to handle reorg", "error", err)
 		}
 	}
-}
-
-func (d *Daemon) reorgDelayed() bool {
-	return d.reorgConfig.Mode == defs.ReorgModeDelayed
 }
 
 func (d *Daemon) handleNewTipEvents(ctx context.Context) {

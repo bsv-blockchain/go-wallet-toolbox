@@ -16,14 +16,3 @@ type TxSynchronizedStatus struct {
 	BlockHash   string
 	Labels      []string
 }
-
-// ReproveHeaderResult reports what happened to the transactions proven in a block that a
-// reorg orphaned (TypeScript reproveHeader taxonomy).
-type ReproveHeaderResult struct {
-	// Updated holds transactions whose proof was moved to a block on the active chain.
-	Updated []TxSynchronizedStatus
-	// Unchanged lists txIDs whose only available proof still points at the orphaned block.
-	Unchanged []string
-	// Unavailable lists txIDs with no valid replacement proof yet.
-	Unavailable []string
-}

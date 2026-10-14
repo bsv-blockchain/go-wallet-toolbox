@@ -122,16 +122,19 @@ type EventsConfig struct {
 	TxProven      EventConfig `mapstructure:"tx_proven"`
 }
 
-// ReorgMode selects how the monitor reacts to chain reorganization events.
+// ReorgMode selects when the transactions of a block orphaned by a reorg are re-proved.
+// In both modes their merkle proofs are cleared as soon as the reorg is reported (status
+// `reorg`), so BEEFs built in the meantime carry the raw transaction instead of a stale proof.
 type ReorgMode string
 
 const (
-	// ReorgModeImmediate invalidates merkle proofs of orphaned blocks as soon as the reorg
-	// is reported; the check_for_proofs task then re-proves the affected transactions.
+	// ReorgModeImmediate lets the check_for_proofs task re-prove the affected transactions
+	// on its next run.
 	ReorgModeImmediate ReorgMode = "immediate"
 
-	// ReorgModeDelayed queues orphaned block hashes and re-proves their transactions only
-	// after AgeSeconds, retrying up to MaxRetries times (TypeScript TaskReorg behaviour).
+	// ReorgModeDelayed makes check_for_proofs skip the affected transactions until AgeSeconds
+	// have passed since their proof was cleared, so new proofs are not fetched while the
+	// chain tip may still be unstable.
 	ReorgModeDelayed ReorgMode = "delayed"
 )
 
@@ -140,24 +143,21 @@ func ParseReorgMode(mode string) (ReorgMode, error) {
 	return parseEnumCaseInsensitive(mode, ReorgModeImmediate, ReorgModeDelayed)
 }
 
-// Reorg configures how the monitor handles chain reorganizations.
+// Reorg configures how chain reorganizations are handled.
 type Reorg struct {
 	Mode ReorgMode `mapstructure:"mode"`
 
-	// AgeSeconds is how long an orphaned block hash waits before its transactions are
-	// re-proved, and again before each retry. Used only in delayed mode.
+	// AgeSeconds is how long after their proof was cleared reorged transactions wait before
+	// check_for_proofs tries to re-prove them. Used only in delayed mode.
 	AgeSeconds uint `mapstructure:"age_seconds"`
-
-	// MaxRetries is how many re-prove attempts are made for an orphaned block before giving
-	// up and keeping the original proof. Used only in delayed mode.
-	MaxRetries uint `mapstructure:"max_retries"`
-
-	// MaxQueuedHeaders bounds the delayed-mode queue; the oldest entry is evicted when full.
-	MaxQueuedHeaders uint `mapstructure:"max_queued_headers"`
 }
 
-// Age returns AgeSeconds as a time.Duration.
-func (r *Reorg) Age() time.Duration {
+// ReproveDelay returns how long reorged transactions wait before being re-proved:
+// AgeSeconds in delayed mode, zero otherwise.
+func (r *Reorg) ReproveDelay() time.Duration {
+	if r.Mode != ReorgModeDelayed {
+		return 0
+	}
 	return time.Duration(must.ConvertToInt64FromUnsigned(r.AgeSeconds)) * time.Second
 }
 
@@ -168,12 +168,8 @@ func (r *Reorg) Validate() error {
 		return fmt.Errorf("invalid reorg mode: %w", err)
 	}
 
-	if mode != ReorgModeDelayed {
-		return nil
-	}
-
-	if r.AgeSeconds == 0 || r.MaxRetries == 0 || r.MaxQueuedHeaders == 0 {
-		return fmt.Errorf("reorg mode %q requires age_seconds, max_retries and max_queued_headers to be greater than 0", mode)
+	if mode == ReorgModeDelayed && r.AgeSeconds == 0 {
+		return fmt.Errorf("reorg mode %q requires age_seconds to be greater than 0", mode)
 	}
 	return nil
 }
@@ -181,10 +177,8 @@ func (r *Reorg) Validate() error {
 // DefaultReorg returns the default reorg configuration (immediate mode).
 func DefaultReorg() Reorg {
 	return Reorg{
-		Mode:             ReorgModeImmediate,
-		AgeSeconds:       must.ConvertToUInt((10 * time.Minute).Seconds()),
-		MaxRetries:       3,
-		MaxQueuedHeaders: 4096,
+		Mode:       ReorgModeImmediate,
+		AgeSeconds: must.ConvertToUInt((10 * time.Minute).Seconds()),
 	}
 }
 

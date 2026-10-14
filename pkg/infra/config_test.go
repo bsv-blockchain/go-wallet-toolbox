@@ -258,8 +258,8 @@ func TestMonitorReorgDefaultsToImmediate(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 	require.Equal(t, defs.ReorgModeImmediate, infraSrv.Config.Monitor.Reorg.Mode)
-	require.Equal(t, 10*time.Minute, infraSrv.Config.Monitor.Reorg.Age())
-	require.Equal(t, uint(3), infraSrv.Config.Monitor.Reorg.MaxRetries)
+	require.Equal(t, uint(600), infraSrv.Config.Monitor.Reorg.AgeSeconds)
+	require.Zero(t, infraSrv.Config.Monitor.Reorg.ReproveDelay())
 }
 
 func TestMonitorReorgDelayedWithZeroAge(t *testing.T) {
