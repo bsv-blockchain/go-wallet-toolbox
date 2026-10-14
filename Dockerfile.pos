@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1
+FROM golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
+WORKDIR /src
+RUN apk add --no-cache ca-certificates git
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/merchant-pos ./cmd/pos
+
+FROM alpine@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+RUN apk add --no-cache ca-certificates tzdata && addgroup -g 1000 pos && adduser -D -u 1000 -G pos pos && mkdir -p /app/data && chown pos:pos /app/data
+WORKDIR /app
+COPY --from=builder /out/merchant-pos /app/merchant-pos
+USER 1000:1000
+ENV POS_LISTEN_ADDR=0.0.0.0:8787 POS_STATE_FILE=/app/data/pos-state.json
+EXPOSE 8787
+ENTRYPOINT ["/app/merchant-pos"]
