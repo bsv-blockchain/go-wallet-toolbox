@@ -3,9 +3,9 @@ module github.com/bsv-blockchain/go-wallet-toolbox
 go 1.27.0
 
 require (
-	github.com/alicebob/miniredis/v2 v2.39.0
+	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/bsv-blockchain/go-bsv-middleware v0.16.3
-	github.com/bsv-blockchain/go-chaintracks v1.4.2
+	github.com/bsv-blockchain/go-chaintracks v1.4.3
 	github.com/bsv-blockchain/go-sdk v1.7.2
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.2
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
@@ -259,8 +259,8 @@ require (
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a // indirect
-	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/term v0.47.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
