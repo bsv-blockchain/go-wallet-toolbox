@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS builder
 WORKDIR /src
-RUN apk add --no-cache ca-certificates git
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
