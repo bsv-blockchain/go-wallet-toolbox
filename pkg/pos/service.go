@@ -93,12 +93,14 @@ func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 		return nil, errors.New("expired or invalid request")
 	}
 	var body struct {
-		Invite  string `json:"invite"`
-		Name    string `json:"name"`
-		Cashier string `json:"cashier"`
-		Session string `json:"session"`
-		Invoice string `json:"invoice"`
-		Frame   *Frame `json:"frame"`
+		Subtotal *int64 `json:"subtotal"`
+		Tip      *int64 `json:"tip"`
+		Invite   string `json:"invite"`
+		Name     string `json:"name"`
+		Cashier  string `json:"cashier"`
+		Session  string `json:"session"`
+		Invoice  string `json:"invoice"`
+		Frame    *Frame `json:"frame"`
 	}
 	if err := json.Unmarshal(p.Body, &body); err != nil {
 		return nil, err
@@ -222,7 +224,20 @@ func (s *Service) Call(ctx context.Context, envelope Signed) (any, error) {
 			return nil, errors.New("incorrect payee")
 		}
 		id := randomID()
-		request, requestErr := Sign(ctx, s.config.Wallet, Request{"payment", s.config.Merchant, s.config.Name, caller, id, s.config.Chain, now + 300000, body.Session})
+		subtotal, tip := int64(0), int64(0)
+		if body.Subtotal != nil || body.Tip != nil {
+			if body.Subtotal == nil || body.Tip == nil {
+				return nil, errors.New("sale subtotal and tip are both required")
+			}
+			subtotal, tip = *body.Subtotal, *body.Tip
+			if subtotal < 1 || tip < 0 || tip > session.Amount || subtotal != session.Amount-tip {
+				return nil, errors.New("sale and tip do not match the payment total")
+			}
+		}
+		request, requestErr := Sign(ctx, s.config.Wallet, Request{
+			Kind: "payment", Merchant: s.config.Merchant, Name: s.config.Name,
+			Cashier: caller, Invoice: id, Chain: s.config.Chain, Expires: now + 300000, Session: body.Session, Subtotal: subtotal, Tip: tip,
+		})
 		if requestErr != nil {
 			return nil, requestErr
 		}

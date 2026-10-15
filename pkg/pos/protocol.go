@@ -54,6 +54,8 @@ type Invite struct {
 	Expires  int64  `json:"expires"`
 }
 type Request struct {
+	Subtotal int64  `json:"subtotal,omitempty"`
+	Tip      int64  `json:"tip,omitempty"`
 	Kind     string `json:"kind"`
 	Merchant string `json:"merchant"`
 	Name     string `json:"name"`

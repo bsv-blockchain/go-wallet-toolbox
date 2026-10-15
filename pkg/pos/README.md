@@ -66,3 +66,9 @@ Tests cover enrollment permissions, revocation, tampering, replay rejection, inv
 The container runs as UID/GID 1000, listens on port 8787, and persists state in `/app/data/pos-state.json`. Mount the merchant key as a read-only secret file and the data directory on a durable writable volume. Run exactly one replica with a Recreate strategy. `GET /healthz` reports process health; it does not certify storage or blockchain availability. Only a validated signed acceptance receipt confirms a payment.
 
 The Flux pilot lives in `bsva-infra-flux`, namespace `merchant-pos`, on the US cluster and testnet. Its own merchant key is provisioned through AWS SSM and External Secrets; never reuse the storage server identity. Deployment changes require a reviewed infrastructure PR.
+
+## Optional tip breakdown
+
+New cashier apps send `subtotal` and `tip` as whole-satoshi integers with the `invoice` request. Both fields must be supplied together, subtotal must be positive, tip nonnegative, and their sum must equal the nearby session's exact payment amount. The merchant signs and persists the breakdown in the invoice; no second payment or cashier output is created. Legacy requests without either field remain valid. A zero tip can be omitted from the signed JSON representation.
+
+Merchant dashboards attribute each signed invoice to its cashier identity and count only matching accepted receipts. Tips are included in the total received by the merchant, not automatically distributed to staff.

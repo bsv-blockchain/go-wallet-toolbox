@@ -89,13 +89,13 @@ func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 	if _, e = call(t, s, cashier, "enroll", map[string]any{"invite": invitation.ID, "name": "Sam"}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = call(t, s, cashier, "invoice", map[string]any{"session": sessionText(merchant)}); e == nil {
+	if _, e = call(t, s, cashier, "invoice", map[string]any{sessionBodyKey: sessionText(merchant)}); e == nil {
 		t.Fatal("unapproved cashier invoiced")
 	}
 	if _, e = call(t, s, owner, "approve", map[string]any{"cashier": signerIdentity(t, cashier)}); e != nil {
 		t.Fatal(e)
 	}
-	req, e := call(t, s, cashier, "invoice", map[string]any{"session": sessionText(merchant)})
+	req, e := call(t, s, cashier, "invoice", map[string]any{sessionBodyKey: sessionText(merchant)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -153,7 +153,7 @@ func TestEnrollmentAndIdempotentSettlement(t *testing.T) {
 	if _, e = call(t, s, owner, "revoke", map[string]any{"cashier": signerIdentity(t, cashier)}); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = call(t, s, cashier, "invoice", map[string]any{"session": sessionText(merchant)}); e == nil {
+	if _, e = call(t, s, cashier, "invoice", map[string]any{sessionBodyKey: sessionText(merchant)}); e == nil {
 		t.Fatal("revoked cashier invoiced")
 	}
 }
@@ -246,7 +246,7 @@ func TestConcurrentDeliveriesAcceptOnce(t *testing.T) {
 	if _, err = call(t, s, owner, "approve", map[string]any{"cashier": signerIdentity(t, cashier)}); err != nil {
 		t.Fatal(err)
 	}
-	req, err := call(t, s, cashier, "invoice", map[string]any{"session": sessionText(merchant)})
+	req, err := call(t, s, cashier, "invoice", map[string]any{sessionBodyKey: sessionText(merchant)})
 	if err != nil {
 		t.Fatal(err)
 	}
