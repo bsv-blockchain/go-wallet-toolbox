@@ -1,6 +1,7 @@
 package wdk
 
 import (
+	"strings"
 	"time"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
@@ -13,6 +14,34 @@ type TableSettings struct {
 	CreatedAt          time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
 	Chain              defs.BSVNetwork `json:"chain"`
-	DbType             defs.DBType     `json:"dbtype"`
+	DbType             StorageDBType   `json:"dbtype,omitempty"`
 	MaxOutputScript    int             `json:"maxOutputScript"`
+}
+
+// StorageDBType is the database engine a storage reports in its settings, spelled as the
+// cross-implementation wire contract requires (conformance/vectors/wallet/storage). TypeScript
+// storage clients reject any other spelling, including an empty string.
+type StorageDBType string
+
+// Database engines a storage may report in its settings.
+const (
+	StorageDBTypeSQLite    StorageDBType = "SQLite"
+	StorageDBTypeMySQL     StorageDBType = "MySQL"
+	StorageDBTypePostgres  StorageDBType = "Postgres"
+	StorageDBTypeIndexedDB StorageDBType = "IndexedDB"
+)
+
+// StorageDBTypeOf returns the settings spelling of a configured database engine, or an empty
+// StorageDBType, which is omitted from JSON, when the engine has no wire name.
+func StorageDBTypeOf(engine defs.DBType) StorageDBType {
+	switch defs.DBType(strings.ToLower(string(engine))) {
+	case defs.DBTypeSQLite:
+		return StorageDBTypeSQLite
+	case defs.DBTypeMySQL:
+		return StorageDBTypeMySQL
+	case defs.DBTypePostgres:
+		return StorageDBTypePostgres
+	default:
+		return ""
+	}
 }

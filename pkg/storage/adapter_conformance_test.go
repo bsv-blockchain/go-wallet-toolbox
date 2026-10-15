@@ -76,7 +76,7 @@ func TestStorageAdapterConformance(t *testing.T) {
 		StorageIdentityKey: "02testidentity",
 		StorageName:        "test-storage",
 		Chain:              "test",
-		DbType:             "sqlite",
+		DbType:             wdk.StorageDBTypeSQLite,
 		MaxOutputScript:    10000,
 	}
 	mock.EXPECT().MakeAvailable(gomock.Any()).Return(settings, nil).AnyTimes()
@@ -207,7 +207,7 @@ func runCommissionPaymentTests(t *testing.T, given testabilities.StorageFixture)
 		StorageIdentityKey: "02commissiontest",
 		StorageName:        "commission-storage",
 		Chain:              "test",
-		DbType:             "sqlite",
+		DbType:             wdk.StorageDBTypeSQLite,
 		MaxOutputScript:    10000,
 	}, nil).AnyTimes()
 
