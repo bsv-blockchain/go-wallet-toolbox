@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"iter"
+	"time"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 
@@ -59,9 +60,10 @@ type KnownTxRepo interface {
 	UpsertKnownTx(ctx context.Context, req *entity.UpsertKnownTx, txNote history.Builder) error
 	FindKnownTxRawTx(ctx context.Context, txID string) ([]byte, error)
 	FindKnownTxStatuses(ctx context.Context, txIDs ...string) (map[string]wdk.ProvenTxReqStatus, error)
-	FindKnownTxIDsByBlockHash(ctx context.Context, blockHash string) ([]string, error)
 	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
-	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
+	// FindKnownTxIDsReadyForStatusSync skips reorged txs whose proof was cleared less than
+	// reorgReproveDelay ago (zero disables the delay).
+	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error)
 	GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error

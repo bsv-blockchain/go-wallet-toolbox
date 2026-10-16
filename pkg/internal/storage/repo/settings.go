@@ -38,6 +38,7 @@ func (s *Settings) ReadSettings(ctx context.Context) (*wdk.TableSettings, error)
 		CreatedAt:          settings.CreatedAt,
 		UpdatedAt:          settings.UpdatedAt,
 		Chain:              chain,
+		DbType:             wdk.StorageDBTypeOf(defs.DBType(s.db.Name())),
 		MaxOutputScript:    settings.MaxOutputScript,
 	}, nil
 }

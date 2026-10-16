@@ -8,7 +8,9 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testmode"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/testabilities"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 func TestMakeAvailable(t *testing.T) {
@@ -28,4 +30,12 @@ func TestMakeAvailable(t *testing.T) {
 	assert.Equal(t, fixtures.StorageIdentityKey, tableSettings.StorageIdentityKey)
 	assert.Equal(t, defs.NetworkTestnet, tableSettings.Chain)
 	assert.Equal(t, 1024, tableSettings.MaxOutputScript)
+
+	// The engine is reported with the cross-implementation spelling, so TypeScript storage
+	// clients accept the settings (conformance/vectors/wallet/storage uses "SQLite").
+	expectedDBType := wdk.StorageDBTypeSQLite
+	if _, isPostgres := testmode.GetMode().(*testmode.PostgresMode); isPostgres {
+		expectedDBType = wdk.StorageDBTypePostgres
+	}
+	assert.Equal(t, expectedDBType, tableSettings.DbType)
 }

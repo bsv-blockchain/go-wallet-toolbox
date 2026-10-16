@@ -9,6 +9,7 @@ func GORMProviderOptionsFromConfig(cfg *Config) []storage.ProviderOption {
 		storage.WithFeeModel(cfg.FeeModel),
 		storage.WithCommission(cfg.Commission),
 		storage.WithSynchronizeTxStatuses(cfg.SynchronizeTxStatuses),
+		storage.WithReorg(cfg.Monitor.Reorg),
 		storage.WithFailAbandoned(cfg.FailAbandoned),
 		storage.WithChangeBasket(cfg.ChangeBasket),
 		storage.WithUTXOManagement(cfg.UTXOManagement),
