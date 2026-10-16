@@ -197,3 +197,9 @@ a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/proto_wallet_
 a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/proto_wallet_brc_test.go:generic-api-key:99
 a5fb98c88ea66c74c251c15afe7301b14d30cfa0:third_party/go-sdk/wallet/testcertificates/test_certificates_manager.go:generic-api-key:20
 
+
+# pkg/pos/testdata/typescript-signature.json
+# The `identityKey` in this TypeScript interoperability fixture is the compressed
+# secp256k1 generator point (private key 1) - a well-known public value, not a secret.
+cb2d8b06b60a7a227d38d1b270678af037b55cc2:pkg/pos/testdata/typescript-signature.json:generic-api-key:12
+pkg/pos/testdata/typescript-signature.json:generic-api-key:12

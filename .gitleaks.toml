@@ -21,12 +21,3 @@ description = "Docker throughput live-test example config (dev-only keys)"
 paths = [
     '''infra-config-docker-throughput\.yaml''',
 ]
-
-# The compressed secp256k1 generator is a public identity, not an API secret.
-# Only this exact public value in this exact interoperability fixture is exempt.
-[[allowlists]]
-description = "Public generator identity in POS signature interoperability vector"
-condition = "AND"
-regexTarget = "secret"
-paths = ['''^pkg/pos/testdata/typescript-signature\.json$''']
-regexes = ['''^0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798$''']
