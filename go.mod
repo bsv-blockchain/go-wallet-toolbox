@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/bsv-blockchain/go-bsv-middleware v0.16.3
-	github.com/bsv-blockchain/go-chaintracks v1.4.3
+	github.com/bsv-blockchain/go-chaintracks v1.4.5
 	github.com/bsv-blockchain/go-sdk v1.7.2
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.2
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1

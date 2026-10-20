@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.7.2
-	github.com/bsv-blockchain/go-wallet-toolbox v0.189.3
+	github.com/bsv-blockchain/go-wallet-toolbox v0.191.0
 	github.com/go-softwarelab/common v1.8.0
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/subosito/gotenv v1.6.0
@@ -42,7 +42,7 @@ require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.16.3 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.7.4 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.7.0 // indirect
-	github.com/bsv-blockchain/go-chaintracks v1.4.3 // indirect
+	github.com/bsv-blockchain/go-chaintracks v1.4.5 // indirect
 	github.com/bsv-blockchain/go-lockfree-queue v1.2.0 // indirect
 	github.com/bsv-blockchain/go-p2p-message-bus v0.2.0 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
