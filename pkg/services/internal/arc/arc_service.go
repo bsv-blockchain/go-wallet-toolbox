@@ -186,7 +186,7 @@ func (s *Service) getTransactionData(ctx context.Context, txID string) *internal
 	}
 
 	if txInfo == nil {
-		return internal.NewNamedResult(txID, types.FailureResult[*TXInfo](fmt.Errorf("not found tx %s in arc", txID)))
+		return internal.NewNamedResult(txID, types.FailureResult[*TXInfo](fmt.Errorf("tx %s is not known to arc: %w", txID, wdk.ErrNotFoundError)))
 	}
 
 	if txInfo.TxID != txID {

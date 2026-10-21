@@ -643,7 +643,7 @@ func (s *WalletServices) RawTx(ctx context.Context, txID string) (_ wdk.RawTxRes
 	result, err := s.rawTxServices.OneByOne(ctx, txID)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return wdk.RawTxResult{}, fmt.Errorf("transaction with txID: %s not found", txID)
+			return wdk.RawTxResult{}, fmt.Errorf("transaction with txID: %s not found: %w", txID, wdk.ErrNotFoundError)
 		}
 		return wdk.RawTxResult{}, fmt.Errorf("couldn't get rawtx for id %s: %w", txID, err)
 	}
@@ -840,7 +840,7 @@ func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash st
 	result, err := s.getScriptHashHistoryServices.OneByOne(ctx, scriptHash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)
+			return nil, fmt.Errorf("script hash %s not found in history: %w", scriptHash, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("failed to get script history: %w", err)
 	}
@@ -857,7 +857,7 @@ func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (_ *wdk.
 	result, err := s.hashToHeaderServices.OneByOne(ctx, hash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("block hash %s not found in any header service", hash)
+			return nil, fmt.Errorf("block hash %s not found in any header service: %w", hash, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("couldn't get block header for hash %s: %w", hash, err)
 	}
