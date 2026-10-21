@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log/slog"
 	"runtime/debug"
+	"time"
 
 	"github.com/go-softwarelab/common/pkg/is"
 	"github.com/go-softwarelab/common/pkg/seq"
@@ -16,7 +17,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
 var (
@@ -29,16 +29,18 @@ var (
 // For more arguments see Queue1, Queue2, and Queue3.
 type Queue[R any] struct {
 	logger     *slog.Logger
+	history    *CallHistory
 	methodName string
 	services   []*Service[R]
 }
 
-func NewQueue[R any](logger *slog.Logger, methodName string, services ...*Service[R]) Queue[R] {
+func NewQueue[R any](logger *slog.Logger, history *CallHistory, methodName string, services ...*Service[R]) Queue[R] {
 	logger = logging.Child(logger, "services."+methodName)
 	logIfNamesAreNotUnique(services, logger)
 
 	return Queue[R]{
 		logger:     logger,
+		history:    history,
 		methodName: methodName,
 		services:   services,
 	}
@@ -46,7 +48,7 @@ func NewQueue[R any](logger *slog.Logger, methodName string, services ...*Servic
 
 // All calls all services in parallel and returns the slice of results of all services.
 func (q *Queue[R]) All(ctx context.Context) ([]*NamedResult[R], error) {
-	return processParallel(ctx, q.logger, q.methodName, q.services, func(ctxParallel context.Context, s *Service[R]) (R, error) {
+	return processParallel(ctx, q.logger, q.history, q.methodName, q.services, func(ctxParallel context.Context, s *Service[R]) (R, error) {
 		return s.service(ctxParallel)
 	})
 }
@@ -54,7 +56,7 @@ func (q *Queue[R]) All(ctx context.Context) ([]*NamedResult[R], error) {
 // OneByOne calls the services with provided context, one by one, until a successful result is obtained.
 // Returns the first successful result or an error if all services fail.
 func (q *Queue[R]) OneByOne(ctx context.Context) (R, error) {
-	return processOneByOne(q.logger, q.methodName, q.services, func(s *Service[R]) (R, error) {
+	return processOneByOne(q.logger, q.history, q.methodName, q.services, func(s *Service[R]) (R, error) {
 		return s.service(ctx)
 	})
 }
@@ -74,16 +76,18 @@ func (q *Queue[R]) GetNames() (methodName string, serviceNames []string) {
 // For different number of arguments see Queue, Queue2, and Queue3.
 type Queue1[A, R any] struct {
 	logger     *slog.Logger
+	history    *CallHistory
 	methodName string
 	services   []*Service1[A, R]
 }
 
-func NewQueue1[A, R any](logger *slog.Logger, methodName string, services ...*Service1[A, R]) Queue1[A, R] {
+func NewQueue1[A, R any](logger *slog.Logger, history *CallHistory, methodName string, services ...*Service1[A, R]) Queue1[A, R] {
 	logger = logging.Child(logger, "services."+methodName)
 	logIfNamesAreNotUnique(services, logger)
 
 	return Queue1[A, R]{
 		logger:     logger,
+		history:    history,
 		methodName: methodName,
 		services:   services,
 	}
@@ -91,7 +95,7 @@ func NewQueue1[A, R any](logger *slog.Logger, methodName string, services ...*Se
 
 // All processes all services in parallel and returns the slice of results of all services.
 func (q *Queue1[A, R]) All(ctx context.Context, a A) ([]*NamedResult[R], error) {
-	return processParallel(ctx, q.logger, q.methodName, q.services, func(ctxParallel context.Context, s *Service1[A, R]) (R, error) {
+	return processParallel(ctx, q.logger, q.history, q.methodName, q.services, func(ctxParallel context.Context, s *Service1[A, R]) (R, error) {
 		return s.service(ctxParallel, a)
 	})
 }
@@ -100,7 +104,7 @@ func (q *Queue1[A, R]) All(ctx context.Context, a A) ([]*NamedResult[R], error) 
 // The context and argument is passed to each service.
 // Returns the first successful result or an error if all services fail.
 func (q *Queue1[A, R]) OneByOne(ctx context.Context, a A) (R, error) {
-	return processOneByOne(q.logger, q.methodName, q.services, func(s *Service1[A, R]) (R, error) {
+	return processOneByOne(q.logger, q.history, q.methodName, q.services, func(s *Service1[A, R]) (R, error) {
 		return s.service(ctx, a)
 	})
 }
@@ -120,16 +124,18 @@ func (q *Queue1[A, R]) GetNames() (methodName string, serviceNames []string) {
 // For different number of arguments see Queue, Queue1, and Queue3.
 type Queue2[A, B, R any] struct {
 	logger     *slog.Logger
+	history    *CallHistory
 	methodName string
 	services   []*Service2[A, B, R]
 }
 
-func NewQueue2[A, B, R any](logger *slog.Logger, methodName string, services ...*Service2[A, B, R]) Queue2[A, B, R] {
+func NewQueue2[A, B, R any](logger *slog.Logger, history *CallHistory, methodName string, services ...*Service2[A, B, R]) Queue2[A, B, R] {
 	logger = logging.Child(logger, "services."+methodName)
 	logIfNamesAreNotUnique(services, logger)
 
 	return Queue2[A, B, R]{
 		logger:     logger,
+		history:    history,
 		methodName: methodName,
 		services:   services,
 	}
@@ -137,7 +143,7 @@ func NewQueue2[A, B, R any](logger *slog.Logger, methodName string, services ...
 
 // All processes all services in parallel and returns the slice of results of all services.
 func (q *Queue2[A, B, R]) All(ctx context.Context, a A, b B) ([]*NamedResult[R], error) {
-	return processParallel(ctx, q.logger, q.methodName, q.services, func(ctxParallel context.Context, s *Service2[A, B, R]) (R, error) {
+	return processParallel(ctx, q.logger, q.history, q.methodName, q.services, func(ctxParallel context.Context, s *Service2[A, B, R]) (R, error) {
 		return s.service(ctxParallel, a, b)
 	})
 }
@@ -146,7 +152,7 @@ func (q *Queue2[A, B, R]) All(ctx context.Context, a A, b B) ([]*NamedResult[R],
 // The context and arguments are passed to each service.
 // Returns the first successful result or an error if all services fail.
 func (q *Queue2[A, B, R]) OneByOne(ctx context.Context, a A, b B) (R, error) {
-	return processOneByOne(q.logger, q.methodName, q.services, func(s *Service2[A, B, R]) (R, error) {
+	return processOneByOne(q.logger, q.history, q.methodName, q.services, func(s *Service2[A, B, R]) (R, error) {
 		return s.service(ctx, a, b)
 	})
 }
@@ -166,16 +172,18 @@ func (q *Queue2[A, B, R]) GetNames() (methodName string, serviceNames []string) 
 // For different number of arguments see Queue, Queue1, and Queue2.
 type Queue3[A, B, C, R any] struct {
 	logger     *slog.Logger
+	history    *CallHistory
 	methodName string
 	services   []*Service3[A, B, C, R]
 }
 
-func NewQueue3[A, B, C, R any](logger *slog.Logger, methodName string, services ...*Service3[A, B, C, R]) Queue3[A, B, C, R] {
+func NewQueue3[A, B, C, R any](logger *slog.Logger, history *CallHistory, methodName string, services ...*Service3[A, B, C, R]) Queue3[A, B, C, R] {
 	logger = logging.Child(logger, "services."+methodName)
 	logIfNamesAreNotUnique(services, logger)
 
 	return Queue3[A, B, C, R]{
 		logger:     logger,
+		history:    history,
 		methodName: methodName,
 		services:   services,
 	}
@@ -183,7 +191,7 @@ func NewQueue3[A, B, C, R any](logger *slog.Logger, methodName string, services 
 
 // All processes all services in parallel and returns the slice of results of all services.
 func (q *Queue3[A, B, C, R]) All(ctx context.Context, a A, b B, c C) ([]*NamedResult[R], error) {
-	return processParallel(ctx, q.logger, q.methodName, q.services, func(ctxParallel context.Context, s *Service3[A, B, C, R]) (R, error) {
+	return processParallel(ctx, q.logger, q.history, q.methodName, q.services, func(ctxParallel context.Context, s *Service3[A, B, C, R]) (R, error) {
 		return s.service(ctxParallel, a, b, c)
 	})
 }
@@ -192,7 +200,7 @@ func (q *Queue3[A, B, C, R]) All(ctx context.Context, a A, b B, c C) ([]*NamedRe
 // The context and arguments are passed to each service.
 // Returns the first successful result or an error if all services fail.
 func (q *Queue3[A, B, C, R]) OneByOne(ctx context.Context, a A, b B, c C) (R, error) {
-	return processOneByOne(q.logger, q.methodName, q.services, func(s *Service3[A, B, C, R]) (R, error) {
+	return processOneByOne(q.logger, q.history, q.methodName, q.services, func(s *Service3[A, B, C, R]) (R, error) {
 		return s.service(ctx, a, b, c)
 	})
 }
@@ -211,12 +219,14 @@ type serv interface {
 	Name() string
 }
 
-func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, method string, services []S, callService func(context.Context, S) (R, error)) ([]*NamedResult[R], error) {
+func processParallel[S serv, R any](ctx context.Context, logger *slog.Logger, history *CallHistory, method string, services []S, callService func(context.Context, S) (R, error)) ([]*NamedResult[R], error) {
 	if len(services) == 0 {
 		return nil, ErrNoServicesRegistered
 	}
 
 	results := internal.MapParallel(ctx, seq.FromSlice(services), func(ctxParallel context.Context, s S) (result *NamedResult[R]) {
+		start := time.Now()
+		defer func() { recordResult(history, method, start, result) }()
 		defer func() {
 			if r := recover(); r != nil {
 				var err error
@@ -262,12 +272,14 @@ func sortedResults[S serv, R any](services []S, results iter.Seq[*NamedResult[R]
 	return seq.Collect(sorted)
 }
 
-func processOneByOne[S serv, R any](logger *slog.Logger, method string, services []S, callService func(S) (R, error)) (R, error) {
+func processOneByOne[S serv, R any](logger *slog.Logger, history *CallHistory, method string, services []S, callService func(S) (R, error)) (R, error) {
 	if len(services) == 0 {
 		return to.ZeroValue[R](), ErrNoServicesRegistered
 	}
 
 	results := seq.Map(seq.FromSlice(services), func(s S) (result *NamedResult[R]) {
+		start := time.Now()
+		defer func() { recordResult(history, method, start, result) }()
 		defer func() {
 			if r := recover(); r != nil {
 				var err error
@@ -303,16 +315,7 @@ func processOneByOne[S serv, R any](logger *slog.Logger, method string, services
 // logServiceError logs expected misses (not found, empty result) at debug and real failures at warn,
 // and counts every call outcome (including ok) so that a rising trend is visible without alerting on the log level.
 func logServiceError(ctx context.Context, logger *slog.Logger, method, service string, err error) {
-	outcome, level := "error", slog.LevelWarn
-	switch {
-	case errors.Is(err, wdk.ErrNotFoundError):
-		outcome, level = "not_found", slog.LevelDebug
-	case errors.Is(err, ErrEmptyResult):
-		outcome, level = "empty", slog.LevelDebug
-	case errors.Is(err, context.Canceled):
-		// the caller went away; not the service's fault
-		outcome, level = "canceled", slog.LevelDebug
-	}
+	outcome, level := outcomeOf(err)
 	metrics.RecordServiceCall(ctx, method, service, outcome)
 	logger.Log(ctx, level, "error when calling service",
 		slog.String("service.name", service),

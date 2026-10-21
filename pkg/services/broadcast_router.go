@@ -13,6 +13,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arcade"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/bitails"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/circuitbreaker"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/servicequeue"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/whatsonchain"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
@@ -47,6 +48,20 @@ type broadcastRouter struct {
 	maxBackpressureWait time.Duration
 	// sleep is the context-aware wait used for backpressure; injectable for tests.
 	sleep func(ctx context.Context, d time.Duration)
+	// history records every broadcast attempt; nil records nothing.
+	history *servicequeue.CallHistory
+}
+
+// post calls the target and records the attempt in the call history.
+func (r *broadcastRouter) post(ctx context.Context, target broadcastTarget, efHex string, rawTx []byte, txID string) (*wdk.PostedTxID, error) {
+	start := time.Now()
+	posted, err := target.post(ctx, efHex, rawTx, txID)
+	recorded := err
+	if err == nil && posted == nil {
+		recorded = errNoResult
+	}
+	r.history.Record("PostBEEF", target.name, start, recorded)
+	return posted, err
 }
 
 // newBroadcastRouter assembles the router with Arcade as the primary and the
@@ -126,7 +141,7 @@ func (r *broadcastRouter) broadcast(ctx context.Context, efHex string, rawTx []b
 // or a tx-level rejection). It returns (results, false) when the primary transport failed
 // and the caller should continue with the failover chain.
 func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []byte, txID string) ([]*wdk.PostFromBEEFServiceResult, bool) {
-	posted, err := r.primary.post(ctx, efHex, rawTx, txID)
+	posted, err := r.post(ctx, r.primary, efHex, rawTx, txID)
 
 	var backpressure *arcade.BackpressureError
 	if errors.As(err, &backpressure) {
@@ -187,7 +202,7 @@ func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex stri
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, fmt.Errorf("broadcast canceled while honoring backpressure: %w", ctxErr)
 	}
-	return r.primary.post(ctx, efHex, rawTx, txID)
+	return r.post(ctx, r.primary, efHex, rawTx, txID)
 }
 
 // runFailovers iterates failover targets sequentially, stopping at the first success.
@@ -195,7 +210,7 @@ func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex stri
 // or all error results if every target fails. It never returns an empty slice.
 func (r *broadcastRouter) runFailovers(ctx context.Context, efHex string, rawTx []byte, txID string, partialResults []*wdk.PostFromBEEFServiceResult) []*wdk.PostFromBEEFServiceResult {
 	for _, target := range r.failovers {
-		posted, err := target.post(ctx, efHex, rawTx, txID)
+		posted, err := r.post(ctx, target, efHex, rawTx, txID)
 		if err == nil && posted == nil {
 			// the target broke the broadcastTarget contract (nil result, nil error):
 			// report it as a failure so the chain moves on to the next target.

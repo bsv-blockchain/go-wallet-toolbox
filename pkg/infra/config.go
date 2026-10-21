@@ -46,6 +46,8 @@ type HTTPConfig struct {
 	RequestPrice        uint              `mapstructure:"request_price"`
 	MaxRequestBodyBytes int64             `mapstructure:"max_request_body_bytes"`
 	CORS                server.CORSConfig `mapstructure:"cors"`
+	// AdminIdentityKeys enables GET /admin/stats for these identity keys.
+	AdminIdentityKeys []string `mapstructure:"admin_identity_keys"`
 }
 
 // Validate validates the HTTP configuration
