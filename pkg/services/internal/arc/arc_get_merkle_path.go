@@ -26,7 +26,7 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePat
 	}
 
 	if txInfo == nil {
-		return nil, fmt.Errorf("tx %s not found", txID)
+		return nil, fmt.Errorf("tx %s is not known to arc: %w", txID, wdk.ErrNotFoundError)
 	}
 
 	if txInfo.TxID != txID {

@@ -202,6 +202,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		Port:                cfg.HTTPConfig.Port,
 		MaxRequestBodyBytes: cfg.HTTPConfig.MaxRequestBodyBytes,
 		CORS:                cfg.HTTPConfig.CORS,
+		AdminIdentityKeys:   cfg.HTTPConfig.AdminIdentityKeys,
 		Monetize:            requestPrice != 0,
 		CalculateRequestPrice: func(_ *http.Request) (int, error) {
 			return requestPrice, nil

@@ -2,9 +2,11 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/bsv-blockchain/go-bsv-middleware/pkg/middleware"
@@ -54,6 +56,8 @@ func (s *Server) Handler() http.Handler {
 	rpcProvider := rpcserver.NewRPCStorageProvider(s.logger, s.provider)
 	rpcHandler := rpcserver.NewRPCHandler(s.logger, "storage", rpcProvider)
 	rpcHandler.Register(mux)
+
+	s.registerAdminRoutes(mux)
 
 	handler := http.Handler(mux)
 
@@ -134,4 +138,37 @@ func isZeroCORSConfig(config servercommon.CORSConfig) bool {
 		len(config.AllowedMethods) == 0 &&
 		len(config.AllowedHeaders) == 0 &&
 		len(config.ExposedHeaders) == 0
+}
+
+type adminStatsProvider interface {
+	AdminStats(ctx context.Context, requestedBy string) (*wdk.AdminStats, error)
+}
+
+// registerAdminRoutes registers GET /admin/stats when admin identity keys are configured
+// and the storage provider supports it. The route sits behind the auth middleware.
+func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
+	statsProvider, ok := s.provider.(adminStatsProvider)
+	if len(s.options.AdminIdentityKeys) == 0 || !ok {
+		return
+	}
+
+	mux.HandleFunc("GET /admin/stats", func(w http.ResponseWriter, r *http.Request) {
+		identity, err := middleware.ShouldGetIdentity(r.Context())
+		if err != nil || identity == nil || !slices.Contains(s.options.AdminIdentityKeys, identity.ToDERHex()) {
+			http.Error(w, "admin access required", http.StatusForbidden)
+			return
+		}
+
+		stats, err := statsProvider.AdminStats(r.Context(), identity.ToDERHex())
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to get admin stats", logging.Error(err))
+			http.Error(w, "failed to get admin stats", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(stats); err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to write admin stats", logging.Error(err))
+		}
+	})
 }

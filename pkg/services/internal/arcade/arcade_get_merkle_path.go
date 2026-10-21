@@ -36,7 +36,7 @@ func (s *Service) MerklePath(ctx context.Context, txID string) (_ *wdk.MerklePat
 		return nil, fmt.Errorf("arcade query tx %s failed: %w", txID, err)
 	}
 	if txInfo == nil {
-		return nil, fmt.Errorf("tx %s not found", txID)
+		return nil, fmt.Errorf("tx %s is not known to arcade: %w", txID, wdk.ErrNotFoundError)
 	}
 	if txInfo.TxID != "" && txInfo.TxID != txID {
 		return nil, fmt.Errorf("got response for tx %s while querying for %s", txInfo.TxID, txID)

@@ -43,6 +43,8 @@ type WalletServices struct {
 	arcade          *arcade.Service
 	broadcastRouter *broadcastRouter
 
+	callHistory *servicequeue.CallHistory
+
 	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
 	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
 	postTXServices servicequeue.Queue1[[]byte, *wdk.PostedTxID]
@@ -271,6 +273,10 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)
+	callHistory := servicequeue.NewCallHistory()
+	if router != nil {
+		router.history = callHistory
+	}
 
 	walletServices := &WalletServices{
 		chain:  config.Chain,
@@ -279,9 +285,11 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		arcade:          arcadeService,
 		broadcastRouter: router,
+		callHistory:     callHistory,
 
 		rawTxServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"RawTx",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.RawTxMethodsModifier,
@@ -293,6 +301,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		postEFServices: servicequeue.NewQueue2(
 			logger,
+			callHistory,
 			"PostEF",
 			namedFuncsToServices2(
 				applyModifierIfExists(options.PostEFMethodsModifier,
@@ -304,6 +313,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		postTXServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"PostTX",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.PostTXMethodsModifier,
@@ -315,6 +325,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		merklePathServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"MerklePath",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.MerklePathMethodsModifier,
@@ -326,6 +337,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		findChainTipHeaderServices: servicequeue.NewQueue(
 			logger,
+			callHistory,
 			"FindChainTipHeader",
 			namedFuncsToServices(
 				applyModifierIfExists(options.FindChainTipHeaderModifier,
@@ -337,6 +349,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		isValidRootForHeightServices: servicequeue.NewQueue2(
 			logger,
+			callHistory,
 			"IsValidRootForHeight",
 			namedFuncsToServices2(
 				applyModifierIfExists(options.IsValidRootForHeightModifier,
@@ -348,6 +361,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		currentHeightServices: servicequeue.NewQueue(
 			logger,
+			callHistory,
 			"CurrentHeight",
 			namedFuncsToServices(
 				applyModifierIfExists(options.CurrentHeightModifier,
@@ -359,6 +373,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		getScriptHashHistoryServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"GetScriptHashHistory",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.GetScriptHashHistoryModifier,
@@ -370,6 +385,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		hashToHeaderServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"HashToHeader",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.HashToHeaderModifier,
@@ -381,6 +397,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		chainHeaderByHeightServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"ChainHeaderByHeight",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.ChainHeaderByHeightModifier,
@@ -392,6 +409,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		getStatusForTxIDsServices: servicequeue.NewQueue1(
 			logger,
+			callHistory,
 			"GetStatusForTxIDs",
 			namedFuncsToServices1(
 				applyModifierIfExists(options.GetStatusForTxIDsModifier,
@@ -403,6 +421,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		getUtxoStatusServices: servicequeue.NewQueue2(
 			logger,
+			callHistory,
 			"GetUtxoStatus",
 			namedFuncsToServices2(
 				applyModifierIfExists(options.GetUtxoStatusModifier,
@@ -414,6 +433,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		isUtxoServices: servicequeue.NewQueue2(
 			logger,
+			callHistory,
 			"IsUtxo",
 			namedFuncsToServices2(
 				applyModifierIfExists(options.IsUtxoModifier,
@@ -425,6 +445,7 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 
 		bsvExchangeRateServices: servicequeue.NewQueue(
 			logger,
+			callHistory,
 			"BsvExchangeRate",
 			namedFuncsToServices(
 				applyModifierIfExists(options.BsvExchangeRateModifier,
@@ -622,7 +643,7 @@ func (s *WalletServices) RawTx(ctx context.Context, txID string) (_ wdk.RawTxRes
 	result, err := s.rawTxServices.OneByOne(ctx, txID)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return wdk.RawTxResult{}, fmt.Errorf("transaction with txID: %s not found", txID)
+			return wdk.RawTxResult{}, fmt.Errorf("transaction with txID: %s not found: %w", txID, wdk.ErrNotFoundError)
 		}
 		return wdk.RawTxResult{}, fmt.Errorf("couldn't get rawtx for id %s: %w", txID, err)
 	}
@@ -688,6 +709,12 @@ func (s *WalletServices) MerklePath(ctx context.Context, txid string) (_ *wdk.Me
 		return nil, fmt.Errorf("couldn't get merkle path for id %s: %w", txid, err)
 	}
 	return result, nil
+}
+
+// ServicesCallHistory returns recent calls and outcome counts per service method and provider.
+// With reset, every provider starts a new ResetCounts interval; total counts are kept.
+func (s *WalletServices) ServicesCallHistory(reset bool) wdk.ServicesCallHistory {
+	return s.callHistory.Snapshot(reset)
 }
 
 // PostFromBEEF attempts to broadcast transactions from BEEF to all configured services.
@@ -813,7 +840,7 @@ func (s *WalletServices) GetScriptHashHistory(ctx context.Context, scriptHash st
 	result, err := s.getScriptHashHistoryServices.OneByOne(ctx, scriptHash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("script hash %s not found in history", scriptHash)
+			return nil, fmt.Errorf("script hash %s not found in history: %w", scriptHash, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("failed to get script history: %w", err)
 	}
@@ -830,7 +857,7 @@ func (s *WalletServices) HashToHeader(ctx context.Context, hash string) (_ *wdk.
 	result, err := s.hashToHeaderServices.OneByOne(ctx, hash)
 	if err != nil {
 		if errors.Is(err, servicequeue.ErrEmptyResult) {
-			return nil, fmt.Errorf("block hash %s not found in any header service", hash)
+			return nil, fmt.Errorf("block hash %s not found in any header service: %w", hash, wdk.ErrNotFoundError)
 		}
 		return nil, fmt.Errorf("couldn't get block header for hash %s: %w", hash, err)
 	}

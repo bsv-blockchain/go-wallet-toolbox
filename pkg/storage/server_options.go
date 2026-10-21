@@ -41,6 +41,10 @@ type ServerOptions struct {
 	// to reach the inner v1adapter handler. When false (default) the auth middleware
 	// rejects with 401. This is enabled only for adapter_conformance_test.go.
 	AllowUnauthenticated bool
+
+	// AdminIdentityKeys are identity keys allowed to call GET /admin/stats.
+	// When empty, the admin endpoint is not registered.
+	AdminIdentityKeys []string
 }
 
 // DefaultCORSConfig returns an open-origin CORS config populated with the headers

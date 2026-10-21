@@ -169,6 +169,7 @@ func TestQueueOneByOne(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue(
 				logging.NewTestLogger(t),
+				nil,
 				"Do",
 				services...,
 			)
@@ -191,6 +192,7 @@ func TestQueueOneByOne(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue1(
 				logging.NewTestLogger(t),
+				nil,
 				"Do1",
 				services...,
 			)
@@ -213,6 +215,7 @@ func TestQueueOneByOne(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue2(
 				logging.NewTestLogger(t),
+				nil,
 				"Do2",
 				services...,
 			)
@@ -235,6 +238,7 @@ func TestQueueOneByOne(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue3(
 				logging.NewTestLogger(t),
+				nil,
 				"Do3",
 				services...,
 			)
@@ -318,6 +322,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue(
 				logging.NewTestLogger(t),
+				nil,
 				"Do",
 				services...,
 			)
@@ -341,6 +346,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue1(
 				logging.NewTestLogger(t),
+				nil,
 				"Do1",
 				services...,
 			)
@@ -364,6 +370,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue2(
 				logging.NewTestLogger(t),
+				nil,
 				"Do2",
 				services...,
 			)
@@ -387,6 +394,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue3(
 				logging.NewTestLogger(t),
+				nil,
 				"Do3",
 				services...,
 			)
@@ -441,6 +449,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue(
 				logging.NewTestLogger(t),
+				nil,
 				"Do",
 				services...,
 			)
@@ -488,6 +497,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue1(
 				logging.NewTestLogger(t),
+				nil,
 				"Do1",
 				services...,
 			)
@@ -528,6 +538,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue2(
 				logging.NewTestLogger(t),
+				nil,
 				"Do2",
 				services...,
 			)
@@ -568,6 +579,7 @@ func TestQueueParallel(t *testing.T) {
 			// and:
 			queue := servicequeue.NewQueue3(
 				logging.NewTestLogger(t),
+				nil,
 				"Do3",
 				services...,
 			)

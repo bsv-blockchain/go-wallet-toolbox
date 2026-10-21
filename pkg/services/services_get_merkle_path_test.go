@@ -66,6 +66,24 @@ func TestGetMerklePath(t *testing.T) {
 		assert.Nil(t, response)
 	})
 
+	t.Run("ARC 404 is an expected miss, not a service error", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		given.ARC().IsUpAndRunning()
+		given.ARC().WhenQueryingTx(txID).WillReturnHttpStatus(http.StatusNotFound)
+
+		services := given.Services().Config(testservices.WithEnabledArcade(false)).New()
+
+		// when:
+		_, err := services.MerklePath(t.Context(), txID)
+
+		// then:
+		require.ErrorIs(t, err, wdk.ErrNotFoundError)
+		arcCall := services.ServicesCallHistory(false)["MerklePath"].HistoryByProvider[arc.ServiceName].Calls[0]
+		assert.Equal(t, "not_found", arcCall.Result)
+		assert.Empty(t, arcCall.Error)
+	})
+
 	t.Run("falls through to WoC when ARC has seen but not yet indexed a merkle path for the tx", func(t *testing.T) {
 		// given:
 		given := testservices.GivenServices(t)

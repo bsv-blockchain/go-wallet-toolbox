@@ -46,6 +46,7 @@ fee_model:
   type: sat/kb
   value: 100
 http:
+  admin_identity_keys: []
   cors:
     allow_all_origins: true
     allow_private_network: true

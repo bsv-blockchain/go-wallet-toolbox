@@ -29,7 +29,7 @@ func TestServiceErrorsLogLevel(t *testing.T) {
 			// given:
 			w := &logging.TestWriter{}
 			logger := logging.New().WithLevel(defs.LogLevelDebug).WithHandler(defs.TextHandler, w).Logger()
-			queue := servicequeue.NewQueue1(logger, "test",
+			queue := servicequeue.NewQueue1(logger, nil, "test",
 				servicequeue.NewService1("svc", func(context.Context, string) (*string, error) { return nil, test.err }),
 			)
 
