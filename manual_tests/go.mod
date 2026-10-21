@@ -45,7 +45,7 @@ require (
 	github.com/bsv-blockchain/go-bsv-middleware v0.16.3 // indirect
 	github.com/bsv-blockchain/go-bt/v2 v2.7.4 // indirect
 	github.com/bsv-blockchain/go-chaincfg v1.7.0 // indirect
-	github.com/bsv-blockchain/go-chaintracks v1.4.3 // indirect
+	github.com/bsv-blockchain/go-chaintracks v1.4.5 // indirect
 	github.com/bsv-blockchain/go-lockfree-queue v1.2.0 // indirect
 	github.com/bsv-blockchain/go-p2p-message-bus v0.2.0 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
