@@ -9,6 +9,8 @@ import (
 
 // MonitoredStorage defines the minimum storage functionality used by the monitor.
 type MonitoredStorage interface {
+	// SynchronizeTransactionStatuses and ProcessNewTip may return committed statuses together
+	// with a non-nil error; those statuses must still be published.
 	SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error)
 	SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error)
 	AbortAbandoned(ctx context.Context) error

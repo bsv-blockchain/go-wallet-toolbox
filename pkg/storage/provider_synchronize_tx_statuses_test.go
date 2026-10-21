@@ -1,10 +1,13 @@
 package storage_test
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -751,4 +754,54 @@ func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByTxID(testusers.Alice, txID).
 		WithStatus(wdk.TxStatusUnproven)
+}
+
+func TestSynchronizeTxReturnsProvenTxsWhenRunIsCanceled(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	givenProvider := given.Provider()
+	activeStorage := givenProvider.GORM()
+
+	// and: three txs; the first two are mined, the third is never reached
+	faucet := given.Faucet(activeStorage, testusers.Alice)
+	txIDs := make([]string, 3)
+	for i := range txIDs {
+		txSpec, _ := faucet.TopUp(100_000)
+		txIDs[i] = txSpec.ID().String()
+		givenProvider.ARC().WhenQueryingTx(txIDs[i]).WillReturnWithMindedTx()
+	}
+
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+
+	// and: the run's context expires while the second tx's proof is being fetched
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	cancelOnQuery := func(*http.Request) (*http.Response, error) {
+		cancel()
+		return httpmock.NewStringResponse(http.StatusNotFound, `{"status":404,"title":"Not found"}`), nil
+	}
+	for _, arcURL := range []string{defs.ArcURL, defs.ArcTestURL} {
+		givenProvider.WhatsOnChain().Transport().RegisterResponder(http.MethodGet, arcURL+"/v1/tx/"+txIDs[1], cancelOnQuery)
+	}
+
+	// when:
+	results, err := activeStorage.SynchronizeTransactionStatuses(ctx)
+
+	// then: the run fails, but the tx already proven in it is still returned
+	require.ErrorIs(t, err, context.Canceled)
+	require.Len(t, results, 1)
+	assert.Equal(t, txIDs[0], results[0].TxID)
+	assert.Equal(t, wdk.ProvenTxStatusCompleted, results[0].Status)
+
+	// and:
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txIDs[0]).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
 }

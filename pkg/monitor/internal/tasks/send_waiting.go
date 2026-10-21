@@ -28,12 +28,19 @@ func NewSendWaitingTask(storage WaitingTransactionsSender, txBroadcastedEvents S
 
 func (t *SendWaitingTask) Run(ctx context.Context) error {
 	results, err := t.storage.SendWaitingTransactions(ctx, t.minTransactionAge())
+	// Publish before checking err: storage returns the results of the batches that succeeded
+	// alongside the joined errors of the ones that failed.
+	t.publish(results)
 	if err != nil {
 		return fmt.Errorf("send waiting transactions failed: %w", err)
 	}
 
+	return nil
+}
+
+func (t *SendWaitingTask) publish(results *wdk.ProcessActionResult) {
 	if t.txBroadcastedEvents == nil || results == nil {
-		return nil
+		return
 	}
 
 	for _, res := range results.NotDelayedResults {
@@ -54,8 +61,6 @@ func (t *SendWaitingTask) Run(ctx context.Context) error {
 
 		t.txBroadcastedEvents.Publish(msg)
 	}
-
-	return nil
 }
 
 func (t *SendWaitingTask) minTransactionAge() time.Duration {

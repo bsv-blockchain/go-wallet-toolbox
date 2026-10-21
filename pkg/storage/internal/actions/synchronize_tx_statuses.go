@@ -308,7 +308,9 @@ func (s *synchronizeTxStatuses) synchronizeTxStatusesInternal(ctx context.Contex
 
 	txStatuses, err := s.doSynchronizeTxStatuses(ctx, heightForCheck)
 	if err != nil {
-		return nil, err
+		// Partial results are committed and must still be published; the block is not marked
+		// as checked, so the next run retries the rest.
+		return txStatuses, err
 	}
 
 	// Save block info after successful completion (only if we have valid height and hash)
@@ -386,10 +388,12 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
 	}
 
+	// From here on every return carries txStatuses: each entry is already committed as mined,
+	// and a completed tx is never selected again, so dropping it would lose its event for good.
 	var failedAttempts []string
 	for _, txToSync := range txsToSync {
 		if err = ctx.Err(); err != nil {
-			return nil, fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
+			return txStatuses, fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
 		}
 
 		s.logger.DebugContext(ctx, "synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
@@ -427,7 +431,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		var transactionIDs []uint
 		transactionIDs, err = s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
+			return txStatuses, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
 		}
 
 		notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
@@ -443,7 +447,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 			Notes:       notes,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update proven txs as mined: %w", err)
+			return txStatuses, fmt.Errorf("failed to update proven txs as mined: %w", err)
 		}
 
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
@@ -465,7 +469,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
+		return txStatuses, fmt.Errorf("failed to increase attempts for txs: %w", err)
 	}
 
 	updatedTxs, err := s.provenTxRepo.ApplyProofTimeouts(
@@ -475,7 +479,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		statuses,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply proof timeouts for txs above attempts: %w", err)
+		return txStatuses, fmt.Errorf("failed to apply proof timeouts for txs above attempts: %w", err)
 	}
 
 	for _, updatedTx := range updatedTxs {
@@ -488,7 +492,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	}
 
 	if err := s.reviewKnownTxStatuses(ctx); err != nil {
-		return nil, fmt.Errorf("failed to review known tx statuses: %w", err)
+		return txStatuses, fmt.Errorf("failed to review known tx statuses: %w", err)
 	}
 
 	return txStatuses, nil

@@ -28,12 +28,18 @@ func NewCheckForProofsTask(storage TransactionStatusesSynchronizer, txProvenEven
 
 func (t *CheckForProofsTask) Run(ctx context.Context) error {
 	results, err := t.storage.SynchronizeTransactionStatuses(ctx)
+	// Publish before checking err: a failed run still returns the statuses it already committed.
+	t.publish(results)
 	if err != nil {
 		return fmt.Errorf("synchronize transaction statuses failed: %w", err)
 	}
 
+	return nil
+}
+
+func (t *CheckForProofsTask) publish(results []wdk.TxSynchronizedStatus) {
 	if t.txProvenEvents == nil {
-		return nil
+		return
 	}
 
 	for _, res := range results {
@@ -50,6 +56,4 @@ func (t *CheckForProofsTask) Run(ctx context.Context) error {
 
 		t.txProvenEvents.Publish(msg)
 	}
-
-	return nil
 }

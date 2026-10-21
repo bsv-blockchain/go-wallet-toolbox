@@ -2,6 +2,7 @@ package tasks_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -160,5 +161,40 @@ func TestSendWaitingMonitorTask_BurstLargerThanChannelIsNotDropped(t *testing.T)
 		case <-time.After(5 * time.Second):
 			t.Fatalf("timed out waiting for event %d", i)
 		}
+	}
+}
+
+type partiallyFailingSender struct {
+	err error
+}
+
+func (s partiallyFailingSender) SendWaitingTransactions(context.Context, time.Duration) (*wdk.ProcessActionResult, error) {
+	return &wdk.ProcessActionResult{NotDelayedResults: []wdk.ReviewActionResult{{
+		TxID:   primitives.TXIDHexString(fmt.Sprintf("%064x", 1)),
+		Status: wdk.ReviewActionResultStatusSuccess,
+	}}}, s.err
+}
+
+func TestSendWaitingMonitorTask_ForwardsSucceededBatchesWhenSomeFail(t *testing.T) {
+	t.Parallel()
+	// given: storage returns the results of the batches that succeeded alongside an error
+	batchErr := errors.New("batch failed")
+	broadcasted := make(chan wdk.CurrentTxStatus, 1)
+	events := eventqueue.New[wdk.CurrentTxStatus]("test", broadcasted, logging.NewTestLogger(t))
+	defer events.Discard()
+	task := tasks.NewSendWaitingTask(partiallyFailingSender{err: batchErr}, events)
+
+	// when:
+	err := task.Run(t.Context())
+
+	// then:
+	require.ErrorIs(t, err, batchErr)
+
+	// and: the succeeded tx is still forwarded as a TxBroadcasted message
+	select {
+	case msg := <-broadcasted:
+		assert.Equal(t, fmt.Sprintf("%064x", 1), msg.TxID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected the succeeded tx to be forwarded despite the error, but none arrived")
 	}
 }

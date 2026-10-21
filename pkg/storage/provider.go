@@ -726,7 +726,8 @@ func (p *Provider) SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.Tx
 
 	results, err := p.actions.SynchronizeTxStatuses(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to synchronize transaction statuses: %w", err)
+		// Results are returned alongside the error: they are already committed and must be published.
+		return results, fmt.Errorf("failed to synchronize transaction statuses: %w", err)
 	}
 	return results, nil
 }
@@ -1452,7 +1453,7 @@ func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string
 
 	results, err := p.actions.SynchronizeTxStatusesForTip(ctx, height, hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to synchronize transaction statuses for tip: %w", err)
+		return results, fmt.Errorf("failed to synchronize transaction statuses for tip: %w", err)
 	}
 
 	return results, nil
