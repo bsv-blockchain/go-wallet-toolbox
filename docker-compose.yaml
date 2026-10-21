@@ -1,6 +1,6 @@
 services:
   jaeger:
-    image: jaegertracing/all-in-one:1.35
+    image: jaegertracing/all-in-one:1.60
     profiles: ["tracing"]
     ports:
       - "16686:16686"
@@ -11,7 +11,7 @@ services:
       - OTEL_EXPORTER_OTLP_INSECURE=true
 
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     volumes:
       - db-data:/var/lib/postgresql/data:Z
     environment:

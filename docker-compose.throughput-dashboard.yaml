@@ -19,7 +19,7 @@
 
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     # The throughput demo is write-bound on WAL flushes at high createAction
     # rates. synchronous_commit=off returns from COMMIT without waiting for the
     # WAL flush, which removes that wait while keeping fsync ordering intact: a

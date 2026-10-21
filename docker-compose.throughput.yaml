@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     volumes:
       - db-data-throughput:/var/lib/postgresql/data:Z
     environment:
