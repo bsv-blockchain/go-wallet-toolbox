@@ -60,6 +60,7 @@ func (r *Repositories) AdminStats(ctx context.Context, dayAgo, weekAgo, monthAgo
 
 	var txRows []struct {
 		AdminCountsRow
+
 		Status wdk.TxStatus
 		NoTxID bool
 	}
@@ -83,6 +84,7 @@ func (r *Repositories) AdminStats(ctx context.Context, dayAgo, weekAgo, monthAgo
 
 	var satRows []struct {
 		AdminCountsRow
+
 		Change bool
 	}
 	outputs, transactions := r.DB.NamingStrategy.TableName("Output"), r.DB.NamingStrategy.TableName("Transaction")
