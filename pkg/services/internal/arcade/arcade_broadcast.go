@@ -26,9 +26,12 @@ import (
 // to /tx as application/octet-stream.
 //
 // Transport errors (network, 5xx except 503) result in (nil, err).
-// An Arcade-level rejection (400) results in a result with Error set and err == nil.
-// A 503 results in (nil, *BackpressureError) with the parsed Retry-After header
-// (seconds int or HTTP date; default 5s when absent/unparseable).
+// An Arcade-level rejection (400 and other 4xx) results in a result with Error set and err == nil.
+// A 503, or a 429 rate-limit response that outlived the client's retries, results in
+// (nil, *BackpressureError) with the parsed Retry-After header (seconds int or HTTP
+// date; default 5s when absent/unparseable).
+// A 401/403 (API key missing, invalid, revoked or expired) results in (nil, *AuthError):
+// the credentials were refused, the transaction was never judged.
 // An efHex decode failure results in a wdk.PostedTxIDResultError result with err == nil.
 func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.PostedTxID, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Services-PostEF", attribute.String("service", "arcade"))
@@ -73,7 +76,8 @@ func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.Posted
 
 // broadcast POSTs the binary EF bytes to Arcade. It returns either the transaction
 // info (success), an APIError (Arcade-level 4xx rejection) or an error
-// (transport failure, unexpected 5xx, or *BackpressureError on 503).
+// (transport failure, unexpected 5xx, *BackpressureError on 503/429, or
+// *AuthError on 401/403).
 func (s *Service) broadcast(ctx context.Context, efBytes []byte) (_ *TXInfo, _ *APIError, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Services-Broadcast", attribute.String("service", "arcade"))
 	defer func() {
@@ -105,8 +109,11 @@ func (s *Service) broadcast(ctx context.Context, efBytes []byte) (_ *TXInfo, _ *
 			return nil, nil, fmt.Errorf("arcade returned success [%d %s] without transaction status", response.StatusCode(), response.Status())
 		}
 		return result, nil, nil
-	case response.StatusCode() == http.StatusServiceUnavailable:
+	case response.StatusCode() == http.StatusServiceUnavailable,
+		response.StatusCode() == http.StatusTooManyRequests:
 		return nil, nil, &BackpressureError{RetryAfter: parseRetryAfter(response.Header().Get("Retry-After"))}
+	case isAuthStatus(response.StatusCode()):
+		return nil, nil, s.authError(response.StatusCode(), apiErr)
 	case response.StatusCode() >= http.StatusInternalServerError:
 		return nil, nil, fmt.Errorf("arcade returned http status [%d %s]: %w", response.StatusCode(), response.Status(), apiErr)
 	default:

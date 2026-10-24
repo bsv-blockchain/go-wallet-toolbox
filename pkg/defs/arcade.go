@@ -33,6 +33,11 @@ type Arcade struct {
 	URL string `mapstructure:"url"`
 	// EventsURL is the base URL for the SSE /events endpoint; defaults to URL.
 	EventsURL string `mapstructure:"events_url"`
+	// APIKey is an optional Arcade API key (bsvb_...). When set it is sent as
+	// "Authorization: Bearer <key>" on every request to URL (and to EventsURL),
+	// placing the wallet in the key's rate-limit tier instead of the per-IP
+	// anonymous tier. Leave empty for Arcade deployments without auth.
+	APIKey string `mapstructure:"api_key"`
 	// CallbackToken scopes webhooks and the SSE stream to this wallet instance.
 	// When empty it is derived from the wallet identity key at wiring time.
 	CallbackToken string `mapstructure:"callback_token"`

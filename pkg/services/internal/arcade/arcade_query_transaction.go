@@ -44,6 +44,8 @@ func (s *Service) QueryTx(ctx context.Context, txID string) (_ *TXInfo, err erro
 		return result, nil
 	case http.StatusNotFound:
 		return nil, fmt.Errorf("tx %s is not known to arcade: %w", txID, wdk.ErrNotFoundError)
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return nil, s.authError(response.StatusCode(), apiErr)
 	default:
 		return nil, fmt.Errorf("arcade returned unexpected http status [%d %s]: %w", response.StatusCode(), response.Status(), apiErr)
 	}
