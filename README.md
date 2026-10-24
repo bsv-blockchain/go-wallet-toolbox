@@ -165,6 +165,19 @@ Set `bsv_network` in the config (or `BSV_NETWORK` / `<PREFIX>_BSV_NETWORK` in th
 
 Selecting `tstn` without at least `TSTN_ARCADE_URL` fails startup with an actionable error.
 
+#### Arcade API key
+
+Arcade instances with API-key auth enabled serve unkeyed callers at a small per-IP anonymous
+quota. To use your own key's quota, set `wallet_services.arcade.api_key` (env:
+`INFRA_WALLET_SERVICES_ARCADE_API_KEY`) to the `bsvb_…` key. It is sent as
+`Authorization: Bearer <key>` on every Arcade request (`/tx`, `/tx/{txid}`, `/health`, and
+`/events` on `events_url`), and redacted from debug logs.
+
+A refused key (HTTP 401/403) is a service failure, never a verdict on the transaction: the
+broadcast fails over to the next broadcaster (or stays queued for retry when Arcade is the only
+one), and the error names the key as the cause. A 429 is handled as backpressure and honors
+`Retry-After`.
+
 <br>
 
 ### Cache store
