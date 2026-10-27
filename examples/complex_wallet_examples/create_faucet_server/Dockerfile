@@ -4,7 +4,7 @@
 # platform and stay reproducible; the tag is kept so Dependabot preserves the
 # -alpine variant on bumps (a digest alone is variant-ambiguous and can flip the
 # builder to Debian, which has no `apk`).
-FROM golang:1.27-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
+FROM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS builder
 
 # Install git, ca-certificates, and SQLite development libraries
 RUN apk add --no-cache git ca-certificates sqlite-dev gcc musl-dev
@@ -31,7 +31,7 @@ RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o faucet-server ./cmd/main.go
 
 # Final stage
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates
