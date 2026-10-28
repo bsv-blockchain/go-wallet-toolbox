@@ -21,26 +21,24 @@ func TestFuelInputThreshold(t *testing.T) {
 	)
 	feeCalculator := newFeeCalculator(defs.FeeModel{Type: defs.SatPerKB, Value: 100})
 
-	minFuel := func(inputUnlockLens, outputLockLens []uint64, tokenInSats, tokenOutSats int64) (fuel int64, change satoshi.Value) {
+	minFuel := func(inputUnlockLens, outputLockLens []uint64, tokenInSats, tokenOutSats int64) (fuel int64) {
 		txSize := txutils.TransactionSizeFromScriptLengths(inputUnlockLens, outputLockLens)
 		for fuel = 1; fuel <= 1000; fuel++ {
 			c, err := newCollector(satoshi.Value(tokenOutSats-tokenInSats-fuel), txSize, uint64(len(outputLockLens)), 32, 1000, feeCalculator, 8, false)
 			require.NoError(t, err)
 			if c.IsFunded() {
-				res, err := c.GetResult()
-				require.NoError(t, err)
-				return fuel, res.ChangeAmount
+				return fuel
 			}
 		}
 		t.Fatal("no fuel up to 1000 sats covers the fee")
-		return 0, 0
+		return 0
 	}
 
 	for _, dataLen := range []uint64{64, 300} {
 		lockLen := 1 + 33 + 1 + 3 + dataLen + 1 // <pubkey> OP_CHECKSIG <data> OP_DROP
-		mint, _ := minFuel([]uint64{fuelUnlockLen}, []uint64{lockLen}, 0, tokenSats)
-		transfer, _ := minFuel([]uint64{fuelUnlockLen, pushdropUnlockLen}, []uint64{lockLen}, tokenSats, tokenSats)
-		burn, _ := minFuel([]uint64{fuelUnlockLen, pushdropUnlockLen}, nil, tokenSats, 0)
+		mint := minFuel([]uint64{fuelUnlockLen}, []uint64{lockLen}, 0, tokenSats)
+		transfer := minFuel([]uint64{fuelUnlockLen, pushdropUnlockLen}, []uint64{lockLen}, tokenSats, tokenSats)
+		burn := minFuel([]uint64{fuelUnlockLen, pushdropUnlockLen}, nil, tokenSats, 0)
 		t.Logf("pushdrop data %3d bytes: min fuel mint=%d transfer=%d burn=%d sats", dataLen, mint, transfer, burn)
 
 		// A 100-sat fuel output covers every shape. 50 covers mint and transfer,

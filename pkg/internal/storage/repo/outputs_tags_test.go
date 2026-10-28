@@ -50,11 +50,12 @@ func TestOutputs_ManyDistinctTags(t *testing.T) {
 
 	outputs := make([]*models.Output, outputCount)
 	for i := range outputs {
-		outputs[i] = &models.Output{UserID: user.ID, TransactionID: tx.ID, Vout: uint32(i), Satoshis: 1, Spendable: true} //nolint:gosec // i < outputCount
+		outputs[i] = &models.Output{UserID: user.ID, TransactionID: tx.ID, Vout: uint32(i), Satoshis: 1, Spendable: true}
 	}
 	require.NoError(t, db.DB.CreateInBatches(outputs, 500).Error)
 
-	tags := []*models.Tag{{Name: "token", UserID: user.ID}, {Name: "removed", UserID: user.ID}}
+	tags := make([]*models.Tag, 0, outputCount+2)
+	tags = append(tags, &models.Tag{Name: "token", UserID: user.ID}, &models.Tag{Name: "removed", UserID: user.ID})
 	links := make([]*models.OutputTag, 0, 2*outputCount+2)
 	for i, out := range outputs {
 		name := fmt.Sprintf("pushdrop-%d", i)

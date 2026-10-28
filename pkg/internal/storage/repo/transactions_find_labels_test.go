@@ -46,7 +46,8 @@ func TestFindTransactions_ManyDistinctLabels(t *testing.T) {
 	}
 	require.NoError(t, db.DB.CreateInBatches(txs, 500).Error)
 
-	labels := []*models.Label{{Name: "kind=token", UserID: user.ID}, {Name: "removed", UserID: user.ID}}
+	labels := make([]*models.Label, 0, txCount+2)
+	labels = append(labels, &models.Label{Name: "kind=token", UserID: user.ID}, &models.Label{Name: "removed", UserID: user.ID})
 	links := make([]*models.TransactionLabel, 0, 2*txCount+2)
 	for i, tx := range txs {
 		name := fmt.Sprintf("id=%d", i)
