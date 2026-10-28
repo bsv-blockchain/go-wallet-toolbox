@@ -937,13 +937,61 @@ func (txs *Transactions) FindTransactions(ctx context.Context, spec *pkgentity.T
 	rows, err := table.WithContext(ctx).
 		Scopes(scopes.FromQueryOptsForGen(table, opts)...).
 		Where(txs.conditionsBySpec(ctx, spec)...).
-		Preload(table.Labels).
 		Find()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find transactions: %w", err)
 	}
 
+	if err = txs.loadLabels(ctx, rows); err != nil {
+		return nil, err
+	}
+
 	return slices.Map(rows, txs.mapModelToTransactionEntity), nil
+}
+
+// relationBatchSize bounds the IDs bound into one label or tag query (see
+// loadLabels, loadTags), well under the bind-parameter limits of SQLite
+// (32,766) and Postgres (65,535).
+const relationBatchSize = 5000
+
+// loadLabels fills the Labels of rows. It replaces GORM's Preload of the
+// many2many Labels: Label's primary key is (name, user_id), so Preload selected
+// labels with a row-value `(name, user_id) IN ((..),(..),...)` list, one tuple
+// per distinct label, and Postgres fails to evaluate that list past a few
+// thousand labels ("stack depth limit exceeded"). Keying on the single
+// transaction_id column avoids it; both of Preload's soft-delete filters, on
+// the link and on the label, are kept.
+func (txs *Transactions) loadLabels(ctx context.Context, rows []*models.Transaction) error {
+	byID := make(map[uint]*models.Transaction, len(rows))
+	ids := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+		ids = append(ids, row.ID)
+	}
+
+	type labelRow struct {
+		TransactionID uint
+		Name          string
+	}
+	for start := 0; start < len(ids); start += relationBatchSize {
+		var found []labelRow
+		err := txs.db.WithContext(ctx).
+			Table("bsv_transaction_labels tl").
+			Select("tl.transaction_id, l.name").
+			Joins("JOIN bsv_labels l ON l.name = tl.label_name AND l.user_id = tl.label_user_id").
+			Where("tl.transaction_id IN ?", ids[start:min(start+relationBatchSize, len(ids))]).
+			Where("tl.deleted_at IS NULL").
+			Where("l.deleted_at IS NULL").
+			Scan(&found).Error
+		if err != nil {
+			return fmt.Errorf("failed to load transaction labels: %w", err)
+		}
+		for _, f := range found {
+			tx := byID[f.TransactionID]
+			tx.Labels = append(tx.Labels, &models.Label{Name: f.Name, UserID: tx.UserID})
+		}
+	}
+	return nil
 }
 
 func (txs *Transactions) CountTransactions(ctx context.Context, spec *pkgentity.TransactionReadSpecification, opts ...queryopts.Options) (int64, error) {

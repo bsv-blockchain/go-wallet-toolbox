@@ -202,10 +202,6 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 			query = query.Where("basket_name = ?", filter.Basket)
 		}
 
-		if filter.IncludeTags {
-			query = query.Preload("Tags")
-		}
-
 		if len(filter.Tags) > 0 {
 			query = query.Scopes(taggedWith(tx, filter.UserID, filter.Tags, filter.TagsQueryMode))
 		}
@@ -228,6 +224,9 @@ func (o *Outputs) ListAndCountOutputs(ctx context.Context, filter entity.ListOut
 
 		if err := query.Limit(filter.Limit).Offset(filter.Offset).Order("bsv_outputs.id ASC").Find(&outputs).Error; err != nil {
 			return fmt.Errorf("query failed: %w", err)
+		}
+		if filter.IncludeTags {
+			return loadTags(tx, outputs)
 		}
 		return nil
 	}); err != nil {
@@ -377,6 +376,45 @@ func (o *Outputs) FindOutput(ctx context.Context, userID int, outpoint wdk.OutPo
 	return tableOutput, nil
 }
 
+// loadTags fills the Tags of rows, for the same reason loadLabels exists: Tag's
+// primary key is (name, user_id), so GORM's Preload of the many2many Tags
+// selected tags with a row-value `(name, user_id) IN (...)` list, one tuple per
+// distinct tag, which Postgres fails to evaluate past a few thousand ("stack
+// depth limit exceeded"). Keying on the single output_id column avoids it;
+// Preload's soft-delete filters, on the link and on the tag, are kept.
+func loadTags(db *gorm.DB, rows []*models.Output) error {
+	byID := make(map[uint]*models.Output, len(rows))
+	ids := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+		ids = append(ids, row.ID)
+	}
+
+	type tagRow struct {
+		OutputID uint
+		Name     string
+	}
+	for start := 0; start < len(ids); start += relationBatchSize {
+		var found []tagRow
+		err := db.
+			Table("bsv_output_tags ot").
+			Select("ot.output_id, t.name").
+			Joins("JOIN bsv_tags t ON t.name = ot.tag_name AND t.user_id = ot.tag_user_id").
+			Where("ot.output_id IN ?", ids[start:min(start+relationBatchSize, len(ids))]).
+			Where("ot.deleted_at IS NULL").
+			Where("t.deleted_at IS NULL").
+			Scan(&found).Error
+		if err != nil {
+			return fmt.Errorf("failed to load output tags: %w", err)
+		}
+		for _, f := range found {
+			out := byID[f.OutputID]
+			out.Tags = append(out.Tags, &models.Tag{Name: f.Name, UserID: out.UserID})
+		}
+	}
+	return nil
+}
+
 // FindInputsAndOutputsWithBaskets retrieves inputs and outputs for given transaction IDs, including basket information.
 // It returns two maps: one for inputs keyed by SpentBy ID and another for outputs keyed by TransactionID.
 // Each map contains slices of TableOutput, which include basket details if available.
@@ -396,7 +434,6 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 			return db.Select("id, tx_id")
 		}).
 		Preload("Basket").
-		Preload("Tags").
 		Where("transaction_id IN ? OR spent_by IN ?", txIDs, txIDs)
 
 	if !includeLockingScripts {
@@ -406,6 +443,9 @@ func (o *Outputs) FindInputsAndOutputsWithBaskets(ctx context.Context, txIDs []u
 	var allOutputs []*models.Output
 	if err := query.Find(&allOutputs).Error; err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch inputs/outputs: %w", err)
+	}
+	if err := loadTags(o.db.WithContext(ctx), allOutputs); err != nil {
+		return nil, nil, err
 	}
 
 	inputMap := make(map[uint][]*pkgentity.Output)
