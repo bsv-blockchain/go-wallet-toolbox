@@ -200,6 +200,25 @@ Current users:
 Library users pass a store to `services.New` with `services.WithCacheStore(cachestore.New(logger, cfg))`;
 without it `WalletServices` uses an in-memory store.
 
+### Telemetry
+
+The toolbox records OpenTelemetry metrics and spans. How they are exported depends on how it runs:
+
+- **As its own service** (`cmd/infra`): set `tracing.enabled` and `observability.metrics.enabled`, with
+  `tracing.dialAddr` pointing at an OTLP collector. An `https://` address uses TLS. The standard
+  `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` variables override the reported service identity.
+- **Embedded in a host service** that owns its OpenTelemetry providers: pass them to the toolbox before
+  creating any toolbox component, and do not call `tracing.Enable` or `tracing.EnableMetrics`, which
+  replace the process-wide providers.
+
+```go
+telemetry.SetMeterProvider(meterProvider)
+telemetry.SetTracerProvider(tracerProvider)
+```
+
+Toolbox spans use the `github.com/bsv-blockchain/go-wallet-toolbox` instrumentation scope. Instruments are
+no-ops until a provider is supplied either way.
+
 <br>
 
 ## 📚 Documentation

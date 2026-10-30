@@ -15,7 +15,9 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-// NewTraceProvider creates a new OpenTelemetry trace provider with the given service name and sampling rate.
+// NewTraceProvider creates a new OpenTelemetry trace provider with the given service name and sampling rate,
+// and installs it and the W3C propagators as the process globals. OTEL_SERVICE_NAME and
+// OTEL_RESOURCE_ATTRIBUTES, when set, take precedence over serviceName.
 func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts ...otlptracegrpc.Option) (*trace.TracerProvider, *otlptrace.Exporter, error) {
 	exporter, err := otlptracegrpc.New(
 		ctx,
@@ -25,16 +27,19 @@ func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts 
 		return nil, nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
 
+	res, err := newResource(ctx, serviceName)
+	if err != nil {
+		_ = exporter.Shutdown(ctx)
+		return nil, nil, err
+	}
+
 	traceOpt := trace.WithSampler(trace.AlwaysSample())
 	if sample != 0 && sample != 100 {
 		traceOpt = trace.WithSampler(trace.TraceIDRatioBased(float64(sample) / 100))
 	}
 
 	tp := trace.NewTracerProvider(
-		trace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(serviceName),
-		)),
+		trace.WithResource(res),
 		trace.WithBatcher(exporter),
 		traceOpt,
 	)
@@ -45,15 +50,17 @@ func NewTraceProvider(ctx context.Context, serviceName string, sample int, opts 
 	return tp, exporter, nil
 }
 
-// Enable sets up OpenTelemetry tracing with the given logger, service name, dial address, and sampling rate.
+// Enable sets up global OpenTelemetry tracing for a standalone process; embedding hosts use the telemetry package
+// instead. An empty dial address falls back to the standard OTLP environment, and its scheme selects TLS.
 func Enable(logger *slog.Logger, serviceName, dialAddr string, sample int) (func(), error) {
-	if dialAddr == "" {
-		return nil, errors.New("tracing enabled, but tracing address empty")
-	}
-
 	ctx := context.Background()
 
-	tp, exporter, err := NewTraceProvider(ctx, serviceName, sample, otlptracegrpc.WithEndpointURL(dialAddr), otlptracegrpc.WithInsecure())
+	var opts []otlptracegrpc.Option
+	if dialAddr != "" {
+		opts = append(opts, otlptracegrpc.WithEndpointURL(dialAddr))
+	}
+
+	tp, exporter, err := NewTraceProvider(ctx, serviceName, sample, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -81,4 +88,18 @@ func Enable(logger *slog.Logger, serviceName, dialAddr string, sample int) (func
 	}
 
 	return cleanup, nil
+}
+
+// newResource lets OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES override serviceName, as the OTel spec requires.
+// A malformed environment yields a partial resource rather than an error, matching resource.Default.
+func newResource(ctx context.Context, serviceName string) (*resource.Resource, error) {
+	res, err := resource.New(ctx,
+		resource.WithAttributes(semconv.ServiceName(serviceName)),
+		resource.WithFromEnv(),
+		resource.WithTelemetrySDK(),
+	)
+	if err != nil && !errors.Is(err, resource.ErrPartialResource) {
+		return nil, fmt.Errorf("failed to create resource: %w", err)
+	}
+	return res, nil
 }

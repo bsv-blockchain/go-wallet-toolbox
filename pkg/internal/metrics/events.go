@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
 const eventsMeterName = "github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
@@ -32,7 +33,7 @@ var (
 
 func ensureEventsInstruments() {
 	eventsInitOnce.Do(func() {
-		meter := otel.Meter(eventsMeterName)
+		meter := telemetry.MeterProvider().Meter(eventsMeterName)
 		// Instrument creation only fails on invalid names; fall back to no-op
 		// instruments rather than propagating an error into the publish path.
 		eventsUndelivered, _ = meter.Int64Counter("wallet.events.undelivered",
@@ -69,7 +70,7 @@ type EventQueueStatsFunc func() []EventQueueStat
 // Depth and oldest age show a subscriber falling behind: events are buffered, not
 // lost, but memory grows and delivery latency rises until it catches up.
 func RegisterEventQueueGauges(stats EventQueueStatsFunc) (func(), error) {
-	meter := otel.Meter(eventsMeterName)
+	meter := telemetry.MeterProvider().Meter(eventsMeterName)
 
 	depth, err := meter.Int64ObservableGauge("wallet.events.queue_depth",
 		metric.WithDescription("Events buffered for a subscriber channel, waiting to be delivered"))

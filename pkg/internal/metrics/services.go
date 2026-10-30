@@ -4,9 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
 const servicesMeterName = "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -20,7 +21,7 @@ var (
 
 func ensureServicesInstruments() {
 	servicesInitOnce.Do(func() {
-		meter := otel.Meter(servicesMeterName)
+		meter := telemetry.MeterProvider().Meter(servicesMeterName)
 		serviceCalls, _ = meter.Int64Counter("wallet.services.calls_total",
 			metric.WithDescription("Per-service call outcomes by method, service and outcome (ok, not_found, empty, canceled, error)"))
 		bumpLeafMissing, _ = meter.Int64Counter("wallet.beef.bump_leaf_missing_total",
