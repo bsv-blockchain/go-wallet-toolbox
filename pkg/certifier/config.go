@@ -24,6 +24,11 @@ type Config struct {
 	Storage struct {
 		URL string `mapstructure:"url"`
 	} `mapstructure:"storage"`
+	// Stash configures the database for issued certificates, separate from the wallet storage.
+	Stash struct {
+		// DSN is a SQLite connection string. Empty means an in-memory database.
+		DSN string `mapstructure:"dsn"`
+	} `mapstructure:"stash"`
 	Logging defs.LogConfig `mapstructure:"logging"`
 }
 
