@@ -3,18 +3,21 @@ package tracing
 import (
 	"context"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
-// StartTracing starts a new tracing span with the given name and attributes.
+const tracerName = "github.com/bsv-blockchain/go-wallet-toolbox"
+
+// StartTracing starts a new tracing span with the given name and attributes on telemetry.TracerProvider.
 //
 //nolint:spancheck // span is returned to caller who is responsible for ending it via EndTracing
 func StartTracing(ctx context.Context, spanName string, attributes ...attribute.KeyValue) (context.Context, trace.Span) {
 	var span trace.Span
-	tracer := otel.Tracer("")
+	tracer := telemetry.TracerProvider().Tracer(tracerName)
 	if tracer == nil {
 		return ctx, nil
 	}

@@ -53,6 +53,36 @@ func (e *BackpressureError) Error() string {
 	return fmt.Sprintf("arcade is applying backpressure, retry after %s", e.RetryAfter)
 }
 
+// AuthError is returned when Arcade refuses the request's credentials: 401 for a
+// missing-but-required, malformed, unknown, revoked or expired API key, 403 when
+// the key is not allowed to make the call. It is a service-level failure, never
+// a verdict on the transaction, so the broadcast router fails over to the next
+// broadcaster instead of reporting the transaction as rejected.
+type AuthError struct {
+	StatusCode int
+	// APIKeyConfigured reports whether the request carried an API key.
+	APIKeyConfigured bool
+	Err              *APIError
+}
+
+// Error returns the error string; it's the implementation of the error interface.
+func (e *AuthError) Error() string {
+	hint := "check the configured arcade api_key"
+	if !e.APIKeyConfigured {
+		hint = "this arcade instance may require an api_key"
+	}
+	return fmt.Sprintf("arcade refused the request credentials (http status %d, %s): %s", e.StatusCode, hint, e.Err.Error())
+}
+
+// isAuthStatus reports whether an HTTP status means Arcade refused the credentials.
+func isAuthStatus(statusCode int) bool {
+	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden
+}
+
+func (s *Service) authError(statusCode int, apiErr *APIError) *AuthError {
+	return &AuthError{StatusCode: statusCode, APIKeyConfigured: s.config.APIKey != "", Err: apiErr}
+}
+
 // APIError represents an error returned by the Arcade API when status code is 4xx.
 type APIError struct {
 	Err string `json:"error"`
@@ -99,12 +129,16 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 
 	headers := httpx.NewHeaders().
 		AcceptJSON().
+		AuthorizationBearer().IfNotEmpty(config.APIKey).
 		UserAgent().Value("go-wallet-toolbox")
 
 	httpClient = httpClient.
 		SetHeaders(headers).
 		SetLogger(logging.RestyAdapter(logger)).
-		SetDebug(logging.IsDebug(logger))
+		SetDebug(logging.IsDebug(logger)).
+		// debug request logs dump every header: never let the API key reach the logs.
+		// RequestLog.Header is a copy, so this does not alter the request sent.
+		OnRequestLog(redactAuthorization)
 
 	broadcastHeaders := httpx.NewHeaders().
 		ContentType().Value("application/octet-stream").
@@ -127,6 +161,14 @@ func New(logger *slog.Logger, httpClient *resty.Client, config Config) *Service 
 		broadcastHeaders:       broadcastHeaders,
 		sseReadWatchdogTimeout: readWatchdogTimeout,
 	}
+}
+
+// redactAuthorization masks the Authorization header in resty debug request logs.
+func redactAuthorization(rl *resty.RequestLog) error {
+	if rl.Header.Get("Authorization") != "" {
+		rl.Header.Set("Authorization", "[REDACTED]")
+	}
+	return nil
 }
 
 // newSSEClient creates an HTTP client for the long-lived SSE stream:

@@ -2,7 +2,6 @@ package tracing
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,32 +9,27 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-// EnableMetrics sets up OpenTelemetry metrics export over the same OTLP
-// endpoint the tracing configuration uses (tracing.enabled gates span export
-// only, not metrics). Instruments registered anywhere in the process via
-// otel.Meter become live once this runs; without it they are no-ops.
+// EnableMetrics sets up global OpenTelemetry metrics export for a standalone process, on the same endpoint
+// rules as Enable; embedding hosts use the telemetry package instead. Without either, toolbox instruments are no-ops.
 func EnableMetrics(logger *slog.Logger, serviceName, dialAddr string, exportInterval time.Duration) (func(), error) {
-	if dialAddr == "" {
-		return nil, errors.New("metrics enabled, but OTLP address (tracing.dialAddr) empty")
-	}
-
 	ctx := context.Background()
 
-	exporter, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithEndpointURL(dialAddr), otlpmetricgrpc.WithInsecure())
+	var opts []otlpmetricgrpc.Option
+	if dialAddr != "" {
+		opts = append(opts, otlpmetricgrpc.WithEndpointURL(dialAddr))
+	}
+
+	exporter, err := otlpmetricgrpc.New(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
 	}
 
-	// Schemaless: resource.Default() carries the SDK's own semconv schema URL,
-	// and merging it with a different pinned schema URL fails.
-	res, err := resource.Merge(resource.Default(),
-		resource.NewSchemaless(semconv.ServiceName(serviceName)))
+	res, err := newResource(ctx, serviceName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metric resource: %w", err)
+		_ = exporter.Shutdown(ctx)
+		return nil, err
 	}
 
 	provider := sdkmetric.NewMeterProvider(

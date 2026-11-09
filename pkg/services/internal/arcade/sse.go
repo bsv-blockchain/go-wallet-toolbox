@@ -108,6 +108,9 @@ func (s *Service) streamOnce(ctx context.Context, lastEventID *string, onEvent f
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("User-Agent", "go-wallet-toolbox")
+	if s.config.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
+	}
 	if *lastEventID != "" {
 		req.Header.Set("Last-Event-ID", *lastEventID)
 	}

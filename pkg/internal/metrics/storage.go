@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
 // storageMeterName keeps the original instrumentation scope of the storage
@@ -25,7 +26,7 @@ var (
 
 func ensureStorageInstruments() {
 	storageInitOnce.Do(func() {
-		meter := otel.Meter(storageMeterName)
+		meter := telemetry.MeterProvider().Meter(storageMeterName)
 		// Instrument creation only fails on invalid names; fall back to no-op
 		// instruments rather than propagating an error into the hot path.
 		funderClaims, _ = meter.Int64Counter("wallet.funder.claims",
@@ -90,7 +91,7 @@ type broadcasterQueueGauges struct {
 // Depth is what predicts an overflow; the overflow counter only reports one
 // after it already happened.
 func RegisterBroadcasterQueueGauges(stats QueueStatsFunc) (func(), error) {
-	meter := otel.Meter(storageMeterName)
+	meter := telemetry.MeterProvider().Meter(storageMeterName)
 
 	gauges, err := newBroadcasterQueueGauges(meter)
 	if err != nil {
@@ -163,7 +164,7 @@ type poolGauges struct {
 // snapshot. It returns an unregister func. With no MeterProvider set the
 // callback never fires.
 func RegisterPoolGauges(cfg PoolGaugeConfig, snapshot PoolSnapshotFunc) (func(), error) {
-	meter := otel.Meter(storageMeterName)
+	meter := telemetry.MeterProvider().Meter(storageMeterName)
 	gauges, err := newPoolGauges(meter)
 	if err != nil {
 		return nil, err

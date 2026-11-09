@@ -5,18 +5,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
-// reader is shared by every test in the package: lazily created instruments
-// bind to the global delegating provider once, and the delegate forwards only
-// to the first SDK provider installed, so it must be set up exactly once.
+// reader is shared by every test in the package: instruments bind to the
+// telemetry provider once, on first use, so it must be set up exactly once.
 var reader = sdkmetric.NewManualReader()
 
 func TestMain(m *testing.M) {
-	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)))
+	telemetry.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)))
 	os.Exit(m.Run())
 }
 

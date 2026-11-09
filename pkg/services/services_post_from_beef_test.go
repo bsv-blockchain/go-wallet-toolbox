@@ -12,6 +12,7 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/internal/arcade"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
@@ -33,6 +34,37 @@ func givenArcadeRejectsTransaction(given testservices.ServicesFixture) {
 		httpmock.NewJsonResponderOrPanic(http.StatusBadRequest, map[string]any{
 			"error": "mocked arcade rejection",
 		}),
+	)
+}
+
+// testArcadeAPIKey has the shape of an Arcade key but is not a real one.
+const testArcadeAPIKey = "bsvb_0000000000000000000000000000000000000000000_000000"
+
+func withArcadeAPIKey(key string) func(*defs.WalletServices) {
+	return func(c *defs.WalletServices) {
+		c.Arcade.APIKey = key
+	}
+}
+
+// givenArcadeRequiresAPIKey makes Arcade answer the broadcast the way its auth
+// middleware does: success for a request bearing wantKey, 401 for anything else.
+// Every Authorization header received is appended to seen.
+func givenArcadeRequiresAPIKey(given testservices.ServicesFixture, wantKey, txID string, seen *[]string) {
+	given.Transport().RegisterResponder(
+		http.MethodPost, arcadeBroadcastURL,
+		func(req *http.Request) (*http.Response, error) {
+			*seen = append(*seen, req.Header.Get("Authorization"))
+			if req.Header.Get("Authorization") != "Bearer "+wantKey {
+				resp := httpmock.NewStringResponse(http.StatusUnauthorized, `{"error":"invalid api key"}`)
+				resp.Header.Set("Content-Type", "application/json")
+				resp.Header.Set("WWW-Authenticate", `Bearer realm="api", error="invalid_token"`)
+				return resp, nil
+			}
+			return httpmock.NewJsonResponse(http.StatusAccepted, map[string]any{
+				"txid":     txID,
+				"txStatus": "SEEN_ON_NETWORK",
+			})
+		},
 	)
 }
 
@@ -150,6 +182,80 @@ func TestPostFromBEEF_BroadcastFailures(t *testing.T) {
 
 		assert.Equal(t, defs.ArcServiceName, response[1].Name)
 		assertSingleResultHasSuccess(t, response[1])
+	})
+
+	t.Run("configured Arcade API key authorizes the broadcast", func(t *testing.T) {
+		// given:
+		given := testservices.GivenServices(t)
+		var seen []string
+		givenArcadeRequiresAPIKey(given, testArcadeAPIKey, childTxID, &seen)
+
+		services := given.Services().Config(withArcadeAPIKey(testArcadeAPIKey)).New()
+
+		// when:
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
+
+		// then: Arcade accepted it on the first attempt, no failover
+		require.NoError(t, err)
+		require.Len(t, response, 1)
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		assertSingleResultHasSuccess(t, response[0])
+		assert.Equal(t, []string{"Bearer " + testArcadeAPIKey}, seen)
+	})
+
+	t.Run("Arcade refuses the API key, fails over to ARC instead of rejecting the tx", func(t *testing.T) {
+		// given: a revoked/mistyped key - Arcade answers 401 before looking at the tx
+		given := testservices.GivenServices(t)
+		var seen []string
+		givenArcadeRequiresAPIKey(given, "bsvb_some_other_key", childTxID, &seen)
+		given.ARC().IsUpAndRunning()
+
+		services := given.Services().Config(withArcadeAPIKey(testArcadeAPIKey)).New()
+
+		// when:
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
+
+		// then: the 401 is a service failure on Arcade (not a verdict on the tx)
+		// and ARC broadcasts the tx
+		require.NoError(t, err)
+		require.Len(t, response, 2)
+
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		assert.Nil(t, response[0].PostedBEEFResult, "a refused key must not produce a per-tx rejection")
+		var authErr *arcade.AuthError
+		require.ErrorAs(t, response[0].Error, &authErr)
+		assert.Equal(t, http.StatusUnauthorized, authErr.StatusCode)
+
+		assert.Equal(t, defs.ArcServiceName, response[1].Name)
+		assertSingleResultHasSuccess(t, response[1])
+		assert.Equal(t, []string{"Bearer " + testArcadeAPIKey}, seen)
+	})
+
+	t.Run("Arcade refuses the API key and no failover is configured: tx is not rejected", func(t *testing.T) {
+		// given: Arcade is the only broadcaster (as on ttn/tstn)
+		given := testservices.GivenServices(t)
+		var seen []string
+		givenArcadeRequiresAPIKey(given, "bsvb_some_other_key", childTxID, &seen)
+
+		services := given.Services().Config(
+			withArcadeAPIKey(testArcadeAPIKey),
+			testservices.WithEnabledARC(false),
+			testservices.WithEnabledWoC(false),
+			testservices.WithEnabledBitails(false),
+			func(c *defs.WalletServices) { c.ArcGorillaPoolConfig.Enabled = false },
+		).New()
+
+		// when:
+		response, err := services.PostFromBEEF(t.Context(), beef, txids)
+
+		// then: only a service-level error, so the wallet keeps the tx for retry
+		// instead of marking it invalid
+		require.NoError(t, err)
+		require.Len(t, response, 1)
+		assert.Equal(t, defs.ArcadeServiceName, response[0].Name)
+		assert.Nil(t, response[0].PostedBEEFResult)
+		var authErr *arcade.AuthError
+		require.ErrorAs(t, response[0].Error, &authErr)
 	})
 
 	t.Run("Arcade rejects the tx, no failover happens", func(t *testing.T) {

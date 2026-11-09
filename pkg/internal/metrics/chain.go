@@ -4,8 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/telemetry"
 )
 
 const chainMeterName = "github.com/bsv-blockchain/go-wallet-toolbox/pkg/services/chaintracksclient"
@@ -20,7 +21,7 @@ var (
 
 func ensureChainInstruments() {
 	chainInitOnce.Do(func() {
-		meter := otel.Meter(chainMeterName)
+		meter := telemetry.MeterProvider().Meter(chainMeterName)
 		// Instrument creation only fails on invalid names; fall back to no-op
 		// instruments rather than propagating an error into the event loop.
 		chainTipHeight, _ = meter.Int64Gauge("wallet.chain.tip_height",
