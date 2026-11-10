@@ -441,19 +441,9 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		slog.Bool("isDelayed", isDelayed),
 	)
 
-	knownTxStatusesLookup, err := p.getKnownTxStatuses(ctx, txIDs...)
+	lookups, err := p.loadBroadcastLookups(ctx, txIDs)
 	if err != nil {
 		return nil, err
-	}
-
-	txReferencesLookup, err := p.txRepo.FindReferencesByTxIDs(ctx, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
-	}
-
-	txLabelsLookup, err := p.txRepo.GetLabelsForTxIDs(ctx, txIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
 	}
 
 	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
@@ -461,7 +451,7 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 
 	logger.DebugContext(ctx, "Categorizing transactions by status")
 
-	readyToSendTxIDs, sendWithResults, err := p.partitionBroadcastTxIDs(ctx, logger, txIDs, knownTxStatusesLookup, sendWithResults)
+	readyToSendTxIDs, sendWithResults, err := p.partitionBroadcastTxIDs(ctx, logger, txIDs, lookups.knownTxStatuses, sendWithResults)
 	if err != nil {
 		return nil, err
 	}
@@ -482,41 +472,11 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		// 1. When all txs are already broadcasted, we return early.
 		// 2. If there are txs with other-then-unproven statuses, they should be in the readyToSendTxIDs.
 		// So, if we reach this point, it means that the transactions have unsupported broadcast statuses.
-		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", knownTxStatusesLookup)
+		return nil, fmt.Errorf("unsupported broadcast status for all txs: %v", lookups.knownTxStatuses)
 	}
 
-	logger.DebugContext(
-		ctx, "Building BEEF for ready-to-send transactions",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
-
-	// Direct sources only: this BEEF feeds script verification and EF
-	// construction, both of which need just each input's source output. A full
-	// ancestry build re-validated every ancestor BUMP root per transaction —
-	// at high TPS that was the single largest CPU cost in the storage server
-	// (shared fuel parents re-validated for every spend).
-	beef, err := p.knownTxRepo.GetBEEFForTxIDs(
-		ctx, seq.FromSlice(readyToSendTxIDs),
-		entity.WithStatusesToFilterOut(wdk.ProvenTxReqProblematicStatuses...),
-		entity.WithDirectSourcesOnly(),
-	)
+	beef, err := p.buildVerifiedBEEF(ctx, logger, readyToSendTxIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
-	}
-
-	logger.DebugContext(
-		ctx, "Verifying built EF",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
-
-	// Hydrate only the subject txs' direct inputs: the direct-sources-only
-	// BEEF deliberately omits grandparents, and neither script verification
-	// nor EF construction needs them.
-	if err = txutils.HydrateBEEFSubjects(beef, readyToSendTxIDs); err != nil {
-		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
-	}
-
-	if err = p.verifyScriptsForReadyTxs(ctx, beef, readyToSendTxIDs); err != nil {
 		return nil, err
 	}
 
@@ -612,8 +572,8 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		aggregated:         aggregated,
 		serviceErrors:      results.ServiceErrors(),
 		beef:               beef,
-		txReferencesLookup: txReferencesLookup,
-		txLabelsLookup:     txLabelsLookup,
+		txReferencesLookup: lookups.txReferences,
+		txLabelsLookup:     lookups.txLabels,
 		sendWithResults:    sendWithResults,
 		notDelayedResults:  notDelayedResults,
 	})
