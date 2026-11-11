@@ -6,6 +6,9 @@ certifier_wallet:
   private_key: 01b2414a784...
 storage:
   url: "http://localhost:8100"
+# issued certificates are stashed in their own SQLite database; leave dsn empty for in-memory
+stash:
+  dsn: ""
 logging:
   enabled: true
   level: info

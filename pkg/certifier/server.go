@@ -27,6 +27,8 @@ type Server struct {
 	httpServer *http.Server
 	addr       string
 	cleanup    func()
+	// ownedStash is the stash created by the server itself, closed on Stop.
+	ownedStash *SQLStash
 }
 
 // NewServer creates a new certifier server from a configuration file.
@@ -52,6 +54,12 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("failed to create certifier wallet: %w", err)
 	}
 
+	stash, err := NewSQLiteStash(cfg.Stash.DSN)
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to create certificate stash: %w", err)
+	}
+
 	server, err := New(
 		certifierWallet,
 		WithPort(cfg.Server.Port),
@@ -59,13 +67,16 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		WithLogger(logger),
 		WithRandomizer(randomizer.New()),
 		WithOriginator("certifier-server"),
+		WithStash(stash),
 	)
 	if err != nil {
+		_ = stash.Close()
 		cleanup()
 		return nil, fmt.Errorf("failed to create certifier server: %w", err)
 	}
 
 	server.cleanup = cleanup
+	server.ownedStash = stash
 
 	return server, nil
 }
@@ -78,12 +89,23 @@ func New(wallet sdk.Interface, opts ...func(*ServerConfig)) (*Server, error) {
 		opt(cfg)
 	}
 
+	var ownedStash *SQLStash
+	if cfg.Stash == nil {
+		stash, err := NewSQLiteStash("")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create in-memory certificate stash: %w", err)
+		}
+		cfg.Stash = stash
+		ownedStash = stash
+	}
+
 	service := NewCertificateService(wallet, cfg)
 
 	return &Server{
-		wallet:  wallet,
-		config:  cfg,
-		service: service,
+		wallet:     wallet,
+		config:     cfg,
+		service:    service,
+		ownedStash: ownedStash,
 	}, nil
 }
 
@@ -123,6 +145,11 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 	if s.cleanup != nil {
 		s.cleanup()
+	}
+	if s.ownedStash != nil {
+		if err := s.ownedStash.Close(); err != nil {
+			return fmt.Errorf("failed to close certificate stash: %w", err)
+		}
 	}
 	return nil
 }

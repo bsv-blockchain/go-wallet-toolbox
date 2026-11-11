@@ -15,6 +15,8 @@ type ServerConfig struct {
 	Logger              *slog.Logger
 	Originator          string
 	Randomizer          wdk.Randomizer
+	// Stash stores every issued certificate. When nil, New creates an in-memory SQLite stash.
+	Stash CertificateStash
 }
 
 func defaultConfig() *ServerConfig {
@@ -59,5 +61,12 @@ func WithRandomizer(r wdk.Randomizer) func(*ServerConfig) {
 func WithMaxRequestBodyBytes(maxBytes int64) func(*ServerConfig) {
 	return func(c *ServerConfig) {
 		c.MaxRequestBodyBytes = maxBytes
+	}
+}
+
+// WithStash sets the store for issued certificates.
+func WithStash(stash CertificateStash) func(*ServerConfig) {
+	return func(c *ServerConfig) {
+		c.Stash = stash
 	}
 }

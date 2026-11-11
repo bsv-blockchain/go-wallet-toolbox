@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"sort"
 
 	"github.com/bsv-blockchain/go-sdk/auth/certificates"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
@@ -135,21 +137,62 @@ func (s *CertificateService) SignCertificate(
 		return nil, fmt.Errorf("failed to sign certificate: %w", err)
 	}
 
-	// Mock response with a certificate
+	issuedCert := &walletcerts.Certificate{
+		Type:               string(signedCertificate.Type),
+		SerialNumber:       string(signedCertificate.SerialNumber),
+		Subject:            signedCertificate.Subject.ToDERHex(),
+		Certifier:          signedCertificate.Certifier.ToDERHex(),
+		RevocationOutpoint: signedCertificate.RevocationOutpoint.String(),
+		Fields:             s.convertFieldsToString(signedCertificate.Fields),
+		Signature:          hex.EncodeToString(signedCertificate.Signature),
+	}
+
+	if s.config.Stash != nil {
+		err = s.config.Stash.Save(ctx, toIssuedCertificate(issuedCert, req.MasterKeyring, revocationOutpoint.Tx))
+		if err != nil {
+			// the revocation output already exists at this point, log it so it can be traced back to the request
+			s.config.Logger.ErrorContext(ctx, "failed to stash issued certificate",
+				slog.String("serialNumber", issuedCert.SerialNumber),
+				slog.String("revocationOutpoint", issuedCert.RevocationOutpoint),
+				slog.Any("error", err))
+			return nil, fmt.Errorf("failed to stash issued certificate: %w", err)
+		}
+	}
+
 	response := &walletcerts.ProtocolIssuanceResponse{
 		ServerNonce: serverNonce,
-		Certificate: &walletcerts.Certificate{
-			Type:               string(signedCertificate.Type),
-			SerialNumber:       string(signedCertificate.SerialNumber),
-			Subject:            signedCertificate.Subject.ToDERHex(),
-			Certifier:          signedCertificate.Certifier.ToDERHex(),
-			RevocationOutpoint: signedCertificate.RevocationOutpoint.String(),
-			Fields:             s.convertFieldsToString(signedCertificate.Fields),
-			Signature:          hex.EncodeToString(signedCertificate.Signature),
-		},
+		Certificate: issuedCert,
 	}
 
 	return response, nil
+}
+
+func toIssuedCertificate(cert *walletcerts.Certificate, masterKeyring map[string]string, revocationTx []byte) *IssuedCertificate {
+	names := make([]string, 0, len(cert.Fields))
+	for name := range cert.Fields {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	fields := make([]IssuedCertificateField, 0, len(names))
+	for _, name := range names {
+		fields = append(fields, IssuedCertificateField{
+			Name:      name,
+			Value:     cert.Fields[name],
+			MasterKey: masterKeyring[name],
+		})
+	}
+
+	return &IssuedCertificate{
+		Type:               cert.Type,
+		SerialNumber:       cert.SerialNumber,
+		Subject:            cert.Subject,
+		Certifier:          cert.Certifier,
+		RevocationOutpoint: cert.RevocationOutpoint,
+		Signature:          cert.Signature,
+		Fields:             fields,
+		RevocationTx:       revocationTx,
+	}
 }
 
 func (s *CertificateService) convertFieldsToString(fields map[sdk.CertificateFieldNameUnder50Bytes]sdk.StringBase64) map[string]string {
