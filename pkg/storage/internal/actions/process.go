@@ -27,7 +27,6 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
-	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage/internal/service"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -446,11 +445,9 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 		return nil, err
 	}
 
-	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
-	notDelayedResults := make([]wdk.ReviewActionResult, 0, to.IfThen(!isDelayed, len(txIDs)).ElseThen(0))
-
 	logger.DebugContext(ctx, "Categorizing transactions by status")
 
+	sendWithResults := make([]wdk.SendWithResult, 0, len(txIDs))
 	readyToSendTxIDs, sendWithResults, err := p.partitionBroadcastTxIDs(ctx, logger, txIDs, lookups.knownTxStatuses, sendWithResults)
 	if err != nil {
 		return nil, err
@@ -481,101 +478,40 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	}
 
 	if isDelayed {
-		// NOTE: the delayed path does NOT bump attempts here. The tx is only being QUEUED for a
-		// later broadcast; the attempt is counted when it is actually posted (see BackgroundBroadcast).
-		logger.DebugContext(
-			ctx, "Processing delayed transactions",
-			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-		)
-
 		// Point of no return: queueing hands the transaction to the background broadcaster,
 		// which may post it at any moment.
 		release.disarm()
 
-		var resultsForDelayedTxs []wdk.SendWithResult
-		resultsForDelayedTxs, err = p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
-		if err != nil {
-			return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
-		}
-
-		sendWithResults = append(sendWithResults, resultsForDelayedTxs...)
-
-		return &wdk.ProcessActionResult{
-			SendWithResults: sendWithResults,
-		}, nil
+		return p.queueDelayed(ctx, logger, readyToSendTxIDs, beef, sendWithResults)
 	}
-
-	logger.DebugContext(
-		ctx, "Claiming transactions for broadcast",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
 
 	// Point of no return: claiming flags the KnownTx as broadcast, and the post follows
 	// immediately - from here the outcome of the transaction is decided by the network, not
 	// by this call.
 	release.disarm()
 
-	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+	toPostTxIDs, err := p.claimForPost(ctx, logger, readyToSendTxIDs, beef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to claim txs for broadcast: %w", err)
+		return nil, err
 	}
-	if len(claimedTxIDs) != len(readyToSendTxIDs) {
-		// Whatever could not be claimed was aborted or moved on in the meantime; posting it
-		// anyway could put a transaction on the network whose inputs are spendable again.
-		logger.WarnContext(
-			ctx, "some transactions are no longer claimable for broadcast and will not be posted",
-			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-			slog.Int("claimedCount", len(claimedTxIDs)),
-		)
-	}
-	if len(claimedTxIDs) == 0 {
+	if len(toPostTxIDs) == 0 {
 		return &wdk.ProcessActionResult{SendWithResults: sendWithResults}, nil
 	}
-	// Keep the caller's order rather than adopting the claim's: the sweep hands these over
-	// oldest-first, and the claim query returns whatever order the database happens to use.
-	readyToSendTxIDs = retainClaimed(readyToSendTxIDs, claimedTxIDs)
 
-	// Parents ahead of their children within this post. PostFromBEEF walks the slice in order
-	// and Arcade forwards upstream in receive order, so a child posted before the parent it
-	// spends is rejected by Teranode. The reordering is stable, so the creation order above
-	// survives everywhere there is no dependency to respect.
-	readyToSendTxIDs = txutils.ParentsFirst(beef, readyToSendTxIDs)
-
-	// Count the attempt only for the txs we are ACTUALLY posting now (readyToSendTxIDs), right
-	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
-	// delayed/queued txs are intentionally NOT bumped here, so attempts reflect real broadcast
-	// attempts and proof-timeout logic fires on true post counts.
-	logger.DebugContext(
-		ctx, "Increasing attempt counters for transactions being posted",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
-
-	if err = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, readyToSendTxIDs); err != nil {
-		return nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
-	}
-
-	logger.DebugContext(
-		ctx, "Posting BEEF to services",
-		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
-	)
-
-	results, err := p.services.PostFromBEEF(ctx, beef, readyToSendTxIDs)
+	aggregated, serviceErrors, err := p.postClaimed(ctx, logger, txIDs, toPostTxIDs, beef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to post BEEF: %w", err)
+		return nil, err
 	}
-
-	aggregated := results.Aggregated(txIDs)
-	p.confirmDoubleSpends(ctx, aggregated)
 
 	return p.collectPostedBroadcastResults(ctx, logger, postedBroadcast{
-		readyToSendTxIDs:   readyToSendTxIDs,
+		readyToSendTxIDs:   toPostTxIDs,
 		aggregated:         aggregated,
-		serviceErrors:      results.ServiceErrors(),
+		serviceErrors:      serviceErrors,
 		beef:               beef,
 		txReferencesLookup: lookups.txReferences,
 		txLabelsLookup:     lookups.txLabels,
 		sendWithResults:    sendWithResults,
-		notDelayedResults:  notDelayedResults,
+		notDelayedResults:  make([]wdk.ReviewActionResult, 0, len(toPostTxIDs)),
 	})
 }
 

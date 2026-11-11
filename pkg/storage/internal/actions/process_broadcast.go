@@ -82,3 +82,100 @@ func (p *process) buildVerifiedBEEF(ctx context.Context, logger *slog.Logger, re
 
 	return beef, nil
 }
+
+// queueDelayed hands the transactions to the background broadcaster instead of posting them.
+// NOTE: the delayed path does NOT bump attempts. The tx is only being QUEUED for a later
+// broadcast; the attempt is counted when it is actually posted (see BackgroundBroadcast).
+func (p *process) queueDelayed(
+	ctx context.Context,
+	logger *slog.Logger,
+	readyToSendTxIDs []string,
+	beef *transaction.Beef,
+	sendWithResults []wdk.SendWithResult,
+) (*wdk.ProcessActionResult, error) {
+	logger.DebugContext(
+		ctx, "Processing delayed transactions",
+		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+	)
+
+	resultsForDelayedTxs, err := p.processDelayedTransactions(ctx, readyToSendTxIDs, beef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process delayed transactions: %w", err)
+	}
+
+	return &wdk.ProcessActionResult{
+		SendWithResults: append(sendWithResults, resultsForDelayedTxs...),
+	}, nil
+}
+
+// claimForPost claims the transactions for broadcast and returns the ones that were actually
+// claimed, in the order they have to be posted in.
+func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyToSendTxIDs []string, beef *transaction.Beef) ([]string, error) {
+	logger.DebugContext(
+		ctx, "Claiming transactions for broadcast",
+		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+	)
+
+	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to claim txs for broadcast: %w", err)
+	}
+	if len(claimedTxIDs) != len(readyToSendTxIDs) {
+		// Whatever could not be claimed was aborted or moved on in the meantime; posting it
+		// anyway could put a transaction on the network whose inputs are spendable again.
+		logger.WarnContext(
+			ctx, "some transactions are no longer claimable for broadcast and will not be posted",
+			slog.Int("readyToSendCount", len(readyToSendTxIDs)),
+			slog.Int("claimedCount", len(claimedTxIDs)),
+		)
+	}
+	if len(claimedTxIDs) == 0 {
+		return nil, nil
+	}
+	// Keep the caller's order rather than adopting the claim's: the sweep hands these over
+	// oldest-first, and the claim query returns whatever order the database happens to use.
+	claimedInOrder := retainClaimed(readyToSendTxIDs, claimedTxIDs)
+
+	// Parents ahead of their children within this post. PostFromBEEF walks the slice in order
+	// and Arcade forwards upstream in receive order, so a child posted before the parent it
+	// spends is rejected by Teranode. The reordering is stable, so the creation order above
+	// survives everywhere there is no dependency to respect.
+	return txutils.ParentsFirst(beef, claimedInOrder), nil
+}
+
+// postClaimed posts the claimed transactions and aggregates the per-tx outcome of the post
+// over all txIDs of the call.
+func (p *process) postClaimed(
+	ctx context.Context,
+	logger *slog.Logger,
+	txIDs, toPostTxIDs []string,
+	beef *transaction.Beef,
+) (map[string]*wdk.AggregatedPostedTxID, map[string]error, error) {
+	// Count the attempt only for the txs we are ACTUALLY posting now (toPostTxIDs), right
+	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
+	// delayed/queued txs are intentionally NOT bumped here, so attempts reflect real broadcast
+	// attempts and proof-timeout logic fires on true post counts.
+	logger.DebugContext(
+		ctx, "Increasing attempt counters for transactions being posted",
+		slog.Int("readyToSendCount", len(toPostTxIDs)),
+	)
+
+	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, toPostTxIDs); err != nil {
+		return nil, nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
+	}
+
+	logger.DebugContext(
+		ctx, "Posting BEEF to services",
+		slog.Int("readyToSendCount", len(toPostTxIDs)),
+	)
+
+	results, err := p.services.PostFromBEEF(ctx, beef, toPostTxIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to post BEEF: %w", err)
+	}
+
+	aggregated := results.Aggregated(txIDs)
+	p.confirmDoubleSpends(ctx, aggregated)
+
+	return aggregated, results.ServiceErrors(), nil
+}
