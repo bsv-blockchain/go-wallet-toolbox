@@ -58,6 +58,11 @@ func (m *mockBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transactio
 	}
 }
 
+// KnownTxStatuses reports no stored transactions, so no parent is waited for.
+func (m *mockBroadcaster) KnownTxStatuses(context.Context, []string) (map[string]wdk.ProvenTxReqStatus, error) {
+	return nil, nil
+}
+
 func (m *mockBroadcaster) waitForBroadcastCalls(t testing.TB, count int64) {
 	timeout := time.After(5 * time.Second)
 	for m.called.Load() < count {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -38,18 +40,19 @@ const (
 
 	// defaultMaxParentWait bounds how long a child waits for an unconfirmed parent
 	// that this pool has itself been asked to broadcast. Such a parent is going to
-	// be posted here, so the wait is generous; it only guards against a parent
-	// whose own POST keeps failing. In steady state the parent posts within
-	// milliseconds and the child is released immediately.
+	// be posted here, so the wait is generous; it only guards against a backlog
+	// that keeps the parent from being posted. In steady state the parent posts
+	// within milliseconds and the child is released immediately.
 	defaultMaxParentWait = 30 * time.Second
 
 	// defaultUnknownParentWait bounds how long a child waits for an unconfirmed
-	// parent this pool has never been asked to broadcast. Such a parent is not
-	// coming: it was posted by the non-delayed path, by the send_waiting cron
-	// (which is where Add's overflow goes), by a previous process lifetime, or by
-	// another wallet entirely. The wait is therefore only long enough to cover the
-	// race this gating exists for — parent and child enqueued concurrently, child
-	// first — after which the child is posted rather than stalled.
+	// parent this pool has never been asked to broadcast but which the database
+	// still shows as waiting to be sent. That is either the race this gating
+	// exists for — the parent's change became spendable a moment before the
+	// parent itself was enqueued — or a parent that overflowed to the send_waiting
+	// cron. The wait only has to cover the race; past it the child follows its
+	// parent to the cron. A parent that already went out by another path is not
+	// waited for at all.
 	defaultUnknownParentWait = 500 * time.Millisecond
 
 	// defaultPostedRetention is how long posted and enqueued txids are remembered
@@ -74,7 +77,8 @@ type Sizing struct {
 	// parent that this pool is going to post. Zero selects the default.
 	MaxParentWait time.Duration
 	// UnknownParentWait bounds how long a child is held waiting for an unconfirmed
-	// parent that this pool has not been asked to post. Zero selects the default.
+	// parent that this pool has not been asked to post but that is still waiting
+	// to be sent. Zero selects the default.
 	UnknownParentWait time.Duration
 	// PostedRetention bounds how long posted and enqueued txids are remembered for
 	// the benefit of children that arrive later. Zero selects the default.
@@ -126,8 +130,19 @@ func (s Sizing) sweepInterval() time.Duration {
 	return s.SweepInterval
 }
 
+// parentWaitingForSendStatuses are the statuses of a parent that has not reached
+// the network yet but will be posted - here, or by the send_waiting cron, which
+// sweeps exactly these. A child of such a parent must not go out first.
+var parentWaitingForSendStatuses = []wdk.ProvenTxReqStatus{
+	wdk.ProvenTxStatusUnsent,
+	wdk.ProvenTxStatusSending,
+}
+
 type broadcaster interface {
 	BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error)
+	// KnownTxStatuses returns the stored status of each given txid; a txid without
+	// a record is absent from the map.
+	KnownTxStatuses(ctx context.Context, txIDs []string) (map[string]wdk.ProvenTxReqStatus, error)
 }
 
 type BackgroundBroadcaster struct {
@@ -158,8 +173,8 @@ type BackgroundBroadcaster struct {
 	posted   txidSet
 	waiting  map[string][]broadcastItem // children parked under an unposted parent txid
 
-	// requeueQueue holds items whose parent has been posted (or whose wait
-	// expired) until the dispatcher can put them back on broadcastChannel.
+	// requeueQueue holds items whose parent has been posted until the dispatcher
+	// can put them back on broadcastChannel.
 	requeueMu    sync.Mutex
 	requeueQueue []broadcastItem
 	requeueWake  chan struct{}
@@ -224,9 +239,6 @@ type broadcastItem struct {
 	// for) expire the wait before a worker ever inspects the item, force-posting
 	// the child out of order.
 	parkedAt time.Time
-	// force skips parent gating entirely. Only the sweeper sets it, on items whose
-	// parent wait has run out.
-	force bool
 }
 
 func NewBackgroundBroadcaster(ctx context.Context, parentLogger *slog.Logger, broadcastHandler broadcaster, txBroadcastedChannel chan<- wdk.CurrentTxStatus, sizing Sizing) *BackgroundBroadcaster {
@@ -323,15 +335,18 @@ func (bb *BackgroundBroadcaster) worker() {
 }
 
 // process posts the item once its unconfirmed parents have been posted, parking
-// it otherwise. Only the sweeper's force flag bypasses the gate, so an item is
-// never posted out of order merely because it queued for a long time.
+// it otherwise. Nothing bypasses the gate: a child whose parent does not get
+// posted here is handed to the send_waiting cron, never posted ahead of it.
 func (bb *BackgroundBroadcaster) process(item broadcastItem) {
-	if !item.force && bb.park(&item) {
+	if bb.park(&item) {
 		return
 	}
 
 	if err := bb.broadcast(&item); err != nil {
 		bb.logger.ErrorContext(bb.ctx, "Failed to broadcast transaction", "error", err, "txIDs", item.txIDs)
+		// The failed transactions stay waiting in the database and the send_waiting
+		// cron retries them; their children follow them there.
+		bb.deferChildrenOf(item.txIDs)
 		return
 	}
 	bb.logger.InfoContext(bb.ctx, "Successfully broadcasted transaction", "txIDs", item.txIDs)
@@ -339,15 +354,31 @@ func (bb *BackgroundBroadcaster) process(item broadcastItem) {
 }
 
 // park holds the item under the first unconfirmed parent it spends that has not
-// been posted yet, reporting whether it was parked. The wait clock starts on the
+// been posted yet, reporting whether it was parked. Parents this pool was never
+// asked to post are first looked up in the database, so a child is not held for
+// a parent that already went out by another path. The wait clock starts on the
 // first park, so an item re-parked under a second parent does not start over.
 func (bb *BackgroundBroadcaster) park(item *broadcastItem) bool {
 	bb.depMu.Lock()
-	parent := bb.firstUnpostedParentLocked(*item)
-	if parent == "" {
+	parents := bb.unpostedParentsLocked(*item)
+	unknown := slices.DeleteFunc(slices.Clone(parents), bb.enqueued.has)
+	bb.depMu.Unlock()
+	if len(parents) == 0 {
+		return false
+	}
+	if len(unknown) > 0 {
+		bb.recordParentsAlreadyOut(unknown)
+	}
+
+	// Re-evaluate: the lookup may have cleared parents, and a parent may have been
+	// posted while the lock was released.
+	bb.depMu.Lock()
+	parents = bb.unpostedParentsLocked(*item)
+	if len(parents) == 0 {
 		bb.depMu.Unlock()
 		return false
 	}
+	parent := parents[0]
 	if item.parkedAt.IsZero() {
 		item.parkedAt = time.Now()
 	}
@@ -358,33 +389,31 @@ func (bb *BackgroundBroadcaster) park(item *broadcastItem) bool {
 	return true
 }
 
-// firstUnpostedParentLocked returns the txid of the first unconfirmed parent that
-// this item spends and that has not yet been posted, or "" if it is ready.
+// unpostedParentsLocked returns the txids of the unconfirmed parents that this
+// item spends and that have not been posted yet; none means it is ready.
 //
 // Note that posted is local to this broadcaster's delayed pool, not global
 // network state: a parent posted by the non-delayed path, by the send_waiting
-// cron fallback, or by a previous process lifetime is absent from it. Such a
-// parent is also absent from enqueued, so parentWaitLocked holds its children for
-// the short unknown-parent grace only rather than stalling them.
+// cron fallback, or by a previous process lifetime is absent from it until
+// recordParentsAlreadyOut learns it from the database.
 //
 // Caller must hold depMu.
-func (bb *BackgroundBroadcaster) firstUnpostedParentLocked(item broadcastItem) string {
+func (bb *BackgroundBroadcaster) unpostedParentsLocked(item broadcastItem) []string {
 	if item.beef == nil {
-		return ""
+		return nil
 	}
 	subjects := make(map[string]struct{}, len(item.txIDs))
 	for _, txID := range item.txIDs {
 		subjects[txID] = struct{}{}
 	}
+	var parents []string
 	for _, txID := range item.txIDs {
-		if parent := bb.firstUnpostedParentOfLocked(item.beef, txID, subjects); parent != "" {
-			return parent
-		}
+		parents = bb.appendUnpostedParentsOfLocked(parents, item.beef, txID, subjects)
 	}
-	return ""
+	return parents
 }
 
-// firstUnpostedParentOfLocked returns the first gate-worthy parent of a single
+// appendUnpostedParentsOfLocked appends the gate-worthy parents of a single
 // subject transaction. A parent is gate-worthy only when it is present in the
 // beef as a raw, un-mined transaction (transaction.RawTx): a mined parent
 // (RawTxAndBumpIndex) is already in the UTXO set, and a txid-only / absent parent
@@ -392,10 +421,10 @@ func (bb *BackgroundBroadcaster) firstUnpostedParentLocked(item broadcastItem) s
 // subject of the same item is not gate-worthy either — ParentsFirst ordered it
 // ahead of its children, so it goes upstream first within the same request.
 // Caller must hold depMu.
-func (bb *BackgroundBroadcaster) firstUnpostedParentOfLocked(beef *transaction.Beef, txID string, subjects map[string]struct{}) string {
+func (bb *BackgroundBroadcaster) appendUnpostedParentsOfLocked(parents []string, beef *transaction.Beef, txID string, subjects map[string]struct{}) []string {
 	tx := txutils.BeefTx(beef, txID)
 	if tx == nil {
-		return ""
+		return parents
 	}
 	for _, in := range tx.Inputs {
 		if in.SourceTXID == nil {
@@ -412,9 +441,64 @@ func (bb *BackgroundBroadcaster) firstUnpostedParentOfLocked(beef *transaction.B
 		if parentBeefTx == nil || parentBeefTx.DataFormat != transaction.RawTx {
 			continue // absent, txid-only, or mined (bump) parent → no gating
 		}
-		return parentID
+		if !slices.Contains(parents, parentID) {
+			parents = append(parents, parentID)
+		}
 	}
-	return ""
+	return parents
+}
+
+// recordParentsAlreadyOut looks the given parents up in the database and marks
+// as posted every one that is not waiting to be sent: it went out by another path
+// (the non-delayed path, the send_waiting cron, an internalize, an earlier
+// process lifetime), failed for good, or is not this wallet's to send at all. A
+// parent still waiting to be sent is left unposted, so its children keep waiting
+// for it. If the lookup fails nothing is marked, which errs on the side of order.
+func (bb *BackgroundBroadcaster) recordParentsAlreadyOut(parentIDs []string) {
+	statuses, err := bb.broadcastHandler.KnownTxStatuses(bb.ctx, parentIDs)
+	if err != nil {
+		bb.logger.WarnContext(bb.ctx, "cannot look up parent statuses; holding children", "error", err, "parents", parentIDs)
+		return
+	}
+
+	now := time.Now()
+	bb.depMu.Lock()
+	defer bb.depMu.Unlock()
+	for _, parentID := range parentIDs {
+		if status, ok := statuses[parentID]; ok && slices.Contains(parentWaitingForSendStatuses, status) {
+			continue
+		}
+		bb.posted.add(parentID, now)
+	}
+}
+
+// deferChildrenOf drops the children parked under the given parents, leaving
+// them to the send_waiting cron, which posts them after their parents.
+func (bb *BackgroundBroadcaster) deferChildrenOf(parentIDs []string) {
+	bb.depMu.Lock()
+	deferred := make(map[string][]broadcastItem)
+	for _, parentID := range parentIDs {
+		if children, ok := bb.waiting[parentID]; ok {
+			deferred[parentID] = children
+			delete(bb.waiting, parentID)
+		}
+	}
+	bb.depMu.Unlock()
+
+	bb.logDeferred(deferred, "parent broadcast failed")
+}
+
+// logDeferred reports children handed to the send_waiting cron. Nothing else has
+// to happen to them: they were never claimed, so they are still waiting to be
+// sent in the database, and the cron sweeps them oldest-first - after their
+// parents.
+func (bb *BackgroundBroadcaster) logDeferred(deferred map[string][]broadcastItem, reason string) {
+	for parentID, children := range deferred {
+		for _, child := range children {
+			bb.logger.InfoContext(bb.ctx, "deferring child to send_waiting: parent not posted here",
+				"reason", reason, "parent", parentID, "txIDs", child.txIDs)
+		}
+	}
 }
 
 // markPostedAndRelease records the posted txids and re-queues any children that
@@ -436,7 +520,7 @@ func (bb *BackgroundBroadcaster) markPostedAndRelease(txIDs []string) {
 	bb.requeue(released)
 }
 
-// requeue hands released/expired items to the requeue dispatcher. It neither
+// requeue hands released items to the requeue dispatcher. It neither
 // blocks (a full broadcast channel would otherwise deadlock the very workers
 // meant to drain it) nor touches bb.wg: growing the WaitGroup from a worker races
 // with Stop's Wait ("WaitGroup misuse: Add called concurrently with Wait"), so
@@ -493,7 +577,7 @@ func (bb *BackgroundBroadcaster) drainRequeue() bool {
 	}
 }
 
-// parentWaitSweeper force-posts children whose parent wait has run out so a
+// parentWaitSweeper settles children whose parent wait has run out so a
 // never-posted parent cannot hold them forever, and prunes the remembered txids
 // so they cannot grow with lifetime transaction volume.
 func (bb *BackgroundBroadcaster) parentWaitSweeper() {
@@ -521,21 +605,35 @@ func (bb *BackgroundBroadcaster) sweep(now time.Time) {
 	if len(expired) == 0 {
 		return
 	}
-	bb.logger.WarnContext(bb.ctx, "parent wait ran out, force-posting children", "count", len(expired))
-	bb.requeue(expired)
+
+	// A parent may have reached the network by another path while its children
+	// waited; ask the database once more before giving up on posting them here.
+	bb.recordParentsAlreadyOut(slices.Collect(maps.Keys(expired)))
+
+	var released []broadcastItem
+	bb.depMu.Lock()
+	for parentID, children := range expired {
+		if bb.posted.has(parentID) {
+			released = append(released, children...)
+			delete(expired, parentID)
+		}
+	}
+	bb.depMu.Unlock()
+
+	bb.requeue(released)
+	bb.logDeferred(expired, "parent wait ran out")
 }
 
-// takeExpiredLocked removes and returns the parked items whose parent wait has
-// run out, flagged to skip gating on their next attempt. Caller must hold depMu.
-func (bb *BackgroundBroadcaster) takeExpiredLocked(now time.Time) []broadcastItem {
-	var expired []broadcastItem
+// takeExpiredLocked removes and returns, by parent, the parked items whose
+// parent wait has run out. Caller must hold depMu.
+func (bb *BackgroundBroadcaster) takeExpiredLocked(now time.Time) map[string][]broadcastItem {
+	expired := make(map[string][]broadcastItem)
 	for parent, children := range bb.waiting {
 		wait := bb.parentWaitLocked(parent)
 		kept := children[:0]
 		for _, item := range children {
 			if now.Sub(item.parkedAt) > wait {
-				item.force = true
-				expired = append(expired, item)
+				expired[parent] = append(expired[parent], item)
 				continue
 			}
 			kept = append(kept, item)
@@ -552,11 +650,11 @@ func (bb *BackgroundBroadcaster) takeExpiredLocked(now time.Time) []broadcastIte
 // parentWaitLocked is how long a child may be held for this parent: the full
 // MaxParentWait once the parent is known to this pool, because it was enqueued
 // here and so will be posted here, and only the short UnknownParentWait grace
-// otherwise. An unknown parent is not coming — it went out by another path, in an
-// earlier process, or from another wallet — and its children must not stall
-// waiting for a POST that will never happen here. The grace still covers a parent
-// enqueued moments after its child, which is the race this gating exists for.
-// Caller must hold depMu.
+// otherwise. An unknown parent still waiting to be sent has most likely
+// overflowed to the send_waiting cron, and its children follow it there rather
+// than wait for a POST that will never happen here. The grace still covers a
+// parent enqueued moments after its child, which is the race this gating exists
+// for. Caller must hold depMu.
 func (bb *BackgroundBroadcaster) parentWaitLocked(parentID string) time.Duration {
 	if bb.enqueued.has(parentID) {
 		return bb.sizing.maxParentWait()
