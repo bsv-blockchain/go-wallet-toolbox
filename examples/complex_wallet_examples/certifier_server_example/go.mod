@@ -1,6 +1,6 @@
 module github.com/bsv-blockchain/certifier-server-example
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.7.4

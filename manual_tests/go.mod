@@ -1,6 +1,6 @@
 module github.com/bsv-blockchain/go-wallet-toolbox-manual-tests
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/bsv-blockchain/go-sdk v1.7.4
