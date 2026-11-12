@@ -98,9 +98,7 @@ jobs:
   security-scans:
     name: 🔒 Security Scans
     runs-on: ${{ inputs.primary-runner }}
-    # Minutes; set SECURITY_SCAN_TIMEOUT_MINUTES in 90-project.env to override (default 10).
-    # Large dependency graphs make govulncheck plus OSV-Scanner's call analysis outgrow 10
-    # minutes, and a cancelled job never saves its caches, so the next run starts cold too.
+    # Minutes, from SECURITY_SCAN_TIMEOUT_MINUTES (10-security.env); override in 90-project.env.
     timeout-minutes: ${{ fromJSON(fromJSON(inputs.env-json).SECURITY_SCAN_TIMEOUT_MINUTES || '10') }}
     if: ${{ inputs.enable-nancy || inputs.enable-govulncheck || inputs.enable-gitleaks || inputs.enable-osv }}
     permissions:
