@@ -98,7 +98,11 @@ jobs:
   security-scans:
     name: 🔒 Security Scans
     runs-on: ${{ inputs.primary-runner }}
-    timeout-minutes: 10
+    # Govulncheck over every module plus two OSV-Scanner passes (SARIF + markdown) with
+    # Go call analysis take ~9-10 minutes on a cold build cache. A 10-minute budget
+    # cancels the job before it finishes, and a cancelled job never saves its caches,
+    # so every following run starts cold again.
+    timeout-minutes: 20
     if: ${{ inputs.enable-nancy || inputs.enable-govulncheck || inputs.enable-gitleaks || inputs.enable-osv }}
     permissions:
       contents: read # All scans
