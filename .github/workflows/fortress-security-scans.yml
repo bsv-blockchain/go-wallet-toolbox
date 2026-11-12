@@ -98,11 +98,10 @@ jobs:
   security-scans:
     name: 🔒 Security Scans
     runs-on: ${{ inputs.primary-runner }}
-    # Govulncheck over every module plus two OSV-Scanner passes (SARIF + markdown) with
-    # Go call analysis take ~9-10 minutes on a cold build cache. A 10-minute budget
-    # cancels the job before it finishes, and a cancelled job never saves its caches,
-    # so every following run starts cold again.
-    timeout-minutes: 20
+    # Minutes; set SECURITY_SCAN_TIMEOUT_MINUTES in 90-project.env to override (default 10).
+    # Large dependency graphs make govulncheck plus OSV-Scanner's call analysis outgrow 10
+    # minutes, and a cancelled job never saves its caches, so the next run starts cold too.
+    timeout-minutes: ${{ fromJSON(fromJSON(inputs.env-json).SECURITY_SCAN_TIMEOUT_MINUTES || '10') }}
     if: ${{ inputs.enable-nancy || inputs.enable-govulncheck || inputs.enable-gitleaks || inputs.enable-osv }}
     permissions:
       contents: read # All scans
