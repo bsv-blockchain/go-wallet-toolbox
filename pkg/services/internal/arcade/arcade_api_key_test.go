@@ -82,25 +82,28 @@ func exerciseEveryEndpoint(t *testing.T, service *arcade.Service) {
 
 	require.True(t, service.Healthy(t.Context()))
 
-	// the stream yields one event, then the test server closes it; cancel after
-	// the first event so StreamEvents does not reconnect forever.
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
+	// the stream yields one event, then the test server closes it; stop the
+	// stream after the first event so StreamEvents does not reconnect forever.
+	// The wait below must not watch the stream's context: the callback cancels
+	// it right after handing over the event, and a select with both cases ready
+	// picks one at random, which would report a delivered event as missing.
+	streamCtx, stopStream := context.WithCancel(t.Context())
+	defer stopStream()
 	got := make(chan arcade.StatusEvent, 1)
 	go func() {
-		_ = service.StreamEvents(ctx, "", func(ev arcade.StatusEvent) error {
+		_ = service.StreamEvents(streamCtx, "", func(ev arcade.StatusEvent) error {
 			select {
 			case got <- ev:
 			default:
 			}
-			cancel()
+			stopStream()
 			return nil
 		})
 	}()
 	select {
 	case ev := <-got:
 		require.Equal(t, testTxID, ev.TxID)
-	case <-ctx.Done():
+	case <-time.After(sseTestTimeout):
 		require.FailNow(t, "no event received from the SSE stream")
 	}
 }
