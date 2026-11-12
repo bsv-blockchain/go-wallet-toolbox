@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +22,11 @@ type orderRecordingBroadcaster struct {
 	mu    sync.Mutex
 	order []string
 	delay time.Duration
+	// statuses overrides the stored status of a txid; every other txid reads as
+	// unsent - a transaction of this wallet still waiting to be sent.
+	statuses map[string]wdk.ProvenTxReqStatus
+	// failing makes the post of these txids fail.
+	failing map[string]bool
 }
 
 func (o *orderRecordingBroadcaster) BackgroundBroadcast(ctx context.Context, _ *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
@@ -31,9 +38,49 @@ func (o *orderRecordingBroadcaster) BackgroundBroadcast(ctx context.Context, _ *
 		}
 	}
 	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, txID := range txIDs {
+		if o.failing[txID] {
+			return nil, errors.New("post failed")
+		}
+	}
 	o.order = append(o.order, txIDs...)
-	o.mu.Unlock()
 	return nil, nil
+}
+
+func (o *orderRecordingBroadcaster) KnownTxStatuses(_ context.Context, txIDs []string) (map[string]wdk.ProvenTxReqStatus, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	statuses := make(map[string]wdk.ProvenTxReqStatus, len(txIDs))
+	for _, txID := range txIDs {
+		status, ok := o.statuses[txID]
+		if !ok {
+			status = wdk.ProvenTxStatusUnsent
+		}
+		statuses[txID] = status
+	}
+	return statuses, nil
+}
+
+func (o *orderRecordingBroadcaster) setStatus(txID string, status wdk.ProvenTxReqStatus) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.statuses == nil {
+		o.statuses = make(map[string]wdk.ProvenTxReqStatus)
+	}
+	o.statuses[txID] = status
+}
+
+func waitForLog(t testing.TB, logs interface{ String() string }, fragment string) {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for !strings.Contains(logs.String(), fragment) {
+		select {
+		case <-deadline:
+			t.Fatalf("expected log containing %q, got:\n%s", fragment, logs.String())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 }
 
 func (o *orderRecordingBroadcaster) snapshot() []string {
@@ -173,28 +220,28 @@ func TestBackgroundBroadcaster_ParentWaitDoesNotExpireWhileQueued(t *testing.T) 
 		"a queued child must still wait for its parent")
 }
 
-// A child whose unconfirmed parent was never handed to this pool — posted by the
-// non-delayed path, by the cron fallback, or by another wallet — must not stall
-// waiting for a POST that is never going to happen here.
-func TestBackgroundBroadcaster_DoesNotStallOnParentItWillNeverPost(t *testing.T) {
+// A child whose unconfirmed parent was never handed to this pool but already
+// went out by another path — the non-delayed path, the cron fallback, an
+// internalize, or another wallet — must be posted without waiting for it.
+func TestBackgroundBroadcaster_DoesNotWaitForParentAlreadyOut(t *testing.T) {
 	t.Parallel()
-
-	rec := &orderRecordingBroadcaster{}
-	logger, _ := loggerForTestBroadcaster()
-	// A MaxParentWait far beyond the test's patience: reaching the assertion proves
-	// the child was held under the unknown-parent grace instead.
-	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
-		Workers:           1,
-		MaxParentWait:     time.Minute,
-		UnknownParentWait: 20 * time.Millisecond,
-		SweepInterval:     10 * time.Millisecond,
-	})
-	bb.Start()
-	defer bb.Stop(context.Background())
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
 	childID := child.ID().String()
+
+	rec := &orderRecordingBroadcaster{}
+	rec.setStatus(parent.ID().String(), wdk.ProvenTxStatusUnmined)
+	logger, _ := loggerForTestBroadcaster()
+	// Waits far beyond the test's patience: reaching the assertion proves the
+	// child was not held at all.
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: time.Minute,
+	})
+	bb.Start()
+	defer bb.Stop(context.Background())
 
 	// The beef carries the unconfirmed parent, but only the child is broadcast here.
 	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
@@ -206,19 +253,18 @@ func TestBackgroundBroadcaster_DoesNotStallOnParentItWillNeverPost(t *testing.T)
 	require.Equal(t, []string{childID}, rec.snapshot())
 }
 
-// Remembered txids are pruned after their retention window, so they cannot grow
-// with lifetime volume. A child of a forgotten parent is then held only for the
-// unknown-parent grace and posted.
-func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
+// A parent of this wallet that is still waiting to be sent but was never handed
+// to this pool has overflowed to the send_waiting cron. Its child must not be
+// posted ahead of it: once the grace runs out, the child is left to the cron too.
+func TestBackgroundBroadcaster_DefersChildOfParentLeftToCron(t *testing.T) {
 	t.Parallel()
 
 	rec := &orderRecordingBroadcaster{}
-	logger, _ := loggerForTestBroadcaster()
+	logger, logs := loggerForTestBroadcaster()
 	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
 		Workers:           1,
 		MaxParentWait:     time.Minute,
 		UnknownParentWait: 20 * time.Millisecond,
-		PostedRetention:   time.Millisecond,
 		SweepInterval:     10 * time.Millisecond,
 	})
 	bb.Start()
@@ -226,6 +272,97 @@ func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
 
 	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
 	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
+
+	waitForLog(t, logs, "parent wait ran out")
+	require.Empty(t, rec.snapshot(), "the child must not be posted ahead of its parent")
+}
+
+// A parent that reaches the network by another path while its child is held
+// releases the child when the wait runs out, instead of sending it to the cron.
+func TestBackgroundBroadcaster_ReleasesChildWhenParentGoesOutWhileHeld(t *testing.T) {
+	t.Parallel()
+
+	rec := &orderRecordingBroadcaster{}
+	logger, _ := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: 50 * time.Millisecond,
+		SweepInterval:     10 * time.Millisecond,
+	})
+	bb.Start()
+	defer bb.Stop(context.Background())
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
+	// The parent, sent by the non-delayed path, is accepted while the child waits.
+	rec.setStatus(parent.ID().String(), wdk.ProvenTxStatusUnmined)
+
+	rec.waitFor(t, 1)
+	require.Equal(t, []string{child.ID().String()}, rec.snapshot())
+}
+
+// When the parent's own post fails, the parent stays waiting in the database for
+// the send_waiting cron, and its children must follow it there rather than be
+// posted ahead of it.
+func TestBackgroundBroadcaster_DefersChildrenOfParentWhosePostFailed(t *testing.T) {
+	t.Parallel()
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+	parentID := parent.ID().String()
+
+	rec := &orderRecordingBroadcaster{failing: map[string]bool{parentID: true}}
+	logger, logs := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: time.Minute,
+	})
+	bb.Start()
+	defer bb.Stop(context.Background())
+
+	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
+	require.NoError(t, err)
+	parentBeef, err := transaction.NewBeefFromTransaction(parent.TX())
+	require.NoError(t, err)
+
+	require.True(t, bb.Add(childBeef, []string{child.ID().String()}))
+	require.True(t, bb.Add(parentBeef, []string{parentID}))
+
+	waitForLog(t, logs, "parent broadcast failed")
+	require.Empty(t, rec.snapshot(), "the child must not be posted ahead of its parent")
+}
+
+// Remembered txids are pruned after their retention window, so they cannot grow
+// with lifetime volume. A child of a forgotten parent is then cleared by the
+// parent's stored status and posted without waiting.
+func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
+	t.Parallel()
+
+	parent := testvectors.GivenTX().WithInput(100).WithP2PKHOutput(99)
+	child := testvectors.GivenTX().WithInputFromUTXO(parent.TX(), 0).WithP2PKHOutput(50)
+
+	rec := &orderRecordingBroadcaster{}
+	logger, _ := loggerForTestBroadcaster()
+	bb := service.NewBackgroundBroadcaster(t.Context(), logger, rec, nil, service.Sizing{
+		Workers:           1,
+		MaxParentWait:     time.Minute,
+		UnknownParentWait: time.Minute,
+		PostedRetention:   time.Millisecond,
+		SweepInterval:     10 * time.Millisecond,
+	})
+	bb.Start()
+	defer bb.Stop(context.Background())
+
 	parentBeef, err := transaction.NewBeefFromTransaction(parent.TX())
 	require.NoError(t, err)
 	childBeef, err := transaction.NewBeefFromTransaction(child.TX())
@@ -233,6 +370,7 @@ func TestBackgroundBroadcaster_PostsChildOfForgottenParent(t *testing.T) {
 
 	require.True(t, bb.Add(parentBeef, []string{parent.ID().String()}))
 	rec.waitFor(t, 1)
+	rec.setStatus(parent.ID().String(), wdk.ProvenTxStatusUnmined)
 
 	// Let the sweeper forget the parent.
 	time.Sleep(100 * time.Millisecond)

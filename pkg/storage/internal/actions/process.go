@@ -1057,6 +1057,12 @@ func (p *process) StopBackgroundBroadcaster(ctx context.Context) {
 	}
 }
 
+// KnownTxStatuses lets the background broadcaster tell a parent that already went
+// out by another path from one that is still waiting to be sent.
+func (p *process) KnownTxStatuses(ctx context.Context, txIDs []string) (map[string]wdk.ProvenTxReqStatus, error) {
+	return p.knownTxRepo.FindKnownTxStatuses(ctx, txIDs...)
+}
+
 func (p *process) BackgroundBroadcast(ctx context.Context, beef *transaction.Beef, txIDs []string) ([]wdk.ReviewActionResult, error) {
 	// The queued BEEF was built earlier, so re-claim right before posting: a transaction that
 	// was aborted (and had its inputs released) while sitting in the queue is no longer
