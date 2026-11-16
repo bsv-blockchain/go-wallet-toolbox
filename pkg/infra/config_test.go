@@ -460,6 +460,31 @@ func TestTSTNWithoutEnvFailsValidation(t *testing.T) {
 	require.Contains(t, err.Error(), defs.EnvTstnArcadeURL)
 }
 
+func TestValidateServerKeyOrHSM(t *testing.T) {
+	cfg := infra.Defaults()
+	require.ErrorContains(t, cfg.Validate(), "server private key")
+
+	cfg.HSM.Enabled = true
+	cfg.HSM.LibraryPath = "/lib/pkcs11.so"
+	cfg.HSM.PINFile = "/tmp/pin"
+	cfg.HSM.KeyLabel = "server-root"
+	require.NoError(t, cfg.Validate())
+
+	cfg.HSM.KeyLabel = ""
+	require.ErrorContains(t, cfg.Validate(), "key_label")
+}
+
+func TestHSMModeDoesNotRequireServerPrivateKey(t *testing.T) {
+	t.Setenv("TEST_HSM_ENABLED", "true")
+	t.Setenv("TEST_HSM_LIBRARY_PATH", "/lib/pkcs11.so")
+	t.Setenv("TEST_HSM_PIN_FILE", "/tmp/pin")
+	t.Setenv("TEST_HSM_KEY_LABEL", "server-root")
+
+	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "pkcs11")
+}
+
 func setRequiredEnvs(t *testing.T) {
 	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
 }

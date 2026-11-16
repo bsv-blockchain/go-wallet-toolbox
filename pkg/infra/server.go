@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/cachestore"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/eventqueue"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/keyderiver"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/monitor"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
@@ -95,9 +96,37 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		logger.Warn("utxo_management strategy=throughput with the SQLite engine: expect single-writer contention; use Postgres for rated loads")
 	}
 
-	storageIdentityKey, err := wdk.IdentityKey(cfg.ServerPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create storage identity key: %w", err)
+	var serverDeriver keyderiver.Deriver
+	var closeDeriver keyderiver.Deriver
+	defer func() {
+		if closeDeriver != nil {
+			_ = closeDeriver.Close()
+		}
+	}()
+	var storageIdentityKey string
+	if cfg.HSM.Enabled {
+		if cfg.ServerPrivateKey != "" {
+			logger.WarnContext(ctx, "server_private_key is ignored because hsm.enabled is true")
+		}
+		serverDeriver, err = openHSMDeriver(ctx, cfg.HSM, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open hsm key deriver: %w", err)
+		}
+		closeDeriver = serverDeriver
+		if serverDeriver.IdentityKey() == nil {
+			return nil, fmt.Errorf("hsm identity key is nil")
+		}
+		storageIdentityKey = serverDeriver.IdentityKey().ToDERHex()
+		cleanupFuncs = append(cleanupFuncs, func() {
+			if closeErr := serverDeriver.Close(); closeErr != nil {
+				logger.Warn("hsm close failed", slog.String("error", closeErr.Error()))
+			}
+		})
+	} else {
+		storageIdentityKey, err = wdk.IdentityKey(cfg.ServerPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create storage identity key: %w", err)
+		}
 	}
 
 	if cfg.Services.Arcade.Enabled && cfg.Services.Arcade.CallbackToken == "" {
@@ -128,7 +157,12 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		return nil, fmt.Errorf("failed to migrate storage: %w", err)
 	}
 
-	serverWallet, err := wallet.New(cfg.BSVNetwork, cfg.ServerPrivateKey, activeStorage, wallet.WithLogger(logger), wallet.WithServices(activeServices))
+	var serverWallet *wallet.Wallet
+	if serverDeriver != nil {
+		serverWallet, err = wallet.NewWithHSM(cfg.BSVNetwork, serverDeriver, activeStorage, wallet.WithLogger(logger), wallet.WithServices(activeServices))
+	} else {
+		serverWallet, err = wallet.New(cfg.BSVNetwork, cfg.ServerPrivateKey, activeStorage, wallet.WithLogger(logger), wallet.WithServices(activeServices))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server wallet: %w", err)
 	}
@@ -209,6 +243,7 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		},
 	}
 
+	closeDeriver = nil
 	return &Server{
 		Config: cfg,
 

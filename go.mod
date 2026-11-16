@@ -8,6 +8,7 @@ require (
 	github.com/bsv-blockchain/go-chaintracks v1.4.8
 	github.com/bsv-blockchain/go-sdk v1.7.4
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.3
+	github.com/bsv-blockchain/go-wallet-toolbox/hsm v0.0.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/filecoin-project/go-jsonrpc v0.10.3
 	github.com/go-co-op/gocron/v2 v2.23.0
@@ -168,6 +169,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.73 // indirect
+	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
@@ -297,3 +299,5 @@ require (
 replace k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
 
 tool go.uber.org/mock/mockgen
+
+replace github.com/bsv-blockchain/go-wallet-toolbox/hsm => ./hsm
