@@ -578,10 +578,9 @@ func TestExternalStatusRejectedWithoutEvidenceIsRequeuedForRebroadcast(t *testin
 		WithAttempts(0).
 		WithRebroadcastAttempts(1).
 		WasBroadcast(true)
-	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusUnproven)
-
-	// and: its change is demoted to 'sending', so a non-delayed CreateAction no longer
-	// builds on a tx the network rejected:
+	// and: the tx and its change are demoted to 'sending', so a non-delayed CreateAction
+	// no longer builds on a tx the network rejected:
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusSending)
 	thenDBState.ChangeUTXOsOfTx(testusers.Alice, txID).AllWithStatus(wdk.UTXOStatusSending)
 }
 

@@ -275,7 +275,12 @@ func (p *KnownTx) FailKnownTxAsDoubleSpend(ctx context.Context, txID string, ski
 // clause), and the dependent writes (Transactions -> unproven, UTXOs for spendable change
 // outputs) execute only when that transition actually applied. When the guard holds
 // (e.g. the tx advanced concurrently) nothing is written and applied=false is returned.
-func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (applied bool, err error) {
+//
+// A tx that was requeued for rebroadcast (see demoteToSending) is moved to unproven
+// only when networkEvidence is true. Otherwise its Transactions stay 'sending', so its
+// change keeps the 'sending' tier: a bare acceptance says nothing about a tx the
+// network already lost or rejected once.
+func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder, networkEvidence bool) (applied bool, err error) {
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-AdvanceKnownTxToBroadcasted", attribute.String("TxID", txID))
 	defer func() {
 		tracing.EndTracing(span, err)
@@ -283,18 +288,25 @@ func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, 
 
 	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
 		var txErr error
+		requeued, txErr := isRequeuedForRebroadcast(tx, txID)
+		if txErr != nil {
+			return txErr
+		}
+
 		applied, txErr = applyKnownTxStatusGuarded(tx, txID, wdk.ProvenTxStatusUnmined, skipForStatuses, txNotes)
 		if txErr != nil || !applied {
 			return txErr
 		}
 
-		txErr = tx.Model(&models.Transaction{}).
-			Where(p.query.Transaction.TxID.Eq(txID)).
-			Updates(map[string]any{
-				p.query.Transaction.Status.ColumnName().String(): wdk.TxStatusUnproven,
-			}).Error
-		if txErr != nil {
-			return fmt.Errorf("failed to update transaction status as unproven: %w", txErr)
+		if !requeued || networkEvidence {
+			txErr = tx.Model(&models.Transaction{}).
+				Where(p.query.Transaction.TxID.Eq(txID)).
+				Updates(map[string]any{
+					p.query.Transaction.Status.ColumnName().String(): wdk.TxStatusUnproven,
+				}).Error
+			if txErr != nil {
+				return fmt.Errorf("failed to update transaction status as unproven: %w", txErr)
+			}
 		}
 
 		if txErr = createUTXOsForSpendableOutputsByTxID(ctx, genquery.Use(tx), txID); txErr != nil {
@@ -736,7 +748,7 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 				UpdateColumns(updates).Error; updateErr != nil {
 				return fmt.Errorf("failed to apply proof timeout for known transaction %s: %w", knownTx.TxID, updateErr)
 			}
-			if demoteErr := demoteUnprovenChangeOfTx(tx, knownTx.TxID); demoteErr != nil {
+			if demoteErr := demoteToSending(tx, knownTx.TxID); demoteErr != nil {
 				return demoteErr
 			}
 
@@ -796,7 +808,7 @@ func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string,
 		}
 		applied = true
 
-		if demoteErr := demoteUnprovenChangeOfTx(tx, txID); demoteErr != nil {
+		if demoteErr := demoteToSending(tx, txID); demoteErr != nil {
 			return demoteErr
 		}
 
@@ -810,23 +822,45 @@ func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string,
 	return newStatus, applied, nil
 }
 
-// demoteUnprovenChangeOfTx moves the change of a transaction the network does not
-// have from the 'unproven' UTXO tier back to 'sending'.
+// demoteToSending moves a transaction the network does not have, and its change,
+// from 'unproven' back to 'sending'.
 //
-// A tx's change is promoted to 'unproven' on its first accepted broadcast and was
-// never demoted again. When the network later lost or rejected the tx and it was
-// requeued for rebroadcast (or failed), that change stayed spendable by every
-// non-delayed CreateAction, so new transactions kept building on a branch the
-// network will never accept, each inheriting the rejection. 'sending' keeps the
-// change out of non-delayed funding (FindNotReservedUTXOsForUpdate includes it only
-// for delayed broadcasts, which already accept unbroadcast parents). The tier is
-// restored when the tx is mined: the mined promotion above sets every UTXO of the
-// tx back to 'mined'.
+// A tx's change is promoted to 'unproven' on its first accepted broadcast. When the
+// network later lost or rejected the tx and it was requeued for rebroadcast (or its
+// proof budget ran out), that change stayed spendable by every non-delayed
+// CreateAction, so new transactions kept building on a branch the network would
+// never accept, each inheriting the rejection.
 //
-// Only 'unproven' rows are touched: 'mined' change belongs to a tx the chain already
-// has, and 'sending' is already excluded.
-func demoteUnprovenChangeOfTx(tx *gorm.DB, txID string) error {
-	err := tx.Model(&models.UserUTXO{}).
+// BOTH the Transactions and the UserUTXOs move, because every path that (re)creates a
+// UTXO derives its tier from Transaction.status (createUTXOsFromOutputs via
+// ToUTXOStatus: abort, the fail_abandoned sweep, unfail, a repeated broadcast of an
+// already-sent tx; and sync's utxoStatusByTxStatus). Demoting only the UTXO rows would
+// be undone by the next of those.
+//
+// The tx stays 'sending' until there is network evidence: AdvanceKnownTxToBroadcasted
+// and the broadcast flow do not promote a requeued tx (isRequeuedForRebroadcast) on a
+// bare POST acceptance or RECEIVED / SENT_TO_NETWORK / ACCEPTED_BY_NETWORK; a SEEN_*
+// or STUMP_PROCESSING event, a WhatsOnChain hit, or a proof does
+// (PromoteRequeuedTxOnNetworkEvidence, UpdateKnownTxAsMined).
+//
+// 'sending' keeps the change out of non-delayed funding in the privacy strategy
+// (FindNotReservedUTXOsForUpdate includes it only for delayed broadcasts, which
+// already accept unbroadcast parents). The throughput strategy respects it only
+// through its spend policy: SpendTiers(mined_only / prefer_mined) excludes 'sending',
+// but spend_policy 'any' includes it for every create, delayed or not, and so does
+// every FuelShape fan-out, which always walks SpendTiers(SpendPolicyAny).
+//
+// Only 'unproven' rows are touched: 'completed'/'mined' belong to a tx the chain
+// already has, and anything else is not spendable change of a broadcast tx.
+func demoteToSending(tx *gorm.DB, txID string) error {
+	err := tx.Model(&models.Transaction{}).
+		Where("tx_id = ? AND status = ?", txID, wdk.TxStatusUnproven).
+		Update("status", wdk.TxStatusSending).Error
+	if err != nil {
+		return fmt.Errorf("failed to demote transaction %s to sending: %w", txID, err)
+	}
+
+	err = tx.Model(&models.UserUTXO{}).
 		Where("utxo_status = ?", wdk.UTXOStatusUnproven).
 		Where(
 			"output_id in (?)",
@@ -844,6 +878,68 @@ func demoteUnprovenChangeOfTx(tx *gorm.DB, txID string) error {
 		return fmt.Errorf("failed to demote change of requeued transaction %s: %w", txID, err)
 	}
 	return nil
+}
+
+// isRequeuedForRebroadcast reports whether the KnownTx was ever put back in the
+// rebroadcast queue after a broadcast (rebroadcast_attempts > 0), i.e. the network
+// lost or rejected it at least once. Such a tx is promoted back to 'unproven' only on
+// network evidence; see demoteToSending.
+func isRequeuedForRebroadcast(tx *gorm.DB, txID string) (bool, error) {
+	var count int64
+	err := tx.Model(&models.KnownTx{}).
+		Where("tx_id = ? AND rebroadcast_attempts > 0", txID).
+		Count(&count).Error
+	if err != nil {
+		return false, fmt.Errorf("failed to check whether known transaction %s was requeued: %w", txID, err)
+	}
+	return count > 0, nil
+}
+
+// IsRequeuedForRebroadcast is isRequeuedForRebroadcast for callers outside a gorm
+// transaction (the broadcast flow's unit of work).
+func (p *KnownTx) IsRequeuedForRebroadcast(ctx context.Context, txID string) (bool, error) {
+	return isRequeuedForRebroadcast(p.db.WithContext(ctx), txID)
+}
+
+// PromoteRequeuedTxOnNetworkEvidence moves a requeued tx that is already back in
+// flight (KnownTx unmined after a rebroadcast) from 'sending' to 'unproven', and its
+// change with it, once there is network evidence for it. A no-op (applied=false) for
+// a tx that was never requeued or is not 'sending'. See demoteToSending.
+func (p *KnownTx) PromoteRequeuedTxOnNetworkEvidence(ctx context.Context, txID string, txNotes []history.Builder) (applied bool, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-PromoteRequeuedTxOnNetworkEvidence", attribute.String("TxID", txID))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
+		requeued, txErr := isRequeuedForRebroadcast(tx, txID)
+		if txErr != nil || !requeued {
+			return txErr
+		}
+
+		result := tx.Model(&models.Transaction{}).
+			Where("tx_id = ? AND status = ?", txID, wdk.TxStatusSending).
+			Update("status", wdk.TxStatusUnproven)
+		if result.Error != nil {
+			return fmt.Errorf("failed to promote requeued transaction %s to unproven: %w", txID, result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		applied = true
+
+		if txErr = createUTXOsForSpendableOutputsByTxID(ctx, genquery.Use(tx), txID); txErr != nil {
+			return fmt.Errorf("failed to make outputs spendable: %w", txErr)
+		}
+
+		return addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
+			return note.Entity(txID)
+		}))
+	})
+	if err != nil {
+		return false, fmt.Errorf(errFmtDBTransaction, err)
+	}
+	return applied, nil
 }
 
 func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64) map[string]any {

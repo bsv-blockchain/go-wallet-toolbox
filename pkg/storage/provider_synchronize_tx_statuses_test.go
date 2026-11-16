@@ -314,7 +314,7 @@ func TestSynchronizeTxRebroadcastsBroadcastTxAfterMaxAttempts(t *testing.T) {
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByTxID(testusers.Alice, txID).
-		WithStatus(wdk.TxStatusUnproven)
+		WithStatus(wdk.TxStatusSending) // requeued: the network does not have it
 
 	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
 		ShouldNotBeAbleToReserveSatoshis(initialTopUp)
@@ -362,7 +362,7 @@ func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
 
 		testabilities.ThenDBState(t, activeStorage).
 			HasUserTransactionByTxID(testusers.Alice, txID).
-			WithStatus(wdk.TxStatusUnproven)
+			WithStatus(wdk.TxStatusSending) // requeued: the network does not have it
 
 		// when:
 		_, err = activeStorage.SendWaitingTransactions(t.Context(), -time.Minute)
@@ -390,6 +390,11 @@ func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByTxID(testusers.Alice, txID).
 		WithStatus(wdk.TxStatusFailed)
+
+	// and: the change of a tx whose rebroadcast budget ran out funds no non-delayed
+	// CreateAction (the exhausting proof timeout demotes it like a requeue does):
+	testabilities.ThenFunds(t, testusers.Alice, activeStorage).
+		ShouldNotBeAbleToReserveSatoshis(1_000)
 }
 
 func TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx(t *testing.T) {
@@ -758,7 +763,7 @@ func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
 
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByTxID(testusers.Alice, txID).
-		WithStatus(wdk.TxStatusUnproven)
+		WithStatus(wdk.TxStatusSending) // requeued: the network does not have it
 
 	// and: its change is demoted to 'sending', so a non-delayed CreateAction no longer
 	// builds on a tx the network does not have:
