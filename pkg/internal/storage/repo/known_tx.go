@@ -736,6 +736,9 @@ func (p *KnownTx) ApplyProofTimeouts(ctx context.Context, attempts, maxRebroadca
 				UpdateColumns(updates).Error; updateErr != nil {
 				return fmt.Errorf("failed to apply proof timeout for known transaction %s: %w", knownTx.TxID, updateErr)
 			}
+			if demoteErr := demoteUnprovenChangeOfTx(tx, knownTx.TxID); demoteErr != nil {
+				return demoteErr
+			}
 
 			knownTx.Status = updates["status"].(wdk.ProvenTxReqStatus)
 			knownTx.Attempts = updates["attempts"].(uint64)
@@ -793,6 +796,10 @@ func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string,
 		}
 		applied = true
 
+		if demoteErr := demoteUnprovenChangeOfTx(tx, txID); demoteErr != nil {
+			return demoteErr
+		}
+
 		return addTxNotes(tx, slices.Map(txNotes, func(note history.Builder) *pkgentity.TxHistoryNote {
 			return note.Entity(txID)
 		}))
@@ -801,6 +808,42 @@ func (p *KnownTx) RequeueKnownTxForRebroadcast(ctx context.Context, txID string,
 		return "", false, fmt.Errorf(errFmtDBTransaction, err)
 	}
 	return newStatus, applied, nil
+}
+
+// demoteUnprovenChangeOfTx moves the change of a transaction the network does not
+// have from the 'unproven' UTXO tier back to 'sending'.
+//
+// A tx's change is promoted to 'unproven' on its first accepted broadcast and was
+// never demoted again. When the network later lost or rejected the tx and it was
+// requeued for rebroadcast (or failed), that change stayed spendable by every
+// non-delayed CreateAction, so new transactions kept building on a branch the
+// network will never accept, each inheriting the rejection. 'sending' keeps the
+// change out of non-delayed funding (FindNotReservedUTXOsForUpdate includes it only
+// for delayed broadcasts, which already accept unbroadcast parents). The tier is
+// restored when the tx is mined: the mined promotion above sets every UTXO of the
+// tx back to 'mined'.
+//
+// Only 'unproven' rows are touched: 'mined' change belongs to a tx the chain already
+// has, and 'sending' is already excluded.
+func demoteUnprovenChangeOfTx(tx *gorm.DB, txID string) error {
+	err := tx.Model(&models.UserUTXO{}).
+		Where("utxo_status = ?", wdk.UTXOStatusUnproven).
+		Where(
+			"output_id in (?)",
+			tx.Model(&models.Output{}).
+				Select("id").
+				Where(
+					"transaction_id in (?)",
+					tx.Model(&models.Transaction{}).
+						Select("id").
+						Where("tx_id = ?", txID),
+				),
+		).
+		Update("utxo_status", wdk.UTXOStatusSending).Error
+	if err != nil {
+		return fmt.Errorf("failed to demote change of requeued transaction %s: %w", txID, err)
+	}
+	return nil
 }
 
 func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64) map[string]any {

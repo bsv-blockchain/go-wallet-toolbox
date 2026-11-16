@@ -738,6 +738,11 @@ func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
 		WithAttempts(2).
 		WasBroadcast(true)
 
+	// and: its change is still spendable by any CreateAction until it is requeued:
+	testabilities.ThenDBState(t, activeStorage).
+		ChangeUTXOsOfTx(testusers.Alice, txID).
+		AllWithStatus(wdk.UTXOStatusUnproven)
+
 	// when: the second sync cycle crosses MaxAttempts:
 	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
 	require.NoError(t, err)
@@ -754,6 +759,12 @@ func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
 	testabilities.ThenDBState(t, activeStorage).
 		HasUserTransactionByTxID(testusers.Alice, txID).
 		WithStatus(wdk.TxStatusUnproven)
+
+	// and: its change is demoted to 'sending', so a non-delayed CreateAction no longer
+	// builds on a tx the network does not have:
+	testabilities.ThenDBState(t, activeStorage).
+		ChangeUTXOsOfTx(testusers.Alice, txID).
+		AllWithStatus(wdk.UTXOStatusSending)
 }
 
 func TestSynchronizeTxReturnsProvenTxsWhenRunIsCanceled(t *testing.T) {
