@@ -329,31 +329,14 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, fmt.Errorf("failed to get statuses ready to sync: %w", err)
 	}
 
-	var txStatuses []wdk.TxSynchronizedStatus
-	var txsToSync []*entity.KnownTxForStatusSync
-	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
-	for range syncTxStatusMaxPages {
-		var txsPage []*entity.KnownTxForStatusSync
-		txsPage, err = s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, s.reorgReproveDelay, queryopts.WithPage(paging))
-		if err != nil {
-			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
-		}
-
-		txsToSync = append(txsToSync, txsPage...)
-
-		if len(txsPage) < syncTxStatusesPerPage {
-			break
-		}
-
-		paging.Next()
+	txsToSync, err := s.findTxsReadyForSync(ctx, statuses)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(txsToSync) == 0 {
 		logging.Trace(ctx, s.logger, "no transactions need synchronization", slog.Any("height", heightForCheck))
-		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
-			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
-		}
-		return nil, nil
+		return s.finishWithoutSync(ctx)
 	}
 
 	var absentTxIDs []string
@@ -364,10 +347,7 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 	if len(txsToSync) == 0 && len(absentTxIDs) == 0 {
 		logging.Trace(ctx, s.logger, "no transactions with sufficient confirmations to synchronize", slog.Any("height", heightForCheck), slog.Uint64("requiredDepth", uint64(s.syncTxStatusesConfig.BlocksDelay)))
-		if reviewErr := s.reviewKnownTxStatuses(ctx); reviewErr != nil {
-			return nil, fmt.Errorf("failed to review known tx statuses: %w", reviewErr)
-		}
-		return nil, nil
+		return s.finishWithoutSync(ctx)
 	}
 
 	txIDs := slices.Map(txsToSync, func(tx *entity.KnownTxForStatusSync) string {
@@ -376,18 +356,15 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	// Absent (network-NOT_FOUND) txs are not proof candidates, but their emitted status
 	// updates (from ApplyProofTimeouts below) still need references and labels.
 	lookupTxIDs := append(stdslices.Clone(txIDs), absentTxIDs...)
-	txReferencesLookup, err := s.transactionRepo.FindReferencesByTxIDs(ctx, lookupTxIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find references for txIDs: %w", err)
-	}
 
 	s.logger.InfoContext(ctx, "synchronizing transaction statuses", logging.Number("count", len(txsToSync)), logging.Number("height", heightForCheck))
 
-	txLabelsLookup, err := s.transactionRepo.GetLabelsForTxIDs(ctx, lookupTxIDs)
+	lookups, err := s.loadStatusLookups(ctx, lookupTxIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find labels for txIDs: %w", err)
+		return nil, err
 	}
 
+	var txStatuses []wdk.TxSynchronizedStatus
 	// From here on every return carries txStatuses: each entry is already committed as mined,
 	// and a completed tx is never selected again, so dropping it would lose its event for good.
 	var failedAttempts []string
@@ -453,12 +430,12 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
 			TxID:        txToSync.TxID,
 			Status:      wdk.ProvenTxStatusCompleted,
-			Reference:   txReferencesLookup[txToSync.TxID],
+			Reference:   lookups.references[txToSync.TxID],
 			BlockHeight: merkleResult.BlockHeader.Height,
 			BlockHash:   merkleResult.BlockHeader.Hash,
 			MerklePath:  merkleResult.MerklePath,
 			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
-			Labels:      txLabelsLookup[txToSync.TxID],
+			Labels:      lookups.labels[txToSync.TxID],
 		})
 	}
 
@@ -486,8 +463,8 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
 			TxID:      updatedTx.TxID,
 			Status:    updatedTx.Status,
-			Reference: txReferencesLookup[updatedTx.TxID],
-			Labels:    txLabelsLookup[updatedTx.TxID],
+			Reference: lookups.references[updatedTx.TxID],
+			Labels:    lookups.labels[updatedTx.TxID],
 		})
 	}
 
@@ -496,6 +473,58 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	}
 
 	return txStatuses, nil
+}
+
+// findTxsReadyForSync pages through the txs that are due for a proof check, up to
+// syncTxStatusMaxPages pages.
+func (s *synchronizeTxStatuses) findTxsReadyForSync(ctx context.Context, statuses []wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
+	var txsToSync []*entity.KnownTxForStatusSync
+	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
+	for range syncTxStatusMaxPages {
+		txsPage, err := s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, s.reorgReproveDelay, queryopts.WithPage(paging))
+		if err != nil {
+			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
+		}
+
+		txsToSync = append(txsToSync, txsPage...)
+
+		if len(txsPage) < syncTxStatusesPerPage {
+			break
+		}
+
+		paging.Next()
+	}
+
+	return txsToSync, nil
+}
+
+// finishWithoutSync ends a run that has no proof to check; the failure review still runs.
+func (s *synchronizeTxStatuses) finishWithoutSync(ctx context.Context) ([]wdk.TxSynchronizedStatus, error) {
+	if err := s.reviewKnownTxStatuses(ctx); err != nil {
+		return nil, fmt.Errorf("failed to review known tx statuses: %w", err)
+	}
+
+	return nil, nil
+}
+
+// statusLookups holds what the emitted status updates need besides the tx itself.
+type statusLookups struct {
+	references map[string]string
+	labels     map[string][]string
+}
+
+func (s *synchronizeTxStatuses) loadStatusLookups(ctx context.Context, txIDs []string) (statusLookups, error) {
+	references, err := s.transactionRepo.FindReferencesByTxIDs(ctx, txIDs)
+	if err != nil {
+		return statusLookups{}, fmt.Errorf("failed to find references for txIDs: %w", err)
+	}
+
+	labels, err := s.transactionRepo.GetLabelsForTxIDs(ctx, txIDs)
+	if err != nil {
+		return statusLookups{}, fmt.Errorf("failed to find labels for txIDs: %w", err)
+	}
+
+	return statusLookups{references: references, labels: labels}, nil
 }
 
 func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error {
