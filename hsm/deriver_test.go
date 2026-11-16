@@ -228,6 +228,7 @@ func TestNewRejectsNilBackend(t *testing.T) {
 
 type countingBackend struct {
 	Backend
+
 	n atomic.Int32
 }
 

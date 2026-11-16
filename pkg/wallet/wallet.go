@@ -273,7 +273,7 @@ func buildWallet[ActiveStorageFactory StorageProviderFactory](chain defs.BSVNetw
 		}),
 	}, opts...)
 
-	identityHex := ""
+	var identityHex string
 	if hsmDeriver != nil {
 		identityHex = hsmDeriver.IdentityKey().ToDERHex()
 	} else {
