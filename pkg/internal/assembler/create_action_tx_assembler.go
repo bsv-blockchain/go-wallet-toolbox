@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/wallet"
@@ -17,11 +18,20 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
+// derivedKeyOps is the HSM locking and unlocking path. The functions close
+// over the caller's context so this struct does not store one: Assemble runs
+// during the request, and the unlocking template keeps the context itself
+// because transaction.Sign has no context parameter.
+type derivedKeyOps struct {
+	identity func() *ec.PublicKey
+	lock     func(brc29.KeyID, *ec.PublicKey) (*script.Script, error)
+	unlock   func(*ec.PublicKey, brc29.KeyID) (*brc29.UnlockingScriptTemplate, error)
+}
+
 type CreateActionTransactionAssembler struct {
 	tx                       *transaction.Transaction
 	keyDeriver               *wallet.KeyDeriver
-	signer                   brc29.DerivedSigner
-	signCtx                  context.Context
+	derived                  *derivedKeyOps
 	createActionResult       *wdk.StorageCreateActionResult
 	providedInputs           []wallet.CreateActionInput
 	providedInputsByOutpoint map[string]wallet.CreateActionInput
@@ -29,11 +39,17 @@ type CreateActionTransactionAssembler struct {
 }
 
 // UseDerivedSigner makes locking and unlocking scripts call signer instead of
-// deriving a private key from keyDeriver. ctx is stored on the unlocking
-// template because the transaction signer does not pass a context.
+// deriving a private key from keyDeriver.
 func (a *CreateActionTransactionAssembler) UseDerivedSigner(ctx context.Context, signer brc29.DerivedSigner) {
-	a.signCtx = ctx
-	a.signer = signer
+	a.derived = &derivedKeyOps{
+		identity: signer.IdentityKey,
+		lock: func(keyID brc29.KeyID, recipient *ec.PublicKey) (*script.Script, error) {
+			return brc29.LockForCounterpartyDerived(ctx, signer, keyID, recipient)
+		},
+		unlock: func(sender *ec.PublicKey, keyID brc29.KeyID) (*brc29.UnlockingScriptTemplate, error) {
+			return brc29.UnlockDerived(ctx, sender, keyID, signer)
+		},
+	}
 }
 
 func NewCreateActionTransactionAssembler(keyDeriver *wallet.KeyDeriver, providedInputs []wallet.CreateActionInput, createActionResult *wdk.StorageCreateActionResult) *CreateActionTransactionAssembler {
@@ -172,12 +188,12 @@ func (a *CreateActionTransactionAssembler) toTxInputFromManagedInput(it *wdk.Sto
 	// 	BUT they need then store the KeyID for each input in the wallet instance
 	//  or need to query for those inputs the storage
 	//  for now (until SignAction is implemented) we create unlocking script template here.
-	if a.signer != nil {
+	if a.derived != nil {
 		senderPub, pubErr := brc29.PubHex(senderIdentityKey).PublicKey()
 		if pubErr != nil {
 			return nil, fmt.Errorf("cannot parse sender identity for input %d: %w", it.Vin, pubErr)
 		}
-		input.UnlockingScriptTemplate, err = brc29.UnlockDerived(a.signCtx, senderPub, keyID, a.signer)
+		input.UnlockingScriptTemplate, err = a.derived.unlock(senderPub, keyID)
 	} else {
 		input.UnlockingScriptTemplate, err = brc29.Unlock(brc29.PubHex(senderIdentityKey), keyID, a.keyDeriver)
 	}
@@ -263,8 +279,8 @@ func (a *CreateActionTransactionAssembler) senderIdentity(provided *string) (str
 	if provided != nil {
 		return *provided, nil
 	}
-	if a.signer != nil {
-		pub := a.signer.IdentityKey()
+	if a.derived != nil {
+		pub := a.derived.identity()
 		if pub == nil {
 			return "", fmt.Errorf("derived signer identity key is nil")
 		}
@@ -330,11 +346,12 @@ func (a *CreateActionTransactionAssembler) changeLockingScript(it *wdk.StorageCr
 	}
 
 	var lockingScript *script.Script
-	if a.signer != nil {
-		if a.signer.IdentityKey() == nil {
+	if a.derived != nil {
+		identity := a.derived.identity()
+		if identity == nil {
 			return nil, fmt.Errorf("cannot create change locking script for output %d: signer identity is nil", it.Vout)
 		}
-		lockingScript, err = brc29.LockForCounterpartyDerived(a.signCtx, a.signer, keyID, a.signer.IdentityKey())
+		lockingScript, err = a.derived.lock(keyID, identity)
 	} else {
 		lockingScript, err = brc29.LockForCounterparty(a.keyDeriver, keyID, a.keyDeriver)
 	}

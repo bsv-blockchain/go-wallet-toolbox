@@ -193,27 +193,57 @@ func (b *backend) openPool(ctx context.Context, slotID int, n int, pin []byte) e
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	slots, err := b.module.GetSlotList(true)
+	slot, err := b.selectSlot(slotID)
 	if err != nil {
-		return fmt.Errorf("pkcs11 slot list: %w", err)
+		return err
 	}
-	if len(slots) == 0 {
-		return fmt.Errorf("pkcs11: no slot has a token")
+	if err = b.logToken(slot, n); err != nil {
+		return err
 	}
-	slot := slots[0]
-	if slotID >= 0 {
-		found := false
-		for _, candidate := range slots {
-			if candidate == uint(slotID) {
-				slot = candidate
-				found = true
-				break
+	p := newPool(b.module, n)
+	for i := 0; i < n; i++ {
+		if err = ctx.Err(); err != nil {
+			p.shutdown()
+			return err
+		}
+		session, err := b.openLoggedSession(p, slot, pin)
+		if err != nil {
+			p.shutdown()
+			return err
+		}
+		if i == 0 {
+			if err = b.loadIdentity(session.handle); err != nil {
+				session.close()
+				p.shutdown()
+				return err
 			}
 		}
-		if !found {
-			return fmt.Errorf("pkcs11 slot %d has no token", slotID)
+		p.add(session)
+	}
+	b.pool = p
+	return nil
+}
+
+func (b *backend) selectSlot(slotID int) (uint, error) {
+	slots, err := b.module.GetSlotList(true)
+	if err != nil {
+		return 0, fmt.Errorf("pkcs11 slot list: %w", err)
+	}
+	if len(slots) == 0 {
+		return 0, fmt.Errorf("pkcs11: no slot has a token")
+	}
+	if slotID < 0 {
+		return slots[0], nil
+	}
+	for _, candidate := range slots {
+		if candidate == uint(slotID) {
+			return candidate, nil
 		}
 	}
+	return 0, fmt.Errorf("pkcs11 slot %d has no token", slotID)
+}
+
+func (b *backend) logToken(slot uint, n int) error {
 	info, err := b.module.GetInfo()
 	if err != nil {
 		return fmt.Errorf("pkcs11 info: %w", err)
@@ -224,50 +254,37 @@ func (b *backend) openPool(ctx context.Context, slotID int, n int, pin []byte) e
 	}
 	b.log(fmt.Sprintf("pkcs11 library %s slot %d token %s key %s sessions %d",
 		strings.TrimSpace(info.LibraryDescription), slot, strings.TrimSpace(token.Label), b.label, n))
+	return nil
+}
 
-	p := newPool(b.module, n)
-	for i := 0; i < n; i++ {
-		if err := ctx.Err(); err != nil {
-			p.shutdown()
-			return err
-		}
-		sh, err := b.module.OpenSession(slot, pkcs11.CKF_SERIAL_SESSION|pkcs11.CKF_RW_SESSION)
-		if err != nil {
-			p.shutdown()
-			return fmt.Errorf("pkcs11 open session: %w", err)
-		}
-		if err = b.module.Login(sh, pkcs11.CKU_USER, string(pin)); err != nil && !alreadyLoggedIn(err) {
-			_ = b.module.CloseSession(sh)
-			p.shutdown()
-			return fmt.Errorf("pkcs11 login: %w", err)
-		}
-		root, err := findOne(b.module, sh, pkcs11.CKO_PRIVATE_KEY, b.label)
-		if err != nil {
-			_ = b.module.Logout(sh)
-			_ = b.module.CloseSession(sh)
-			p.shutdown()
-			return err
-		}
-		if i == 0 {
-			pubHandle, err := findOne(b.module, sh, pkcs11.CKO_PUBLIC_KEY, b.label)
-			if err != nil {
-				_ = b.module.Logout(sh)
-				_ = b.module.CloseSession(sh)
-				p.shutdown()
-				return err
-			}
-			identity, err := b.readPublicKey(sh, pubHandle)
-			if err != nil {
-				_ = b.module.Logout(sh)
-				_ = b.module.CloseSession(sh)
-				p.shutdown()
-				return err
-			}
-			b.identity = identity
-		}
-		p.add(&sess{pool: p, module: b.module, handle: sh, root: root})
+func (b *backend) openLoggedSession(p *pool, slot uint, pin []byte) (*sess, error) {
+	sh, err := b.module.OpenSession(slot, pkcs11.CKF_SERIAL_SESSION|pkcs11.CKF_RW_SESSION)
+	if err != nil {
+		return nil, fmt.Errorf("pkcs11 open session: %w", err)
 	}
-	b.pool = p
+	if err = b.module.Login(sh, pkcs11.CKU_USER, string(pin)); err != nil && !alreadyLoggedIn(err) {
+		_ = b.module.CloseSession(sh)
+		return nil, fmt.Errorf("pkcs11 login: %w", err)
+	}
+	root, err := findOne(b.module, sh, pkcs11.CKO_PRIVATE_KEY, b.label)
+	if err != nil {
+		_ = b.module.Logout(sh)
+		_ = b.module.CloseSession(sh)
+		return nil, err
+	}
+	return &sess{pool: p, module: b.module, handle: sh, root: root}, nil
+}
+
+func (b *backend) loadIdentity(sh pkcs11.SessionHandle) error {
+	pubHandle, err := findOne(b.module, sh, pkcs11.CKO_PUBLIC_KEY, b.label)
+	if err != nil {
+		return err
+	}
+	identity, err := b.readPublicKey(sh, pubHandle)
+	if err != nil {
+		return err
+	}
+	b.identity = identity
 	return nil
 }
 
@@ -575,12 +592,18 @@ func (p *pool) shutdown() {
 	p.wg.Wait()
 }
 
+func (s *sess) close() {
+	if s == nil || s.handle == 0 || s.module == nil {
+		return
+	}
+	_ = s.module.Logout(s.handle)
+	_ = s.module.CloseSession(s.handle)
+	s.handle = 0
+}
+
 func (s *sess) finish() {
 	s.once.Do(func() {
-		if s.handle != 0 && s.module != nil {
-			_ = s.module.Logout(s.handle)
-			_ = s.module.CloseSession(s.handle)
-		}
+		s.close()
 		s.pool.wg.Done()
 	})
 }

@@ -7,11 +7,11 @@ import (
 )
 
 // pubCache is an LRU of derived public keys. Entries are public points, not
-// scalars. A non-positive max disables the cache.
+// scalars. A non-positive capacity disables the cache.
 type pubCache struct {
-	max int
-	ll  *list.List
-	m   map[pubCacheKey]*list.Element
+	capacity int
+	ll       *list.List
+	m        map[pubCacheKey]*list.Element
 }
 
 type pubCacheKey struct {
@@ -27,19 +27,19 @@ type pubCacheEntry struct {
 	pub *ec.PublicKey
 }
 
-func newPubCache(max int) *pubCache {
-	if max < 0 {
-		max = 0
+func newPubCache(capacity int) *pubCache {
+	if capacity < 0 {
+		capacity = 0
 	}
 	return &pubCache{
-		max: max,
-		ll:  list.New(),
-		m:   make(map[pubCacheKey]*list.Element),
+		capacity: capacity,
+		ll:       list.New(),
+		m:        make(map[pubCacheKey]*list.Element),
 	}
 }
 
 func (c *pubCache) get(key pubCacheKey) (*ec.PublicKey, bool) {
-	if c == nil || c.max == 0 {
+	if c == nil || c.capacity == 0 {
 		return nil, false
 	}
 	el, ok := c.m[key]
@@ -51,7 +51,7 @@ func (c *pubCache) get(key pubCacheKey) (*ec.PublicKey, bool) {
 }
 
 func (c *pubCache) put(key pubCacheKey, pub *ec.PublicKey) {
-	if c == nil || c.max == 0 || pub == nil {
+	if c == nil || c.capacity == 0 || pub == nil {
 		return
 	}
 	if el, ok := c.m[key]; ok {
@@ -61,7 +61,7 @@ func (c *pubCache) put(key pubCacheKey, pub *ec.PublicKey) {
 	}
 	el := c.ll.PushFront(&pubCacheEntry{key: key, pub: pub})
 	c.m[key] = el
-	for c.ll.Len() > c.max {
+	for c.ll.Len() > c.capacity {
 		back := c.ll.Back()
 		if back == nil {
 			return

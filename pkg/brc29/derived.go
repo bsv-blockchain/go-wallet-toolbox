@@ -93,18 +93,21 @@ func UnlockDerived(ctx context.Context, sender *ec.PublicKey, keyID KeyID, signe
 		flag = *options.sigHash
 	}
 	counterparty := sdk.Counterparty{Type: sdk.CounterpartyTypeOther, Counterparty: sender}
-	pub, err := signer.DerivePublicKey(ctx, Protocol, keyID.String(), counterparty, true)
+	invoiceKeyID := keyID.String()
+	pub, err := signer.DerivePublicKey(ctx, Protocol, invoiceKeyID, counterparty, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive BRC29 public key: %w", err)
 	}
 	return &UnlockingScriptTemplate{
 		derived: &derivedUnlocker{
-			ctx:          ctx,
-			signer:       signer,
-			keyID:        keyID.String(),
-			counterparty: counterparty,
-			pub:          pub,
-			flag:         flag,
+			signDigest: func(digest []byte) (*ec.Signature, error) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				return signer.Sign(ctx, Protocol, invoiceKeyID, counterparty, digest)
+			},
+			pub:  pub,
+			flag: flag,
 		},
 	}, nil
 }
@@ -166,26 +169,22 @@ func addressForCounterpartyDerived(ctx context.Context, sender PublicDeriver, ke
 }
 
 type derivedUnlocker struct {
-	ctx          context.Context
-	signer       DerivedSigner
-	keyID        string
-	counterparty sdk.Counterparty
-	pub          *ec.PublicKey
-	flag         sighash.Flag
+	// signDigest closes over the caller's context. transaction.UnlockingScriptTemplate.Sign
+	// has no context parameter, and the template can outlive the create request.
+	signDigest func([]byte) (*ec.Signature, error)
+	pub        *ec.PublicKey
+	flag       sighash.Flag
 }
 
 func (u *derivedUnlocker) sign(tx *transaction.Transaction, inputIndex uint32) (*script.Script, error) {
-	if err := u.ctx.Err(); err != nil {
-		return nil, err
-	}
-	if inputIndex >= uint32(len(tx.Inputs)) || tx.Inputs[inputIndex].SourceTxOutput() == nil {
+	if int(inputIndex) >= len(tx.Inputs) || tx.Inputs[inputIndex].SourceTxOutput() == nil {
 		return nil, transaction.ErrEmptyPreviousTx
 	}
 	digest, err := tx.CalcInputSignatureHash(inputIndex, u.flag)
 	if err != nil {
 		return nil, fmt.Errorf("sighash: %w", err)
 	}
-	sig, err := u.signer.Sign(u.ctx, Protocol, u.keyID, u.counterparty, digest)
+	sig, err := u.signDigest(digest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign input %d with BRC29: %w", inputIndex, err)
 	}
