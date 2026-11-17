@@ -32,6 +32,8 @@ updates:
   - package-ecosystem: "gomod"
     directories:
       - "/"
+      - "/hsm"
+      - "/hsm/cmd/infra"
       - "/manual_tests"
       - "/examples/complex_wallet_examples/certifier_server_example"
       - "/examples/complex_wallet_examples/create_faucet_server"

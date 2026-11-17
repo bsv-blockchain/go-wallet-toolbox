@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -34,8 +35,22 @@ func ValidInternalizeActionArgs(args *wdk.InternalizeActionArgs) error {
 	return nil
 }
 
-// WalletInternalizeAction performs wallet-specific validation for internalize actions
+// WalletInternalizeAction performs wallet-specific validation for internalize actions.
 func WalletInternalizeAction(keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeActionArgs) error {
+	return internalizeOutputs(args, func(output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
+		return validateOutput(keyDeriver, output, txOutput)
+	})
+}
+
+// WalletInternalizeActionDerived validates wallet-payment outputs with a
+// deriver that does not return a private key.
+func WalletInternalizeActionDerived(ctx context.Context, deriver brc29.PublicDeriver, args *wdk.InternalizeActionArgs) error {
+	return internalizeOutputs(args, func(output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
+		return validateOutputDerived(ctx, deriver, output, txOutput)
+	})
+}
+
+func internalizeOutputs(args *wdk.InternalizeActionArgs, check func(wdk.InternalizeOutput, *transaction.TransactionOutput) error) error {
 	if err := ValidInternalizeActionArgs(args); err != nil {
 		return fmt.Errorf("invalid internalize action args: %w", err)
 	}
@@ -51,7 +66,7 @@ func WalletInternalizeAction(keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeAc
 	}
 
 	for _, output := range args.Outputs {
-		if err := validateOutput(keyDeriver, *output, tx); err != nil {
+		if err := check(*output, tx.Outputs[output.OutputIndex]); err != nil {
 			return fmt.Errorf("output validation failed: %w", err)
 		}
 	}
@@ -59,13 +74,22 @@ func WalletInternalizeAction(keyDeriver *sdk.KeyDeriver, args *wdk.InternalizeAc
 	return nil
 }
 
-// validateOutput validates a single output based on its protocol
-func validateOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, tx *transaction.Transaction) error {
-	txOutput := tx.Outputs[output.OutputIndex]
-
+// validateOutput validates a single output based on its protocol.
+func validateOutput(keyDeriver *sdk.KeyDeriver, output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
 	switch output.Protocol {
 	case wdk.WalletPaymentProtocol:
 		return validateWalletPaymentOutput(keyDeriver, output, txOutput)
+	case wdk.BasketInsertionProtocol:
+		return validateBasketInsertionOutput()
+	default:
+		return fmt.Errorf("unexpected protocol: %s", output.Protocol)
+	}
+}
+
+func validateOutputDerived(ctx context.Context, deriver brc29.PublicDeriver, output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
+	switch output.Protocol {
+	case wdk.WalletPaymentProtocol:
+		return validateWalletPaymentOutputDerived(ctx, deriver, output, txOutput)
 	case wdk.BasketInsertionProtocol:
 		return validateBasketInsertionOutput()
 	default:
@@ -91,6 +115,26 @@ func validateWalletPaymentOutput(keyDeriver *sdk.KeyDeriver, output wdk.Internal
 		return fmt.Errorf("locking script mismatch: expected %s, got %s", expectedLockScript.String(), txOutput.LockingScript.String())
 	}
 
+	return nil
+}
+
+func validateWalletPaymentOutputDerived(ctx context.Context, deriver brc29.PublicDeriver, output wdk.InternalizeOutput, txOutput *transaction.TransactionOutput) error {
+	payment := output.PaymentRemittance
+	keyID := brc29.KeyID{
+		DerivationPrefix: string(payment.DerivationPrefix),
+		DerivationSuffix: string(payment.DerivationSuffix),
+	}
+	sender, err := brc29.PubHex(payment.SenderIdentityKey).PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to parse sender identity key: %w", err)
+	}
+	expectedLockScript, err := brc29.LockForSelfDerived(ctx, sender, keyID, deriver)
+	if err != nil {
+		return fmt.Errorf("failed to create expected address: %w", err)
+	}
+	if txOutput.LockingScript.String() != expectedLockScript.String() {
+		return fmt.Errorf("locking script mismatch: expected %s, got %s", expectedLockScript.String(), txOutput.LockingScript.String())
+	}
 	return nil
 }
 
