@@ -94,22 +94,30 @@ func UnlockDerived(ctx context.Context, sender *ec.PublicKey, keyID KeyID, signe
 	}
 	counterparty := sdk.Counterparty{Type: sdk.CounterpartyTypeOther, Counterparty: sender}
 	invoiceKeyID := keyID.String()
-	pub, err := signer.DerivePublicKey(ctx, Protocol, invoiceKeyID, counterparty, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive BRC29 public key: %w", err)
+	var signDigest func([]byte) (*ec.Signature, *ec.PublicKey, error)
+	if combined, ok := signer.(interface {
+		SignWithPublicKey(context.Context, sdk.Protocol, string, sdk.Counterparty, []byte) (*ec.Signature, *ec.PublicKey, error)
+	}); ok {
+		signDigest = func(digest []byte) (*ec.Signature, *ec.PublicKey, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, nil, err
+			}
+			return combined.SignWithPublicKey(ctx, Protocol, invoiceKeyID, counterparty, digest)
+		}
+	} else {
+		pub, err := signer.DerivePublicKey(ctx, Protocol, invoiceKeyID, counterparty, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive BRC29 public key: %w", err)
+		}
+		signDigest = func(digest []byte) (*ec.Signature, *ec.PublicKey, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, nil, err
+			}
+			sig, err := signer.Sign(ctx, Protocol, invoiceKeyID, counterparty, digest)
+			return sig, pub, err
+		}
 	}
-	return &UnlockingScriptTemplate{
-		derived: &derivedUnlocker{
-			signDigest: func(digest []byte) (*ec.Signature, error) {
-				if err := ctx.Err(); err != nil {
-					return nil, err
-				}
-				return signer.Sign(ctx, Protocol, invoiceKeyID, counterparty, digest)
-			},
-			pub:  pub,
-			flag: flag,
-		},
-	}, nil
+	return &UnlockingScriptTemplate{derived: &derivedUnlocker{signDigest: signDigest, flag: flag}}, nil
 }
 
 func addressForSelfDerived(ctx context.Context, sender *ec.PublicKey, keyID KeyID, self PublicDeriver, opts ...func(*lockOptions)) (*script.Address, error) {
@@ -171,8 +179,7 @@ func addressForCounterpartyDerived(ctx context.Context, sender PublicDeriver, ke
 type derivedUnlocker struct {
 	// signDigest closes over the caller's context. transaction.UnlockingScriptTemplate.Sign
 	// has no context parameter, and the template can outlive the create request.
-	signDigest func([]byte) (*ec.Signature, error)
-	pub        *ec.PublicKey
+	signDigest func([]byte) (*ec.Signature, *ec.PublicKey, error)
 	flag       sighash.Flag
 }
 
@@ -184,7 +191,7 @@ func (u *derivedUnlocker) sign(tx *transaction.Transaction, inputIndex uint32) (
 	if err != nil {
 		return nil, fmt.Errorf("sighash: %w", err)
 	}
-	sig, err := u.signDigest(digest)
+	sig, pub, err := u.signDigest(digest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign input %d with BRC29: %w", inputIndex, err)
 	}
@@ -197,7 +204,7 @@ func (u *derivedUnlocker) sign(tx *transaction.Transaction, inputIndex uint32) (
 	if err = out.AppendPushData(sigBuf); err != nil {
 		return nil, fmt.Errorf("failed to push BRC29 signature: %w", err)
 	}
-	if err = out.AppendPushData(u.pub.Compressed()); err != nil {
+	if err = out.AppendPushData(pub.Compressed()); err != nil {
 		return nil, fmt.Errorf("failed to push BRC29 public key: %w", err)
 	}
 	return out, nil

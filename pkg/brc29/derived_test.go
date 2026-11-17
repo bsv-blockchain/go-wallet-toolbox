@@ -2,6 +2,7 @@ package brc29_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -55,6 +56,31 @@ func TestDerivedLockMatchesKeyDeriver(t *testing.T) {
 }
 
 func TestDerivedUnlockSpendsBRC29Output(t *testing.T) {
+	for _, combined := range []bool{false, true} {
+		t.Run(fmt.Sprintf("combined=%v", combined), func(t *testing.T) { testDerivedUnlock(t, combined) })
+	}
+}
+
+type combinedSDKSigner struct {
+	sdkSigner
+	calls int
+}
+
+func (s *combinedSDKSigner) DerivePublicKey(context.Context, sdk.Protocol, string, sdk.Counterparty, bool) (*ec.PublicKey, error) {
+	return nil, fmt.Errorf("separate public derivation must not be called")
+}
+func (s *combinedSDKSigner) SignWithPublicKey(ctx context.Context, p sdk.Protocol, id string, cp sdk.Counterparty, digest []byte) (*ec.Signature, *ec.PublicKey, error) {
+	s.calls++
+	sig, err := s.sdkSigner.Sign(ctx, p, id, cp, digest)
+	if err != nil {
+		return nil, nil, err
+	}
+	pub, err := s.kd.DerivePublicKey(p, id, cp, true)
+	return sig, pub, err
+}
+
+func testDerivedUnlock(t *testing.T, combined bool) {
+	t.Helper()
 	sender, err := ec.PrivateKeyFromHex(senderPrivateKeyHex)
 	require.NoError(t, err)
 	recipient, err := ec.PrivateKeyFromHex(recipientPrivateKeyHex)
@@ -62,7 +88,12 @@ func TestDerivedUnlockSpendsBRC29Output(t *testing.T) {
 
 	lockingScript, err := brc29.LockForCounterpartyDerived(t.Context(), sdkSigner{kd: sdk.NewKeyDeriver(sender)}, keyID, recipient.PubKey())
 	require.NoError(t, err)
-	unlocker, err := brc29.UnlockDerived(t.Context(), sender.PubKey(), keyID, sdkSigner{kd: sdk.NewKeyDeriver(recipient)})
+	var signer brc29.DerivedSigner = sdkSigner{kd: sdk.NewKeyDeriver(recipient)}
+	fast := &combinedSDKSigner{sdkSigner: sdkSigner{kd: sdk.NewKeyDeriver(recipient)}}
+	if combined {
+		signer = fast
+	}
+	unlocker, err := brc29.UnlockDerived(t.Context(), sender.PubKey(), keyID, signer)
 	require.NoError(t, err)
 	require.EqualValues(t, 106, unlocker.EstimateLength(transaction.NewTransaction(), 0))
 
@@ -78,6 +109,9 @@ func TestDerivedUnlockSpendsBRC29Output(t *testing.T) {
 		UnlockingScriptTemplate: unlocker,
 	}))
 	require.NoError(t, tx.Sign())
+	if combined {
+		require.Equal(t, 1, fast.calls)
+	}
 	require.NoError(t, interpreter.NewEngine().Execute(
 		interpreter.WithTx(tx, 0, tx.Inputs[0].SourceTxOutput()),
 		interpreter.WithAfterGenesis(),

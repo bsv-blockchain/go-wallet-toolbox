@@ -89,10 +89,11 @@ func Open(ctx context.Context, cfg Config) (hsm.Backend, error) {
 		return nil, fmt.Errorf("pkcs11 initialize: %w", err)
 	}
 	b := &backend{
-		module: module,
-		lib:    cfg.LibraryPath,
-		label:  cfg.KeyLabel,
-		logf:   cfg.Logf,
+		module:  module,
+		lib:     cfg.LibraryPath,
+		label:   cfg.KeyLabel,
+		pinFile: cfg.PINFile,
+		logf:    cfg.Logf,
 	}
 	if err = ctx.Err(); err != nil {
 		_ = b.Close()
@@ -109,6 +110,7 @@ type backend struct {
 	module   *pkcs11.Ctx
 	lib      string
 	label    string
+	pinFile  string
 	logf     func(string)
 	identity *ec.PublicKey
 	pool     *pool
@@ -124,7 +126,7 @@ func (b *backend) Identity(context.Context) (*ec.PublicKey, error) {
 	return b.identity, nil
 }
 
-func (b *backend) OpenHMAC(ctx context.Context, peerCompressed, message []byte, revealPoint bool) ([]byte, []byte, hsm.HMACSession, error) {
+func (b *backend) OpenHMAC(ctx context.Context, peerCompressed, message []byte, revealPoint bool) (_ []byte, _ []byte, _ hsm.HMACSession, resultErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, nil, err
 	}
@@ -137,6 +139,7 @@ func (b *backend) OpenHMAC(ctx context.Context, peerCompressed, message []byte, 
 	}
 	held := true
 	defer func() {
+		s.invalidate(resultErr)
 		if held {
 			b.pool.release(s)
 		}
@@ -146,7 +149,7 @@ func (b *backend) OpenHMAC(ctx context.Context, peerCompressed, message []byte, 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	defer b.destroy(s.handle, secret)
+	defer b.destroy(s, secret)
 
 	var point []byte
 	if revealPoint {
@@ -202,6 +205,9 @@ func (b *backend) openPool(ctx context.Context, slotID int, n int, pin []byte) e
 		return err
 	}
 	p := newPool(b.module, n)
+	p.reopen = func(ctx context.Context, s *sess) error {
+		return b.reopenSession(ctx, s, slot)
+	}
 	for i := 0; i < n; i++ {
 		if err = ctx.Err(); err != nil {
 			p.shutdown()
@@ -222,6 +228,32 @@ func (b *backend) openPool(ctx context.Context, slotID int, n int, pin []byte) e
 		p.add(session)
 	}
 	b.pool = p
+	return nil
+}
+
+// reopenSession replaces a failed session without replaying the failed operation.
+// Re-read the PIN instead of retaining it, and reject a replacement token/key
+// that does not match the identity used by the wallet and its public-key cache.
+func (b *backend) reopenSession(ctx context.Context, s *sess, slot uint) error {
+	s.close()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	pin, err := readPIN(b.pinFile)
+	if err != nil {
+		return err
+	}
+	defer zero(pin)
+	fresh, err := b.openLoggedSession(s.pool, slot, pin)
+	if err != nil {
+		return err
+	}
+	if err = b.proveIdentity(fresh.handle, fresh.root); err != nil {
+		fresh.close()
+		return err
+	}
+	s.handle, s.root = fresh.handle, fresh.root
+	b.log("pkcs11 session recovered and identity verified")
 	return nil
 }
 
@@ -377,11 +409,11 @@ func (b *backend) readPublicKey(sh pkcs11.SessionHandle, obj pkcs11.ObjectHandle
 	return pub, nil
 }
 
-func (b *backend) destroy(sh pkcs11.SessionHandle, obj pkcs11.ObjectHandle) {
+func (b *backend) destroy(s *sess, obj pkcs11.ObjectHandle) {
 	if obj == 0 {
 		return
 	}
-	_ = b.module.DestroyObject(sh, obj)
+	s.invalidate(b.module.DestroyObject(s.handle, obj))
 }
 
 func (b *backend) log(msg string) {
@@ -397,7 +429,12 @@ type hmacSession struct {
 	once   sync.Once
 }
 
-func (h *hmacSession) ChildSign(digest []byte) ([]byte, error) {
+func (h *hmacSession) ChildSign(digest []byte) (_ []byte, resultErr error) {
+	defer func() {
+		if h != nil {
+			h.s.invalidate(resultErr)
+		}
+	}()
 	if len(digest) == 0 {
 		return nil, fmt.Errorf("digest is empty")
 	}
@@ -405,8 +442,8 @@ func (h *hmacSession) ChildSign(digest []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer h.b.destroy(h.s.handle, pub)
-	defer h.b.destroy(h.s.handle, priv)
+	defer h.b.destroy(h.s, pub)
+	defer h.b.destroy(h.s, priv)
 	if err = h.b.module.SignInit(h.s.handle, []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_ECDSA, nil)}, priv); err != nil {
 		return nil, fmt.Errorf("ecdsa init: %w", err)
 	}
@@ -417,7 +454,12 @@ func (h *hmacSession) ChildSign(digest []byte) ([]byte, error) {
 	return raw, nil
 }
 
-func (h *hmacSession) ChildSharedX(peerCompressed []byte) ([]byte, error) {
+func (h *hmacSession) ChildSharedX(peerCompressed []byte) (_ []byte, resultErr error) {
+	defer func() {
+		if h != nil {
+			h.s.invalidate(resultErr)
+		}
+	}()
 	if len(peerCompressed) != sharedPointLen {
 		return nil, fmt.Errorf("child ecdh peer length %d, want %d", len(peerCompressed), sharedPointLen)
 	}
@@ -425,13 +467,13 @@ func (h *hmacSession) ChildSharedX(peerCompressed []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer h.b.destroy(h.s.handle, pub)
-	defer h.b.destroy(h.s.handle, priv)
+	defer h.b.destroy(h.s, pub)
+	defer h.b.destroy(h.s, priv)
 	secret, err := h.b.ecdh(h.s, priv, peerCompressed, true)
 	if err != nil {
 		return nil, fmt.Errorf("child ecdh: %w", err)
 	}
-	defer h.b.destroy(h.s.handle, secret)
+	defer h.b.destroy(h.s, secret)
 	point, err := h.b.readValue(h.s.handle, secret)
 	if err != nil {
 		return nil, fmt.Errorf("child ecdh value: %w", err)
@@ -444,7 +486,7 @@ func (h *hmacSession) ChildSharedX(peerCompressed []byte) ([]byte, error) {
 }
 
 func (h *hmacSession) keyPair() (pkcs11.ObjectHandle, pkcs11.ObjectHandle, error) {
-	if h == nil || h.s == nil || len(h.scalar) != 32 {
+	if h == nil || h.s == nil || h.s.broken || len(h.scalar) != 32 {
 		return 0, 0, fmt.Errorf("hmac session is closed")
 	}
 	pub, priv, err := deriveKeyPair(h.b.lib, h.s.handle, ckmECScalarChildDerive, h.scalar, h.s.root, childPublicTemplate(), childPrivateTemplate())
@@ -583,6 +625,7 @@ type pool struct {
 	module *pkcs11.Ctx
 	ch     chan *sess
 	closed bool
+	reopen func(context.Context, *sess) error
 	wg     sync.WaitGroup
 }
 
@@ -591,6 +634,7 @@ type sess struct {
 	module *pkcs11.Ctx
 	handle pkcs11.SessionHandle
 	root   pkcs11.ObjectHandle
+	broken bool
 	once   sync.Once
 }
 
@@ -621,7 +665,36 @@ func (p *pool) acquire(ctx context.Context) (*sess, error) {
 		if !ok || s == nil {
 			return nil, fmt.Errorf("pkcs11 session pool is closed")
 		}
+		if err := ctx.Err(); err != nil {
+			p.release(s)
+			return nil, err
+		}
+		if s.broken {
+			if p.reopen == nil {
+				p.release(s)
+				return nil, fmt.Errorf("pkcs11 session recovery unavailable")
+			}
+			if err := p.reopen(ctx, s); err != nil {
+				// Keep the slot so a later request can recover after an outage.
+				p.release(s)
+				return nil, fmt.Errorf("pkcs11 recover session: %w", err)
+			}
+			s.broken = false
+		}
+		if err := ctx.Err(); err != nil {
+			p.release(s)
+			return nil, err
+		}
 		return s, nil
+	}
+}
+
+// A failed provider operation can leave a session unusable or an operation
+// active. Retire it on any failure; validation errors only cause a harmless
+// extra reopen. A session is exclusively owned until release.
+func (s *sess) invalidate(err error) {
+	if s != nil && err != nil {
+		s.broken = true
 	}
 }
 

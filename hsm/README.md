@@ -159,3 +159,46 @@ Schnorr proof needs one more method that does not return the root scalar,
 for example `ProveCounterpartyLinkage(counterparty *ec.PublicKey) (proof []byte, linkage *ec.PublicKey, error)`.
 `CachedKeyDeriver` already has an unexported interface, but that interface
 still includes `DerivePrivateKey`, and `ProtoWallet` does not use it.
+
+## Session recovery and capacity checks
+
+A failed token operation retires its session, including failures destroying
+session objects. The next borrower closes it, opens and logs in to a fresh
+session, and signs a random challenge to verify the original wallet identity.
+The PIN is read again from `pin_file`; keep that file available for the lifetime
+of the process. Recovery never replays the failed operation. If the token is
+still unavailable, that request fails and a later borrower retries recovery;
+the pool does not permanently lose capacity. Replacing the token with a
+different root key fails identity verification. Shutdown waits for borrowers,
+including recovery in progress. Provider calls still cannot be cancelled by Go;
+configure the provider's network timeouts as well as request deadlines.
+
+BRC-29 signing uses `SignWithPublicKey` when the signer implements it, deriving
+and signing in one token session instead of doing ECDH/HMAC twice. The result
+populates the public-key cache; no scalar or private key is cached.
+
+With the hardware environment variables above set, run both correctness and
+recovery tests (the latter closes only its own test session):
+
+```sh
+cd hsm
+go test -tags pkcs11 -count=1 -v ./pkcs11 -run '^TestGrimsel'
+```
+
+Measure the server-side wallet crypto for authenticated requests with unique
+request/response key IDs, at 1, 4, and 8 concurrent clients:
+
+```sh
+cd hsm/cmd/infra
+HSM_POOL_SIZE=4 go test -tags pkcs11 -run '^$' -bench BenchmarkGrimselAuth -benchtime=32x -count=1 -timeout=15m
+```
+
+This benchmark runs nonce `VerifyHMAC`, request `VerifySignature` with public
+cache misses, and response `CreateSignature` through `wallet.NewWithHSM`. Every
+MAC and signature is checked. It reports throughput and p50/p95 latency including
+pool queue time. It excludes HTTP, database work, the initial handshake, and
+transaction signing, so it measures a crypto capacity ceiling, not an HTTP SLA.
+Run it on the deployment network with its actual provider, firmware, pool size,
+and client concurrency before accepting an HSM service traffic target. A larger
+pool does not guarantee proportional throughput on a shared token. Hardware
+checks skip when credentials are absent; a skipped check is not hardware evidence.

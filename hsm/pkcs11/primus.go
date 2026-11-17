@@ -12,10 +12,11 @@ typedef struct { UL type; void* p; UL len; } ATTR;
 typedef struct { UL mech; void* p; UL len; } MECH;
 typedef struct { unsigned char* p; UL len; } SCALARP;
 typedef UL (*dkp_t)(UL, MECH*, UL, ATTR*, UL, ATTR*, UL, UL*, UL*);
-static void* sym(const char* lib, const char* name) {
+static void* sym(const char* lib, const char* name, void** handle) {
 	void* h = dlopen(lib, RTLD_NOW | RTLD_NOLOAD);
 	if (!h) h = dlopen(lib, RTLD_NOW);
 	if (!h) return NULL;
+	*handle = h;
 	return dlsym(h, name);
 }
 static UL call_dkp(void* f, UL sess, UL mech, unsigned char* sc, UL sl, UL base,
@@ -50,7 +51,11 @@ func deriveKeyPair(lib string, sess pkcs11.SessionHandle, mech uint, scalar []by
 	defer C.free(unsafe.Pointer(cl))
 	cn := C.CString("C_DeriveKeyPair")
 	defer C.free(unsafe.Pointer(cn))
-	f := C.sym(cl, cn)
+	var handle unsafe.Pointer
+	f := C.sym(cl, cn, &handle)
+	if handle != nil {
+		defer C.dlclose(handle)
+	}
 	if f == nil {
 		return 0, 0, fmt.Errorf("C_DeriveKeyPair symbol not found")
 	}

@@ -162,15 +162,23 @@ func (d *Deriver) DeriveSymmetricKey(ctx context.Context, protocol sdk.Protocol,
 // Sign signs digest with the BRC-42 child private key inside Backend.
 // The returned signature is low-S DER.
 func (d *Deriver) Sign(ctx context.Context, protocol sdk.Protocol, keyID string, counterparty sdk.Counterparty, digest []byte) (*ec.Signature, error) {
+	sig, _, err := d.SignWithPublicKey(ctx, protocol, keyID, counterparty, digest)
+	return sig, err
+}
+
+// SignWithPublicKey signs and derives the matching child public key using one
+// ECDH/HMAC session. BRC-29 unlockers can avoid a separate token round trip.
+// Only the public key is cached; the derivation scalar is wiped on every exit.
+func (d *Deriver) SignWithPublicKey(ctx context.Context, protocol sdk.Protocol, keyID string, counterparty sdk.Counterparty, digest []byte) (*ec.Signature, *ec.PublicKey, error) {
 	if len(digest) == 0 {
-		return nil, fmt.Errorf("digest is empty")
+		return nil, nil, fmt.Errorf("digest is empty")
 	}
 	if new(big.Int).SetBytes(digest).BitLen() > ec.S256().Params().N.BitLen() {
-		return nil, fmt.Errorf("digest is too large to sign")
+		return nil, nil, fmt.Errorf("digest is too large to sign")
 	}
 	peer, invoice, err := d.factorInputs(ctx, protocol, keyID, counterparty)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	h, _, session, err := d.backend.OpenHMAC(ctx, peer.Compressed(), []byte(invoice), false)
 	if session != nil {
@@ -178,18 +186,25 @@ func (d *Deriver) Sign(ctx context.Context, protocol sdk.Protocol, keyID string,
 	}
 	defer zero(h)
 	if err != nil {
-		return nil, fmt.Errorf("sign: %w", err)
+		return nil, nil, fmt.Errorf("sign: %w", err)
+	}
+	pub, err := addScalarG(d.identity, h)
+	if err != nil {
+		return nil, nil, fmt.Errorf("sign public key: %w", err)
 	}
 	raw, err := session.ChildSign(digest)
 	if err != nil {
-		return nil, fmt.Errorf("sign: %w", err)
+		return nil, nil, fmt.Errorf("sign: %w", err)
 	}
 	defer zero(raw)
 	sig, err := signatureFromRS(raw)
 	if err != nil {
-		return nil, fmt.Errorf("sign: %w", err)
+		return nil, nil, fmt.Errorf("sign: %w", err)
 	}
-	return sig, nil
+	d.mu.Lock()
+	d.cache.put(pubCacheKey{level: int(protocol.SecurityLevel), proto: protocol.Protocol, keyID: keyID, peer: string(peer.Compressed()), forSelf: true}, pub)
+	d.mu.Unlock()
+	return sig, pub, nil
 }
 
 // CreateHMAC returns HMAC-SHA256 of data under the BRC-43 symmetric key,

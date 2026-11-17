@@ -244,3 +244,82 @@ func requireEqualSecret(t *testing.T, got, want []byte) {
 		t.Fatalf("secret mismatch (len got=%d want=%d)", len(got), len(want))
 	}
 }
+
+func TestSignWithPublicKeyUsesOneDerivation(t *testing.T) {
+	root, err := ec.NewPrivateKey()
+	require.NoError(t, err)
+	soft, err := NewSoftwareBackend(root)
+	require.NoError(t, err)
+	backend := &countingBackend{Backend: soft}
+	d, err := New(t.Context(), backend)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, d.Close()) })
+	protocol := sdk.Protocol{SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty, Protocol: "3241645161d8"}
+	cp := sdk.Counterparty{Type: sdk.CounterpartyTypeAnyone}
+	digest := sha256.Sum256([]byte("one derivation per input"))
+	sig, pub, err := d.SignWithPublicKey(t.Context(), protocol, "prefix suffix", cp, digest[:])
+	require.NoError(t, err)
+	require.True(t, sig.Verify(digest[:], pub))
+	expected, err := sdk.NewKeyDeriver(root).DerivePublicKey(protocol, "prefix suffix", cp, true)
+	require.NoError(t, err)
+	require.True(t, pub.IsEqual(expected))
+	cached, err := d.DerivePublicKey(t.Context(), protocol, "prefix suffix", cp, true)
+	require.NoError(t, err)
+	require.True(t, pub.IsEqual(cached))
+	require.EqualValues(t, 1, backend.n.Load())
+}
+
+type observedBackend struct {
+	Backend
+	h       []byte
+	point   []byte
+	fail    bool
+	session *observedSession
+}
+type observedSession struct {
+	HMACSession
+	closed bool
+}
+
+func (s *observedSession) Close() error { s.closed = true; return s.HMACSession.Close() }
+func (b *observedBackend) OpenHMAC(ctx context.Context, peer, message []byte, reveal bool) ([]byte, []byte, HMACSession, error) {
+	h, p, s, err := b.Backend.OpenHMAC(ctx, peer, message, reveal)
+	b.h, b.point = h, p
+	if s != nil {
+		b.session = &observedSession{HMACSession: s}
+		s = b.session
+	}
+	if err == nil && b.fail {
+		err = context.Canceled
+	}
+	return h, p, s, err
+}
+func TestTemporaryDerivationMaterialIsWiped(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		for _, reveal := range []bool{false, true} {
+			root, err := ec.NewPrivateKey()
+			require.NoError(t, err)
+			soft, err := NewSoftwareBackend(root)
+			require.NoError(t, err)
+			b := &observedBackend{Backend: soft, fail: fail}
+			d, err := New(t.Context(), b)
+			require.NoError(t, err)
+			cp := sdk.Counterparty{Type: sdk.CounterpartyTypeAnyone}
+			if reveal {
+				_, err = d.RevealCounterpartySecret(t.Context(), cp)
+			} else {
+				_, _, err = d.SignWithPublicKey(t.Context(), sdk.Protocol{SecurityLevel: sdk.SecurityLevelEveryAppAndCounterparty, Protocol: "3241645161d8"}, "wipe", cp, make([]byte, 32))
+			}
+			if fail {
+				require.ErrorIs(t, err, context.Canceled)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Len(t, b.h, 32)
+			requireEqualSecret(t, b.h, make([]byte, len(b.h)))
+			requireEqualSecret(t, b.point, make([]byte, len(b.point)))
+			require.True(t, b.session.closed)
+			require.NoError(t, d.Close())
+		}
+	}
+}
