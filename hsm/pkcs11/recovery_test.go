@@ -5,6 +5,7 @@ package pkcs11
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -101,10 +102,32 @@ func TestGrimselSessionRecovery(t *testing.T) {
 	if lib == "" || pin == "" || label == "" {
 		t.Skip("set HSM_PKCS11_LIB, HSM_PIN_FILE, HSM_KEY_LABEL")
 	}
-	opened, err := Open(t.Context(), Config{LibraryPath: lib, PINFile: pin, KeyLabel: label, Slot: -1, SessionPoolSize: 1})
+	for _, size := range []int{1, 2} {
+		t.Run(fmt.Sprintf("pool%d", size), func(t *testing.T) {
+			testGrimselSessionRecovery(t, Config{LibraryPath: lib, PINFile: pin, KeyLabel: label, Slot: -1, SessionPoolSize: size})
+		})
+	}
+}
+
+func testGrimselSessionRecovery(t *testing.T, cfg Config) {
+	t.Helper()
+	opened, err := Open(t.Context(), cfg)
 	require.NoError(t, err)
 	b := opened.(*backend)
 	t.Cleanup(func() { require.NoError(t, b.Close()) })
+	// Keep one borrow alive across another session's recovery. A redundant
+	// token-wide login would invalidate its root handle before ChildSign.
+	if cfg.SessionPoolSize > 1 {
+		h, _, held, holdErr := b.OpenHMAC(t.Context(), b.identity.Compressed(), []byte("2-3241645161d8 held"), false)
+		defer zero(h)
+		require.NoError(t, holdErr)
+		defer func() {
+			defer func() { require.NoError(t, held.Close()) }()
+			raw, signErr := held.ChildSign(make([]byte, 32))
+			require.NoError(t, signErr)
+			require.Len(t, raw, 64)
+		}()
+	}
 	s, err := b.pool.acquire(t.Context())
 	require.NoError(t, err)
 	require.NoError(t, b.module.CloseSession(s.handle))

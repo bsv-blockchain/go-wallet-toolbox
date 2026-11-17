@@ -70,6 +70,9 @@ still needs its own files, pointed at by the environment (never commit them):
 - `SECUROSYS_PKCS11_CONF`
 - `SECUROSYS_SECRETS_CONF`
 
+For the developer HSM, Securosys lists `grimsel.securosys.ch:2410` as the
+[PKCS#11 endpoint](https://docs.securosys.com/connectivity-details/developer-program/).
+
 The PIN file is the user PIN and nothing else. It is not an environment
 variable and it is not passed on argv.
 
@@ -173,6 +176,12 @@ different root key fails identity verification. Shutdown waits for borrowers,
 including recovery in progress. Provider calls still cannot be cancelled by Go;
 configure the provider's network timeouts as well as request deadlines.
 
+Session creation checks the existing token login state before calling `C_Login`.
+Primus 2.8.2 invalidates live object handles on a redundant login even when it
+returns `CKR_USER_ALREADY_LOGGED_IN`. The check and login are serialized across
+session openings, including concurrent recovery. Hardware regression tests cover
+both a single-session pool and recovery while another session remains borrowed.
+
 BRC-29 signing uses `SignWithPublicKey` when the signer implements it, deriving
 and signing in one token session instead of doing ECDH/HMAC twice. The result
 populates the public-key cache; no scalar or private key is cached.
@@ -202,3 +211,24 @@ Run it on the deployment network with its actual provider, firmware, pool size,
 and client concurrency before accepting an HSM service traffic target. A larger
 pool does not guarantee proportional throughput on a shared token. Hardware
 checks skip when credentials are absent; a skipped check is not hardware evidence.
+
+### Measured developer-HSM run
+
+On 2026-11-17, the commands above passed against remote Grimsel (firmware
+RX-3.4.0-T) using Primus PKCS#11 2.8.2, Go 1.27.4, and a Linux arm64 VM with
+`GOMAXPROCS=2`. The
+four-session pool completed 32 measured request/response crypto round trips at
+each concurrency, with no failed MAC or signature checks:
+
+| Concurrent clients | Round trips/s | p50 latency (ms) | p95 latency (ms) |
+| --- | --- | --- | --- |
+| 1 | 0.3634 | 2728 | 2877 |
+| 4 | 0.8948 | 4337 | 4728 |
+| 8 | 0.8505 | 9187 | 9697 |
+
+Increasing concurrency beyond the pool size increased queue time without a
+throughput gain in this run. These are small-sample measurements from one remote
+developer-HSM run, not a production capacity guarantee. The correctness tests
+also passed for other/self/anyone derivation, signatures, symmetric keys/HMAC,
+linkage, startup identity verification, and session recovery with pools of one
+and two, including a borrower kept alive during recovery.

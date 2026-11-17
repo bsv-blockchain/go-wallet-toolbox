@@ -114,6 +114,7 @@ type backend struct {
 	logf     func(string)
 	identity *ec.PublicKey
 	pool     *pool
+	loginMu  sync.Mutex
 
 	once sync.Once
 	err  error
@@ -295,9 +296,14 @@ func (b *backend) openLoggedSession(p *pool, slot uint, pin []byte) (*sess, erro
 	if err != nil {
 		return nil, fmt.Errorf("pkcs11 open session: %w", err)
 	}
-	if err = b.module.Login(sh, pkcs11.CKU_USER, string(pin)); err != nil && !alreadyLoggedIn(err) {
+	// Login state belongs to the token. Serialize this check with other session
+	// openings so concurrent recoveries cannot both decide to log in.
+	b.loginMu.Lock()
+	err = loginUser(b.module, sh, pin)
+	b.loginMu.Unlock()
+	if err != nil {
 		_ = b.module.CloseSession(sh)
-		return nil, fmt.Errorf("pkcs11 login: %w", err)
+		return nil, err
 	}
 	root, err := findOne(b.module, sh, pkcs11.CKO_PRIVATE_KEY, b.label, nil)
 	if err != nil {
@@ -307,6 +313,28 @@ func (b *backend) openLoggedSession(p *pool, slot uint, pin []byte) (*sess, erro
 		return nil, err
 	}
 	return &sess{pool: p, module: b.module, handle: sh, root: root}, nil
+}
+
+type sessionLogin interface {
+	GetSessionInfo(pkcs11.SessionHandle) (pkcs11.SessionInfo, error)
+	Login(pkcs11.SessionHandle, uint, string) error
+}
+
+func loginUser(module sessionLogin, sh pkcs11.SessionHandle, pin []byte) error {
+	info, err := module.GetSessionInfo(sh)
+	if err != nil {
+		return fmt.Errorf("pkcs11 session info: %w", err)
+	}
+	// Primus 2.8.2 invalidates existing object handles even when a redundant
+	// C_Login returns CKR_USER_ALREADY_LOGGED_IN. Preserve live borrowers by
+	// using the token's existing user login instead of calling C_Login again.
+	if info.State == pkcs11.CKS_RO_USER_FUNCTIONS || info.State == pkcs11.CKS_RW_USER_FUNCTIONS {
+		return nil
+	}
+	if err = module.Login(sh, pkcs11.CKU_USER, string(pin)); err != nil && !alreadyLoggedIn(err) {
+		return fmt.Errorf("pkcs11 login: %w", err)
+	}
+	return nil
 }
 
 func (b *backend) loadIdentity(sh pkcs11.SessionHandle, root pkcs11.ObjectHandle) error {
