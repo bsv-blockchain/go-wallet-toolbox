@@ -26,6 +26,7 @@ import (
 // Embedding the interface makes any unexpected storage call fail the test.
 type hsmTransactionStorage struct {
 	wdk.WalletStorage
+
 	create       *wdk.StorageCreateActionResult
 	processed    []wdk.ProcessActionArgs
 	internalized int
@@ -34,10 +35,12 @@ type hsmTransactionStorage struct {
 func (s *hsmTransactionStorage) CreateAction(context.Context, wdk.ValidCreateActionArgs) (*wdk.StorageCreateActionResult, error) {
 	return s.create, nil
 }
+
 func (s *hsmTransactionStorage) ProcessAction(_ context.Context, args wdk.ProcessActionArgs) (*wdk.ProcessActionResult, error) {
 	s.processed = append(s.processed, args)
 	return &wdk.ProcessActionResult{}, nil
 }
+
 func (s *hsmTransactionStorage) InternalizeAction(context.Context, wdk.InternalizeActionArgs) (*wdk.InternalizeActionResult, error) {
 	s.internalized++
 	return &wdk.InternalizeActionResult{Accepted: true}, nil
@@ -47,6 +50,7 @@ func (s *hsmTransactionStorage) InternalizeAction(context.Context, wdk.Internali
 // request contexts so deferred signing cannot accidentally pass this test.
 type transactionDeriver struct {
 	*sdkDeriver
+
 	signs int
 }
 
@@ -55,7 +59,7 @@ func (s *transactionDeriver) SignWithPublicKey(ctx context.Context, p sdk.Protoc
 		return nil, nil, err
 	}
 	s.signs++
-	sig, err := s.sdkDeriver.Sign(ctx, p, id, cp, digest)
+	sig, err := s.Sign(ctx, p, id, cp, digest)
 	if err != nil {
 		return nil, nil, err
 	}

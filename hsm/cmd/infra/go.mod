@@ -3,8 +3,10 @@ module github.com/bsv-blockchain/go-wallet-toolbox/hsm/cmd/infra
 go 1.27.4
 
 require (
+	github.com/bsv-blockchain/go-sdk v1.7.4
 	github.com/bsv-blockchain/go-wallet-toolbox v0.0.0
 	github.com/bsv-blockchain/go-wallet-toolbox/hsm v0.0.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (
@@ -43,7 +45,6 @@ require (
 	github.com/bsv-blockchain/go-lockfree-queue v1.2.0 // indirect
 	github.com/bsv-blockchain/go-p2p-message-bus v0.2.0 // indirect
 	github.com/bsv-blockchain/go-safe-conversion v1.2.0 // indirect
-	github.com/bsv-blockchain/go-sdk v1.7.4 // indirect
 	github.com/bsv-blockchain/go-subtree v1.6.3 // indirect
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.3 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.5.1 // indirect
@@ -207,7 +208,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/stretchr/objx v0.8.0 // indirect
-	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twmb/franz-go v1.22.2 // indirect
 	github.com/twmb/franz-go/pkg/kadm v1.19.0 // indirect

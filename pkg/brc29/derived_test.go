@@ -63,15 +63,17 @@ func TestDerivedUnlockSpendsBRC29Output(t *testing.T) {
 
 type combinedSDKSigner struct {
 	sdkSigner
+
 	calls int
 }
 
 func (s *combinedSDKSigner) DerivePublicKey(context.Context, sdk.Protocol, string, sdk.Counterparty, bool) (*ec.PublicKey, error) {
 	return nil, fmt.Errorf("separate public derivation must not be called")
 }
+
 func (s *combinedSDKSigner) SignWithPublicKey(ctx context.Context, p sdk.Protocol, id string, cp sdk.Counterparty, digest []byte) (*ec.Signature, *ec.PublicKey, error) {
 	s.calls++
-	sig, err := s.sdkSigner.Sign(ctx, p, id, cp, digest)
+	sig, err := s.Sign(ctx, p, id, cp, digest)
 	if err != nil {
 		return nil, nil, err
 	}

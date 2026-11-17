@@ -271,17 +271,24 @@ func TestSignWithPublicKeyUsesOneDerivation(t *testing.T) {
 
 type observedBackend struct {
 	Backend
+
 	h       []byte
 	point   []byte
 	fail    bool
 	session *observedSession
 }
+
 type observedSession struct {
 	HMACSession
+
 	closed bool
 }
 
-func (s *observedSession) Close() error { s.closed = true; return s.HMACSession.Close() }
+func (s *observedSession) Close() error {
+	s.closed = true
+	return s.HMACSession.Close()
+}
+
 func (b *observedBackend) OpenHMAC(ctx context.Context, peer, message []byte, reveal bool) ([]byte, []byte, HMACSession, error) {
 	h, p, s, err := b.Backend.OpenHMAC(ctx, peer, message, reveal)
 	b.h, b.point = h, p
@@ -294,6 +301,7 @@ func (b *observedBackend) OpenHMAC(ctx context.Context, peer, message []byte, re
 	}
 	return h, p, s, err
 }
+
 func TestTemporaryDerivationMaterialIsWiped(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		for _, reveal := range []bool{false, true} {
