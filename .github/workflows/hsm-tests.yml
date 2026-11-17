@@ -1,3 +1,5 @@
+# Repo-local workflow — intentionally NOT part of the synced fortress suite
+# (fortress-*.yml files are overwritten by template [Sync] PRs).
 name: HSM module tests
 
 on:
@@ -5,13 +7,18 @@ on:
   push:
     branches: [main]
 
+# Permissions are declared per-job (Sonar githubactions:S8264) so the job gets
+# only what it needs — not the repository's default token permissions.
 jobs:
   hsm:
     name: hsm module
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: hsm/go.mod
       - name: Test and vet the HSM module
