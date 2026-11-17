@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script/interpreter"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
@@ -69,67 +70,95 @@ func TestNewWithHSMTransactionActions(t *testing.T) {
 			name = "SignActionAfterCanceledCreate"
 		}
 		t.Run(name, func(t *testing.T) {
-			var created wdk.StorageCreateActionResult
-			require.NoError(t, json.Unmarshal([]byte(tsgenerated.CreateActionResultJSON()), &created))
-			kd := testusers.Alice.KeyDeriver(t)
-			// Build real parent transactions locked to Alice's BRC-29 child keys.
-			parents := make(map[string]*transaction.Transaction)
-			previous, err := chainhash.NewHashFromHex("0000000000000000000000000000000000000000000000000000000000000001")
-			require.NoError(t, err)
-			for _, in := range created.Inputs {
-				sender, err := ec.PublicKeyFromString(*in.SenderIdentityKey)
-				require.NoError(t, err)
-				lock, err := brc29.LockForSelf(sender, brc29.KeyID{DerivationPrefix: *in.DerivationPrefix, DerivationSuffix: *in.DerivationSuffix}, kd)
-				require.NoError(t, err)
-				parent := transaction.NewTransaction()
-				parent.AddInput(&transaction.TransactionInput{SourceTXID: previous, SequenceNumber: transaction.DefaultSequenceNumber})
-				for vout := uint32(0); vout <= in.SourceVout; vout++ {
-					parent.AddOutput(&transaction.TransactionOutput{Satoshis: uint64(in.SourceSatoshis), LockingScript: lock})
-				}
-				in.SourceLockingScript = lock.String()
-				in.SourceTxID = parent.TxID().String()
-				in.SourceTransaction = parent.Bytes()
-				parents[in.SourceTxID] = parent
-			}
-			store := &hsmTransactionStorage{create: &created}
-			signer := &transactionDeriver{sdkDeriver: newSDKDeriver(t, testusers.Alice.PrivateKey(t))}
-			w, err := wallet.NewWithHSM(defs.NetworkMainnet, signer, mocks.NewMockWalletStorageProvider(nil), wallet.WithStorageManager(store))
-			require.NoError(t, err)
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			immediate := !deferred
-			args := sdk.CreateActionArgs{Description: "HSM transaction test", Outputs: []sdk.CreateActionOutput{{LockingScript: []byte{0x51}, Satoshis: 1000, OutputDescription: "test output"}}, Options: &sdk.CreateActionOptions{SignAndProcess: &immediate}}
-			result, err := w.CreateAction(ctx, args, fixtures.DefaultOriginator)
-			require.NoError(t, err)
-			if deferred {
-				require.NotNil(t, result.SignableTransaction)
-				require.Empty(t, store.processed)
-				require.Zero(t, signer.signs)
-				cancel()
-				_, err = w.SignAction(t.Context(), sdk.SignActionArgs{Reference: result.SignableTransaction.Reference}, fixtures.DefaultOriginator)
-				require.NoError(t, err)
-			}
-			require.Len(t, store.processed, 1)
-			tx, err := transaction.NewTransactionFromBytes(store.processed[0].RawTx)
-			require.NoError(t, err)
-			require.Equal(t, len(created.Inputs), signer.signs)
-			for i, in := range tx.Inputs {
-				in.SourceTransaction = parents[in.SourceTXID.String()]
-				require.NoError(t, interpreter.NewEngine().Execute(interpreter.WithTx(tx, i, in.SourceTxOutput()), interpreter.WithAfterGenesis(), interpreter.WithForkID()))
-			}
-			changes := 0
-			for _, out := range created.Outputs {
-				if out.DerivationSuffix == nil {
-					continue
-				}
-				want, err := brc29.LockForSelf(kd.IdentityKey(), brc29.KeyID{DerivationPrefix: created.DerivationPrefix, DerivationSuffix: *out.DerivationSuffix}, kd)
-				require.NoError(t, err)
-				require.Equal(t, want.String(), tx.Outputs[out.Vout].LockingScript.String())
-				changes++
-			}
-			require.Positive(t, changes)
+			runHSMTransactionAction(t, deferred)
 		})
 	}
+}
+
+func runHSMTransactionAction(t *testing.T, deferred bool) {
+	t.Helper()
+	created, parents := hsmActionFixture(t)
+	store := &hsmTransactionStorage{create: created}
+	signer := &transactionDeriver{sdkDeriver: newSDKDeriver(t, testusers.Alice.PrivateKey(t))}
+	w, err := wallet.NewWithHSM(defs.NetworkMainnet, signer, mocks.NewMockWalletStorageProvider(nil), wallet.WithStorageManager(store))
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	immediate := !deferred
+	args := sdk.CreateActionArgs{Description: "HSM transaction test", Outputs: []sdk.CreateActionOutput{{LockingScript: []byte{0x51}, Satoshis: 1000, OutputDescription: "test output"}}, Options: &sdk.CreateActionOptions{SignAndProcess: &immediate}}
+	result, err := w.CreateAction(ctx, args, fixtures.DefaultOriginator)
+	require.NoError(t, err)
+	if deferred {
+		require.NotNil(t, result.SignableTransaction)
+		require.Empty(t, store.processed)
+		require.Zero(t, signer.signs)
+		cancel()
+		_, err = w.SignAction(t.Context(), sdk.SignActionArgs{Reference: result.SignableTransaction.Reference}, fixtures.DefaultOriginator)
+		require.NoError(t, err)
+	}
+	require.Len(t, store.processed, 1)
+	tx, err := transaction.NewTransactionFromBytes(store.processed[0].RawTx)
+	require.NoError(t, err)
+	require.Equal(t, len(created.Inputs), signer.signs)
+	requireInputsSpend(t, tx, parents)
+	requireChangeLockedToAlice(t, tx, created)
+}
+
+func hsmActionFixture(t *testing.T) (*wdk.StorageCreateActionResult, map[string]*transaction.Transaction) {
+	t.Helper()
+	var created wdk.StorageCreateActionResult
+	require.NoError(t, json.Unmarshal([]byte(tsgenerated.CreateActionResultJSON()), &created))
+	previous, err := chainhash.NewHashFromHex("0000000000000000000000000000000000000000000000000000000000000001")
+	require.NoError(t, err)
+	kd := testusers.Alice.KeyDeriver(t)
+	parents := make(map[string]*transaction.Transaction)
+	for _, in := range created.Inputs {
+		attachBRC29Parent(t, kd, previous, in, parents)
+	}
+	return &created, parents
+}
+
+func attachBRC29Parent(t *testing.T, kd *sdk.KeyDeriver, previous *chainhash.Hash, in *wdk.StorageCreateTransactionSdkInput, parents map[string]*transaction.Transaction) {
+	t.Helper()
+	sender, err := ec.PublicKeyFromString(*in.SenderIdentityKey)
+	require.NoError(t, err)
+	lock, err := brc29.LockForSelf(sender, brc29.KeyID{DerivationPrefix: *in.DerivationPrefix, DerivationSuffix: *in.DerivationSuffix}, kd)
+	require.NoError(t, err)
+	satoshis, err := to.UInt64(in.SourceSatoshis)
+	require.NoError(t, err)
+	parent := transaction.NewTransaction()
+	parent.AddInput(&transaction.TransactionInput{SourceTXID: previous, SequenceNumber: transaction.DefaultSequenceNumber})
+	for vout := uint32(0); vout <= in.SourceVout; vout++ {
+		parent.AddOutput(&transaction.TransactionOutput{Satoshis: satoshis, LockingScript: lock})
+	}
+	in.SourceLockingScript = lock.String()
+	in.SourceTxID = parent.TxID().String()
+	in.SourceTransaction = parent.Bytes()
+	parents[in.SourceTxID] = parent
+}
+
+func requireInputsSpend(t *testing.T, tx *transaction.Transaction, parents map[string]*transaction.Transaction) {
+	t.Helper()
+	for i, in := range tx.Inputs {
+		in.SourceTransaction = parents[in.SourceTXID.String()]
+		require.NoError(t, interpreter.NewEngine().Execute(interpreter.WithTx(tx, i, in.SourceTxOutput()), interpreter.WithAfterGenesis(), interpreter.WithForkID()))
+	}
+}
+
+func requireChangeLockedToAlice(t *testing.T, tx *transaction.Transaction, created *wdk.StorageCreateActionResult) {
+	t.Helper()
+	kd := testusers.Alice.KeyDeriver(t)
+	changes := 0
+	for _, out := range created.Outputs {
+		if out.DerivationSuffix == nil {
+			continue
+		}
+		want, err := brc29.LockForSelf(kd.IdentityKey(), brc29.KeyID{DerivationPrefix: created.DerivationPrefix, DerivationSuffix: *out.DerivationSuffix}, kd)
+		require.NoError(t, err)
+		require.Equal(t, want.String(), tx.Outputs[out.Vout].LockingScript.String())
+		changes++
+	}
+	require.Positive(t, changes)
 }
 
 func TestNewWithHSMInternalizeAction(t *testing.T) {
