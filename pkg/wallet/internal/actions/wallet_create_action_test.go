@@ -12,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
+	"github.com/go-softwarelab/common/pkg/to"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -271,9 +272,11 @@ func attachParentTransactions(t *testing.T, result *wdk.StorageCreateActionResul
 			SourceTxOutIndex: 0,
 			SequenceNumber:   transaction.DefaultSequenceNumber,
 		})
+		satoshis, err := to.UInt64(in.SourceSatoshis)
+		require.NoError(t, err)
 		for vout := uint32(0); vout <= in.SourceVout; vout++ {
 			parent.AddOutput(&transaction.TransactionOutput{
-				Satoshis:      uint64(in.SourceSatoshis),
+				Satoshis:      satoshis,
 				LockingScript: locking,
 			})
 		}
