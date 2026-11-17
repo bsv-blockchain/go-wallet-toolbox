@@ -7,7 +7,10 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	ec "github.com/bsv-blockchain/go-sdk/primitives/ec"
+	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	sdk "github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,6 +178,108 @@ func TestCreateAction_DoesNotAbortWhenActionReachedProcessAction(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 1, storage.processCalled)
 	assert.Empty(t, storage.abortCalls)
+}
+
+type aliceSigner struct {
+	kd *sdk.KeyDeriver
+}
+
+func (s aliceSigner) IdentityKey() *ec.PublicKey { return s.kd.IdentityKey() }
+
+func (s aliceSigner) DerivePublicKey(_ context.Context, protocol sdk.Protocol, keyID string, counterparty sdk.Counterparty, forSelf bool) (*ec.PublicKey, error) {
+	return s.kd.DerivePublicKey(protocol, keyID, counterparty, forSelf)
+}
+
+func (s aliceSigner) Sign(_ context.Context, protocol sdk.Protocol, keyID string, counterparty sdk.Counterparty, digest []byte) (*ec.Signature, error) {
+	priv, err := s.kd.DerivePrivateKey(protocol, keyID, counterparty)
+	if err != nil {
+		return nil, err
+	}
+	return priv.Sign(digest)
+}
+
+func TestCreateAction_DerivedSignerSignsWithoutPrivateKey(t *testing.T) {
+	var createResult wdk.StorageCreateActionResult
+	require.NoError(t, json.Unmarshal([]byte(tsgenerated.CreateActionResultJSON()), &createResult))
+	storage := &storageStub{
+		createResult: &createResult,
+		processErr:   fmt.Errorf("broadcast under review"),
+	}
+	priv, err := ec.PrivateKeyFromHex(testusers.Alice.PrivKey)
+	require.NoError(t, err)
+
+	action := newCreateAction(storage)
+	action.Signer = aliceSigner{kd: sdk.NewKeyDeriver(priv)}
+
+	_, err = action.CreateAction(context.Background(), createActionArgs(), testOriginator, newWalletParty())
+	require.Error(t, err)
+	assert.Equal(t, 1, storage.processCalled)
+	assert.Empty(t, storage.abortCalls)
+}
+
+func TestCreateAction_DerivedSignerSurvivesCanceledCreateContext(t *testing.T) {
+	var createResult wdk.StorageCreateActionResult
+	require.NoError(t, json.Unmarshal([]byte(tsgenerated.CreateActionResultJSON()), &createResult))
+	// SignAction builds an atomic BEEF, which rejects an input whose parent
+	// transaction was never attached. The fixture only carries the source
+	// output, so give that input a real parent before CreateAction.
+	attachParentTransactions(t, &createResult)
+	storage := &storageStub{createResult: &createResult}
+	priv, err := ec.PrivateKeyFromHex(testusers.Alice.PrivKey)
+	require.NoError(t, err)
+
+	action := newCreateAction(storage)
+	action.Signer = aliceSigner{kd: sdk.NewKeyDeriver(priv)}
+
+	signAndProcess := false
+	args := createActionArgs()
+	args.Options = &sdk.CreateActionOptions{SignAndProcess: &signAndProcess}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result, err := action.CreateAction(ctx, args, testOriginator, newWalletParty())
+	require.NoError(t, err)
+	require.NotNil(t, result.SignableTransaction)
+	cancel()
+
+	signAction := &actions.SignAction{
+		Logger:                  action.Logger,
+		Storage:                 storage,
+		PendingSignActionsCache: action.PendingSignActionsCache,
+	}
+	_, err = signAction.SignAction(context.Background(), sdk.SignActionArgs{
+		Reference: result.SignableTransaction.Reference,
+	}, testOriginator, newWalletParty())
+	require.NoError(t, err)
+	assert.Equal(t, 1, storage.processCalled)
+}
+
+// attachParentTransactions gives every storage input a parent transaction whose
+// txid and spent output match the result, so a later atomic BEEF can be built.
+func attachParentTransactions(t *testing.T, result *wdk.StorageCreateActionResult) {
+	t.Helper()
+
+	prev, err := chainhash.NewHashFromHex("0000000000000000000000000000000000000000000000000000000000000001")
+	require.NoError(t, err)
+
+	for _, in := range result.Inputs {
+		locking, err := script.NewFromHex(in.SourceLockingScript)
+		require.NoError(t, err)
+
+		parent := transaction.NewTransaction()
+		parent.AddInput(&transaction.TransactionInput{
+			SourceTXID:       prev,
+			SourceTxOutIndex: 0,
+			SequenceNumber:   transaction.DefaultSequenceNumber,
+		})
+		for vout := uint32(0); vout <= in.SourceVout; vout++ {
+			parent.AddOutput(&transaction.TransactionOutput{
+				Satoshis:      uint64(in.SourceSatoshis),
+				LockingScript: locking,
+			})
+		}
+		in.SourceTxID = parent.TxID().String()
+		in.SourceTransaction = parent.Bytes()
+	}
 }
 
 func TestCreateAction_DoesNotAbortWhenStorageCreateActionFailed(t *testing.T) {

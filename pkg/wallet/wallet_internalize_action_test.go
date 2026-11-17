@@ -11,10 +11,24 @@ import (
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/fixtures/testusers"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/mapping"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wallet/internal/testabilities"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+func TestWalletInternalizeActionDerivedMatchesSoftware(t *testing.T) {
+	kd := testusers.Alice.KeyDeriver(t)
+	args := fixtures.DefaultWalletInternalizeActionArgsMatchingBRC29(t, sdk.InternalizeProtocolWalletPayment, kd)
+	wdkArgs := mapping.MapInternalizeActionArgs(args)
+
+	require.NoError(t, validate.WalletInternalizeAction(kd, &wdkArgs))
+	require.NoError(t, validate.WalletInternalizeActionDerived(t.Context(), newSDKDeriver(t, testusers.Alice.PrivateKey(t)), &wdkArgs))
+
+	wdkArgs.Outputs[0].PaymentRemittance.DerivationSuffix = "other-suffix"
+	require.Error(t, validate.WalletInternalizeActionDerived(t.Context(), newSDKDeriver(t, testusers.Alice.PrivateKey(t)), &wdkArgs))
+}
 
 func TestInternalizeActionOriginatorValidation(t *testing.T) {
 	RunOriginatorValidationErrorTests(

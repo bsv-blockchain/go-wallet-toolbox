@@ -115,6 +115,36 @@ func TestGrimselBRC42(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, point.IsEqual(wantPoint))
 	})
+
+	t.Run("anyone", func(t *testing.T) {
+		anyonePriv, _ := sdk.AnyoneKey()
+		anyoneKD := sdk.NewKeyDeriver(anyonePriv)
+		hsmAnyone := sdk.Counterparty{Type: sdk.CounterpartyTypeAnyone}
+		got, err := deriver.DerivePublicKey(t.Context(), protocol, keyID, hsmAnyone, true)
+		require.NoError(t, err)
+		want, err := anyoneKD.DerivePublicKey(protocol, keyID, ownerCP, false)
+		require.NoError(t, err)
+		require.True(t, got.IsEqual(want))
+
+		digest := sha256.Sum256([]byte("grimsel anyone"))
+		sig, err := deriver.Sign(t.Context(), protocol, keyID, hsmAnyone, digest[:])
+		require.NoError(t, err)
+		require.True(t, sig.Verify(digest[:], got))
+	})
+
+	t.Run("self", func(t *testing.T) {
+		// The owner's self-child needs the root scalar, which the test does not
+		// have. Signing and verifying against the derived public key still checks
+		// that the token's self derivation is internally consistent. Open already
+		// checked that this identity verifies a signature from the root private key.
+		self := sdk.Counterparty{Type: sdk.CounterpartyTypeSelf}
+		pub, err := deriver.DerivePublicKey(t.Context(), protocol, keyID, self, true)
+		require.NoError(t, err)
+		digest := sha256.Sum256([]byte("grimsel self"))
+		sig, err := deriver.Sign(t.Context(), protocol, keyID, self, digest[:])
+		require.NoError(t, err)
+		require.True(t, sig.Verify(digest[:], pub))
+	})
 }
 
 func requireEqualSecret(t *testing.T, got, want []byte) {

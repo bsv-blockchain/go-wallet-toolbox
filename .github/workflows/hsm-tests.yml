@@ -1,0 +1,23 @@
+name: HSM module tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  hsm:
+    name: hsm module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: hsm/go.mod
+      - name: Test and vet the HSM module
+        working-directory: hsm
+        run: |
+          go test -race -count=1 ./...
+          go test -race -count=1 -tags pkcs11 ./pkcs11/
+          go vet -tags pkcs11 ./...
+          cd cmd/infra && go build -tags pkcs11 -o /dev/null .

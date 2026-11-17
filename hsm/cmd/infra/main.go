@@ -1,21 +1,47 @@
 //go:build pkcs11
 
-package infra
+// Command infra is the storage server with the Securosys PKCS#11 root key.
+// Build it with -tags pkcs11. The toolbox's cmd/infra does not link this module.
+package main
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/hsm"
 	"github.com/bsv-blockchain/go-wallet-toolbox/hsm/pkcs11"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/infra"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/keyderiver"
 )
 
-// Compile-time check that the HSM deriver satisfies the toolbox seam.
-var _ keyderiver.Deriver = (*hsm.Deriver)(nil)
+func main() {
+	server, err := infra.NewServer(
+		context.Background(),
+		infra.WithConfigFile("infra-config.yaml"),
+		infra.WithKeyDeriverFactory(openSecurosys),
+	)
+	if err != nil {
+		panic(err)
+	}
 
-func openHSMDeriver(ctx context.Context, cfg HSMConfig, logger *slog.Logger) (keyderiver.Deriver, error) {
+	go func() {
+		if err = server.ListenAndServe(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	server.Cleanup()
+}
+
+func openSecurosys(ctx context.Context, cfg infra.HSMConfig, logger *slog.Logger) (keyderiver.Deriver, error) {
 	backend, err := pkcs11.Open(ctx, pkcs11.Config{
 		LibraryPath:     cfg.LibraryPath,
 		Slot:            cfg.Slot,

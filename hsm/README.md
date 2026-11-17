@@ -71,13 +71,19 @@ still needs its own files, pointed at by the environment (never commit them):
 - `SECUROSYS_SECRETS_CONF`
 
 The PIN file is the user PIN and nothing else. It is not an environment
-variable and it is not passed on argv. Build and run:
+variable and it is not passed on argv.
+
+The toolbox module does not import this module. `cmd/infra` in the toolbox
+keeps the hex-key server. The HSM server is a separate command that passes
+`infra.WithKeyDeriverFactory` so downstream modules that import `pkg/infra`
+do not need an unpublished `hsm` version:
 
 ```sh
-go build -tags pkcs11 -o infra ./cmd/infra
+cd hsm/cmd/infra
+go build -tags pkcs11 -o infra-hsm .
 ```
 
-A binary built without the tag refuses to start when `hsm.enabled` is set.
+A toolbox binary without that factory refuses to start when `hsm.enabled` is set.
 
 The on-token private key is secp256k1, looked up by label, with
 `SENSITIVE=1`, `EXTRACTABLE=0`, `DERIVE=1`, `SIGN=1`.

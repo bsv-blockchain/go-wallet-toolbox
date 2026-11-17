@@ -482,7 +482,7 @@ func TestHSMModeDoesNotRequireServerPrivateKey(t *testing.T) {
 
 	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
 	require.Error(t, err)
-	require.ErrorContains(t, err, "pkcs11")
+	require.ErrorContains(t, err, "WithKeyDeriverFactory")
 }
 
 func setRequiredEnvs(t *testing.T) {

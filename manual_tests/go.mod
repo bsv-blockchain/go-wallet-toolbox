@@ -52,7 +52,6 @@ require (
 	github.com/bsv-blockchain/go-subtree v1.6.3 // indirect
 	github.com/bsv-blockchain/go-teranode-p2p-client v0.3.3 // indirect
 	github.com/bsv-blockchain/go-tx-map v1.5.1 // indirect
-	github.com/bsv-blockchain/go-wallet-toolbox/hsm v0.0.0 // indirect
 	github.com/bsv-blockchain/go-wire v1.5.0 // indirect
 	github.com/bsv-blockchain/teranode v0.16.1-beta-txmeta-2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -158,7 +157,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.53 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.73 // indirect
-	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
@@ -311,10 +309,6 @@ require (
 )
 
 replace github.com/bsv-blockchain/go-wallet-toolbox => ../
-
-// The toolbox module requires hsm. Go does not apply replace directives from
-// dependencies, so this module needs its own pointer at the sibling module.
-replace github.com/bsv-blockchain/go-wallet-toolbox/hsm => ../hsm
 
 // Pin kube-openapi to the commit k8s v0.37.x requires: newer kube-openapi switched to
 // structured-merge-diff/v7, which breaks k8s apimachinery v0.37.x (still on v6). Must be

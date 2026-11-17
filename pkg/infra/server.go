@@ -108,7 +108,10 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		if cfg.ServerPrivateKey != "" {
 			logger.WarnContext(ctx, "server_private_key is ignored because hsm.enabled is true")
 		}
-		serverDeriver, err = openHSMDeriver(ctx, cfg.HSM, logger)
+		if options.KeyDeriverFactory == nil {
+			return nil, fmt.Errorf("hsm.enabled requires WithKeyDeriverFactory; build the server from hsm/cmd/infra")
+		}
+		serverDeriver, err = options.KeyDeriverFactory(ctx, cfg.HSM, logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open hsm key deriver: %w", err)
 		}

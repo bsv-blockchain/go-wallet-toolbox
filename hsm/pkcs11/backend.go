@@ -5,6 +5,7 @@ package pkcs11
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
@@ -212,7 +213,7 @@ func (b *backend) openPool(ctx context.Context, slotID int, n int, pin []byte) e
 			return err
 		}
 		if i == 0 {
-			if err = b.loadIdentity(session.handle); err != nil {
+			if err = b.loadIdentity(session.handle, session.root); err != nil {
 				session.close()
 				p.shutdown()
 				return err
@@ -266,17 +267,30 @@ func (b *backend) openLoggedSession(p *pool, slot uint, pin []byte) (*sess, erro
 		_ = b.module.CloseSession(sh)
 		return nil, fmt.Errorf("pkcs11 login: %w", err)
 	}
-	root, err := findOne(b.module, sh, pkcs11.CKO_PRIVATE_KEY, b.label)
+	root, err := findOne(b.module, sh, pkcs11.CKO_PRIVATE_KEY, b.label, nil)
 	if err != nil {
-		_ = b.module.Logout(sh)
+		// Close this session only. C_Logout would drop every session this
+		// process has already logged in.
 		_ = b.module.CloseSession(sh)
 		return nil, err
 	}
 	return &sess{pool: p, module: b.module, handle: sh, root: root}, nil
 }
 
-func (b *backend) loadIdentity(sh pkcs11.SessionHandle) error {
-	pubHandle, err := findOne(b.module, sh, pkcs11.CKO_PUBLIC_KEY, b.label)
+func (b *backend) loadIdentity(sh pkcs11.SessionHandle, root pkcs11.ObjectHandle) error {
+	var id []byte
+	attrs, err := b.module.GetAttributeValue(sh, root, []*pkcs11.Attribute{
+		pkcs11.NewAttribute(pkcs11.CKA_ID, nil),
+	})
+	if err == nil && len(attrs) == 1 {
+		id = append([]byte(nil), attrs[0].Value...)
+		zero(attrs[0].Value)
+	}
+	var extra []*pkcs11.Attribute
+	if len(id) > 0 {
+		extra = []*pkcs11.Attribute{pkcs11.NewAttribute(pkcs11.CKA_ID, id)}
+	}
+	pubHandle, err := findOne(b.module, sh, pkcs11.CKO_PUBLIC_KEY, b.label, extra)
 	if err != nil {
 		return err
 	}
@@ -285,6 +299,36 @@ func (b *backend) loadIdentity(sh pkcs11.SessionHandle) error {
 		return err
 	}
 	b.identity = identity
+	if err = b.proveIdentity(sh, root); err != nil {
+		return err
+	}
+	return nil
+}
+
+// proveIdentity signs a random digest with the root private key and checks it
+// against the public key loaded by label. A second public-key object with the
+// same label would otherwise be accepted as the identity, and change outputs
+// locked to it could not be spent.
+func (b *backend) proveIdentity(sh pkcs11.SessionHandle, root pkcs11.ObjectHandle) error {
+	digest := make([]byte, 32)
+	if _, err := rand.Read(digest); err != nil {
+		return fmt.Errorf("identity check entropy: %w", err)
+	}
+	if err := b.module.SignInit(sh, []*pkcs11.Mechanism{pkcs11.NewMechanism(pkcs11.CKM_ECDSA, nil)}, root); err != nil {
+		return fmt.Errorf("identity check sign init: %w", err)
+	}
+	raw, err := b.module.Sign(sh, digest)
+	if err != nil {
+		return fmt.Errorf("identity check sign: %w", err)
+	}
+	sig, err := signatureFromRaw(raw)
+	zero(raw)
+	if err != nil {
+		return fmt.Errorf("identity check signature: %w", err)
+	}
+	if !sig.Verify(digest, b.identity) {
+		return fmt.Errorf("token public key does not match the private key with label %q", b.label)
+	}
 	return nil
 }
 
@@ -460,11 +504,13 @@ func childPrivateTemplate() []*pkcs11.Attribute {
 	}
 }
 
-func findOne(module *pkcs11.Ctx, sh pkcs11.SessionHandle, class uint, label string) (pkcs11.ObjectHandle, error) {
-	if err := module.FindObjectsInit(sh, []*pkcs11.Attribute{
+func findOne(module *pkcs11.Ctx, sh pkcs11.SessionHandle, class uint, label string, extra []*pkcs11.Attribute) (pkcs11.ObjectHandle, error) {
+	query := []*pkcs11.Attribute{
 		pkcs11.NewAttribute(pkcs11.CKA_CLASS, class),
 		pkcs11.NewAttribute(pkcs11.CKA_LABEL, label),
-	}); err != nil {
+	}
+	query = append(query, extra...)
+	if err := module.FindObjectsInit(sh, query); err != nil {
 		return 0, fmt.Errorf("find key: %w", err)
 	}
 	defer func() { _ = module.FindObjectsFinal(sh) }()
@@ -476,6 +522,24 @@ func findOne(module *pkcs11.Ctx, sh pkcs11.SessionHandle, class uint, label stri
 		return 0, fmt.Errorf("label %q matched %d objects of class %d", label, len(objs), class)
 	}
 	return objs[0], nil
+}
+
+func signatureFromRaw(raw []byte) (*ec.Signature, error) {
+	if len(raw) != 64 {
+		return nil, fmt.Errorf("ecdsa signature length %d, want 64", len(raw))
+	}
+	r := new(big.Int).SetBytes(raw[:32])
+	s := new(big.Int).SetBytes(raw[32:])
+	n := ec.S256().Params().N
+	half := new(big.Int).Rsh(new(big.Int).Set(n), 1)
+	if s.Cmp(half) > 0 {
+		s = new(big.Int).Sub(n, s)
+	}
+	parsed, err := ec.ParseDERSignature((&ec.Signature{R: r, S: s}).Serialize())
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
 }
 
 func parseECPoint(der []byte) (*ec.PublicKey, error) {
@@ -582,21 +646,29 @@ func (p *pool) shutdown() {
 		return
 	}
 	p.closed = true
-	pending := len(p.ch)
-	for i := 0; i < pending; i++ {
-		s := <-p.ch
-		s.finish()
+	// Non-blocking drain while the lock is held. A counted receive races with
+	// acquire: the session can leave the channel after len() and before the
+	// receive, and shutdown then blocks forever on the channel while holding
+	// the lock, so release can never return it.
+	for {
+		select {
+		case s := <-p.ch:
+			s.finish()
+		default:
+			close(p.ch)
+			p.mu.Unlock()
+			p.wg.Wait()
+			return
+		}
 	}
-	close(p.ch)
-	p.mu.Unlock()
-	p.wg.Wait()
 }
 
 func (s *sess) close() {
 	if s == nil || s.handle == 0 || s.module == nil {
 		return
 	}
-	_ = s.module.Logout(s.handle)
+	// Login state is per application, not per session. C_Logout here would
+	// log out every session still signing. Closing the last session logs out.
 	_ = s.module.CloseSession(s.handle)
 	s.handle = 0
 }

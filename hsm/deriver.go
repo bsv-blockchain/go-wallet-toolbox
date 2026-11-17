@@ -107,10 +107,10 @@ func (d *Deriver) DerivePublicKey(ctx context.Context, protocol sdk.Protocol, ke
 	if session != nil {
 		defer func() { _ = session.Close() }()
 	}
+	defer zero(h)
 	if err != nil {
 		return nil, fmt.Errorf("derive public key: %w", err)
 	}
-	defer zero(h)
 
 	base := peer
 	if forSelf {
@@ -139,10 +139,10 @@ func (d *Deriver) DeriveSymmetricKey(ctx context.Context, protocol sdk.Protocol,
 	if session != nil {
 		defer func() { _ = session.Close() }()
 	}
+	defer zero(h)
 	if err != nil {
 		return nil, fmt.Errorf("derive symmetric key: %w", err)
 	}
-	defer zero(h)
 
 	// BRC-43: X( (root+h) * (counterparty + h*G) ).
 	second, err := addScalarG(peer, h)
@@ -172,10 +172,11 @@ func (d *Deriver) Sign(ctx context.Context, protocol sdk.Protocol, keyID string,
 	if err != nil {
 		return nil, err
 	}
-	_, _, session, err := d.backend.OpenHMAC(ctx, peer.Compressed(), []byte(invoice), false)
+	h, _, session, err := d.backend.OpenHMAC(ctx, peer.Compressed(), []byte(invoice), false)
 	if session != nil {
 		defer func() { _ = session.Close() }()
 	}
+	defer zero(h)
 	if err != nil {
 		return nil, fmt.Errorf("sign: %w", err)
 	}
@@ -274,14 +275,15 @@ func (d *Deriver) RevealCounterpartySecret(ctx context.Context, counterparty sdk
 	// The shared point does not depend on the HMAC message. A one-byte
 	// message still exercises the HMAC step the token requires before the
 	// secret object can be released.
-	_, point, session, err := d.backend.OpenHMAC(ctx, peer.Compressed(), []byte{0}, true)
+	h, point, session, err := d.backend.OpenHMAC(ctx, peer.Compressed(), []byte{0}, true)
 	if session != nil {
 		defer func() { _ = session.Close() }()
 	}
+	defer zero(h)
+	defer zero(point)
 	if err != nil {
 		return nil, fmt.Errorf("reveal counterparty secret: %w", err)
 	}
-	defer zero(point)
 	pub, err := ec.ParsePubKey(point)
 	if err != nil {
 		return nil, fmt.Errorf("reveal counterparty secret: %w", err)
