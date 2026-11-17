@@ -9,7 +9,7 @@
 # kept so Dependabot preserves the -alpine variant on bumps: given a digest alone
 # it cannot tell -alpine from the default Debian image and silently flips the
 # builder to Debian, which has no `apk` and breaks the build.
-FROM golang:1.27-alpine@sha256:eb61c3873c97416fff0116553fff65d67a3549f72e11d9758849a689cdd8b523 AS builder
+FROM golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -33,7 +33,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # =============================================================================
 # Runtime stage
 # =============================================================================
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 
 RUN apk add --no-cache ca-certificates tzdata curl postgresql-client \
     && adduser -D -H -u 1000 app
