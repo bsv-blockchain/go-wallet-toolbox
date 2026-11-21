@@ -364,79 +364,26 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, err
 	}
 
-	var txStatuses []wdk.TxSynchronizedStatus
 	// From here on every return carries txStatuses: each entry is already committed as mined,
 	// and a completed tx is never selected again, so dropping it would lose its event for good.
+	var txStatuses []wdk.TxSynchronizedStatus
 	var failedAttempts []string
 	for _, txToSync := range txsToSync {
 		if err = ctx.Err(); err != nil {
 			return txStatuses, fmt.Errorf("context canceled, aborting synchronizeTxStatuses: %w", err)
 		}
 
-		s.logger.DebugContext(ctx, "synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
+		status, proven, proveErr := s.proveTx(ctx, txToSync, heightForCheck, lookups)
+		if proveErr != nil {
+			return txStatuses, proveErr
+		}
 
-		var merkleResult *wdk.MerklePathResult
-		merkleResult, err = s.services.MerklePath(ctx, txToSync.TxID)
-		if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
-			s.logger.WarnContext(
-				ctx,
-				"failed to get merkle path for transaction",
-				slog.Any("err", err),
-				slog.String("txID", txToSync.TxID),
-				slog.Uint64("attempts", txToSync.Attempts),
-				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", heightForCheck),
-			)
-
+		if !proven {
 			failedAttempts = append(failedAttempts, txToSync.TxID)
 			continue
 		}
 
-		if err != nil || merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
-			s.logger.DebugContext(
-				ctx,
-				"merkle path result is empty, this may be normal if the transaction is not yet mined",
-				slog.String("txID", txToSync.TxID),
-				slog.String("status", string(txToSync.Status)),
-				slog.Any("height", heightForCheck),
-			)
-
-			failedAttempts = append(failedAttempts, txToSync.TxID)
-			continue
-		}
-
-		var transactionIDs []uint
-		transactionIDs, err = s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
-		if err != nil {
-			return txStatuses, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
-		}
-
-		notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
-			return history.NewBuilder().NotifyTxOfProof(transactionID)
-		})
-
-		err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
-			TxID:        txToSync.TxID,
-			BlockHeight: merkleResult.BlockHeader.Height,
-			MerklePath:  merkleResult.MerklePath.Bytes(),
-			BlockHash:   merkleResult.BlockHeader.Hash,
-			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
-			Notes:       notes,
-		})
-		if err != nil {
-			return txStatuses, fmt.Errorf("failed to update proven txs as mined: %w", err)
-		}
-
-		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:        txToSync.TxID,
-			Status:      wdk.ProvenTxStatusCompleted,
-			Reference:   lookups.references[txToSync.TxID],
-			BlockHeight: merkleResult.BlockHeader.Height,
-			BlockHash:   merkleResult.BlockHeader.Hash,
-			MerklePath:  merkleResult.MerklePath,
-			MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
-			Labels:      lookups.labels[txToSync.TxID],
-		})
+		txStatuses = append(txStatuses, status)
 	}
 
 	// Count network-NOT_FOUND txs as failed attempts too: they can never be found by the
@@ -444,29 +391,11 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 	// never requeue or terminally fail them (the "rejected but wedged in-flight" bug).
 	failedAttempts = append(failedAttempts, absentTxIDs...)
 
-	err = s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts)
+	timeoutStatuses, err := s.applyAttemptsAndTimeouts(ctx, failedAttempts, statuses, lookups)
 	if err != nil {
-		return txStatuses, fmt.Errorf("failed to increase attempts for txs: %w", err)
+		return txStatuses, err
 	}
-
-	updatedTxs, err := s.provenTxRepo.ApplyProofTimeouts(
-		ctx,
-		s.syncTxStatusesConfig.MaxAttempts,
-		s.syncTxStatusesConfig.MaxRebroadcastAttempts,
-		statuses,
-	)
-	if err != nil {
-		return txStatuses, fmt.Errorf("failed to apply proof timeouts for txs above attempts: %w", err)
-	}
-
-	for _, updatedTx := range updatedTxs {
-		txStatuses = append(txStatuses, wdk.TxSynchronizedStatus{
-			TxID:      updatedTx.TxID,
-			Status:    updatedTx.Status,
-			Reference: lookups.references[updatedTx.TxID],
-			Labels:    lookups.labels[updatedTx.TxID],
-		})
-	}
+	txStatuses = append(txStatuses, timeoutStatuses...)
 
 	if err := s.reviewKnownTxStatuses(ctx); err != nil {
 		return txStatuses, fmt.Errorf("failed to review known tx statuses: %w", err)
@@ -525,6 +454,102 @@ func (s *synchronizeTxStatuses) loadStatusLookups(ctx context.Context, txIDs []s
 	}
 
 	return statusLookups{references: references, labels: labels}, nil
+}
+
+// proveTx polls the merkle path of one candidate and, when it is mined, stores the proof. It
+// reports proven=false (and no error) when there is no usable proof yet, so the caller counts a
+// failed attempt.
+func (s *synchronizeTxStatuses) proveTx(ctx context.Context, txToSync *entity.KnownTxForStatusSync, heightForCheck uint, lookups statusLookups) (status wdk.TxSynchronizedStatus, proven bool, err error) {
+	s.logger.DebugContext(ctx, "synchronizing", slog.String("txID", txToSync.TxID), slog.Uint64("attempts", txToSync.Attempts))
+
+	merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
+	if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
+		s.logger.WarnContext(
+			ctx,
+			"failed to get merkle path for transaction",
+			slog.Any("err", err),
+			slog.String("txID", txToSync.TxID),
+			slog.Uint64("attempts", txToSync.Attempts),
+			slog.String("status", string(txToSync.Status)),
+			slog.Any("height", heightForCheck),
+		)
+
+		return wdk.TxSynchronizedStatus{}, false, nil
+	}
+
+	if err != nil || merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
+		s.logger.DebugContext(
+			ctx,
+			"merkle path result is empty, this may be normal if the transaction is not yet mined",
+			slog.String("txID", txToSync.TxID),
+			slog.String("status", string(txToSync.Status)),
+			slog.Any("height", heightForCheck),
+		)
+
+		return wdk.TxSynchronizedStatus{}, false, nil
+	}
+
+	transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
+	if err != nil {
+		return wdk.TxSynchronizedStatus{}, false, fmt.Errorf("failed to find transaction IDs by txID %s: %w", txToSync.TxID, err)
+	}
+
+	notes := slices.Map(transactionIDs, func(transactionID uint) history.Builder {
+		return history.NewBuilder().NotifyTxOfProof(transactionID)
+	})
+
+	err = s.provenTxRepo.UpdateKnownTxAsMined(ctx, &entity.KnownTxAsMined{
+		TxID:        txToSync.TxID,
+		BlockHeight: merkleResult.BlockHeader.Height,
+		MerklePath:  merkleResult.MerklePath.Bytes(),
+		BlockHash:   merkleResult.BlockHeader.Hash,
+		MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+		Notes:       notes,
+	})
+	if err != nil {
+		return wdk.TxSynchronizedStatus{}, false, fmt.Errorf("failed to update proven txs as mined: %w", err)
+	}
+
+	return wdk.TxSynchronizedStatus{
+		TxID:        txToSync.TxID,
+		Status:      wdk.ProvenTxStatusCompleted,
+		Reference:   lookups.references[txToSync.TxID],
+		BlockHeight: merkleResult.BlockHeader.Height,
+		BlockHash:   merkleResult.BlockHeader.Hash,
+		MerklePath:  merkleResult.MerklePath,
+		MerkleRoot:  merkleResult.BlockHeader.MerkleRoot,
+		Labels:      lookups.labels[txToSync.TxID],
+	}, true, nil
+}
+
+// applyAttemptsAndTimeouts counts the failed proof attempts, then lets ApplyProofTimeouts move
+// the txs that ran out of attempts on, and returns the status updates that produced.
+func (s *synchronizeTxStatuses) applyAttemptsAndTimeouts(ctx context.Context, failedAttempts []string, statuses []wdk.ProvenTxReqStatus, lookups statusLookups) ([]wdk.TxSynchronizedStatus, error) {
+	if err := s.provenTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, failedAttempts); err != nil {
+		return nil, fmt.Errorf("failed to increase attempts for txs: %w", err)
+	}
+
+	updatedTxs, err := s.provenTxRepo.ApplyProofTimeouts(
+		ctx,
+		s.syncTxStatusesConfig.MaxAttempts,
+		s.syncTxStatusesConfig.MaxRebroadcastAttempts,
+		statuses,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply proof timeouts for txs above attempts: %w", err)
+	}
+
+	updates := make([]wdk.TxSynchronizedStatus, 0, len(updatedTxs))
+	for _, updatedTx := range updatedTxs {
+		updates = append(updates, wdk.TxSynchronizedStatus{
+			TxID:      updatedTx.TxID,
+			Status:    updatedTx.Status,
+			Reference: lookups.references[updatedTx.TxID],
+			Labels:    lookups.labels[updatedTx.TxID],
+		})
+	}
+
+	return updates, nil
 }
 
 func (s *synchronizeTxStatuses) reviewKnownTxStatuses(ctx context.Context) error {
