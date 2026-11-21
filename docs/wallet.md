@@ -129,3 +129,6 @@ methods query overlay services and cache results; they do not persist certificat
 For the full UTXO lifecycle — repository calls per method, the two-phase reservation, the
 release compensation machine, status vocabularies, and known parity gaps against the
 TypeScript implementation — see [`docs/utxo-lifecycle.md`](./utxo-lifecycle.md).
+
+For the trigger view — every sequence that changes a transaction's status, where it waits,
+what wakes it and how each failure ends — see [`docs/tx-lifecycle.md`](./tx-lifecycle.md).

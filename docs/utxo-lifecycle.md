@@ -9,6 +9,8 @@ specification with the TypeScript implementation side by side — lives in
 [`ts-stack/docs/architecture/wallet-utxo-lifecycle.md`](https://github.com/bsv-blockchain/ts-stack/blob/main/docs/architecture/wallet-utxo-lifecycle.md).
 This page is the Go-specific half: the repository layer, the two-phase UTXO reservation,
 and the release compensation machine, none of which have TypeScript counterparts.
+The trigger-by-trigger map of status transitions and failure paths is in
+[`tx-lifecycle.md`](./tx-lifecycle.md).
 
 ### Layers
 
@@ -98,22 +100,77 @@ path.
 
 ### Release compensation
 
-`CreateAction` is not atomic end to end: storage commits the funded transaction, then the
-wallet assembles and signs. A failure in between would strand reserved UTXOs.
+Building a transaction is not one atomic step. Storage first commits the action with its
+inputs **reserved** (`CreateAction`). The wallet then assembles and signs it, and storage
+writes and queues it (`ProcessAction`). If anything fails in between, the reserved inputs
+would stay locked and the wallet would look poorer than it is. The release is the
+compensating action that gives them back: it calls `AbortAction` on the action's reference.
+
+Every flow that can strand inputs creates a `release` and calls `release.onError(ctx, err)`
+from a single `defer`. A release is in one of three states, moved by three calls:
+
+- `arm(reference)`: the action is committed and holds reserved inputs, and this flow is the
+  only one that can complete it. From here a failure must give the inputs back.
+- `disarm()`: the point of no return. The transaction may reach the network from here on,
+  so its inputs must stay spent; releasing them could produce a real double spend.
+- `onError(err)`: runs on every exit. It releases the inputs only if the call failed while
+  the release was still armed, and does nothing otherwise.
+
+Because the release sits in one `defer`, every failure in the armed window gives the inputs
+back, including failure paths added to the code later; no error branch needs its own
+cleanup.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> prepared : newRelease
-    prepared --> armed : arm(reference) after storage commits
-    armed --> disarmed : signing succeeded
-    armed --> releasing : error before disarm
-    releasing --> [*] : AbortAction on a detached context, 10s timeout
-    disarmed --> [*]
+    [*] --> prepared : newRelease (disarmed)
+    prepared --> [*] : error before the commit (nothing reserved)
+    prepared --> armed : arm(reference) once the action is committed
+    armed --> disarmed : disarm() at the point of no return
+    armed --> releasing : error while armed (onError)
+    releasing --> released : AbortAction succeeds
+    releasing --> leftAsIs : AbortAction fails (logged)
+    leftAsIs --> released : unsigned action, fail_abandoned after 5 min
+    leftAsIs --> broadcast : unsent action, send_waiting posts it
+    disarmed --> broadcast : storage queues or posts the tx
+    released --> [*]
+    broadcast --> [*]
 ```
 
-Both the wallet layer (`pkg/wallet/internal/actions/release.go`) and the storage layer
-(`pkg/storage/internal/actions/release.go`) implement this. The detached context matters:
-the caller's context is usually already cancelled by the time compensation runs.
+#### Where each release is armed and disarmed
+
+| Flow | Armed | Disarmed (point of no return) | Releases on |
+|---|---|---|---|
+| Wallet `CreateAction` ([`wallet_create_action.go`](../pkg/wallet/internal/actions/wallet_create_action.go)) | after `Storage.CreateAction` returns the reference | right before it calls `Storage.ProcessAction` | errors while assembling, signing, building the atomic BEEF or caching a pending sign action |
+| Wallet `SignAction` ([`wallet_sign_action.go`](../pkg/wallet/internal/actions/wallet_sign_action.go)) | at the start: the action already exists from an earlier `CreateAction` (`signAndProcess=false`) | right before it calls `Storage.ProcessAction` | validation and signing errors. It also drops the cached pending sign action, because the reference is dead afterwards. |
+| Storage `CreateAction` ([`create.go`](../pkg/storage/internal/actions/create.go)) | after the funding database transaction commits | never: a successful return leaves it armed but unused | errors in the steps after the commit, before the call returns |
+| Storage `ProcessAction` ([`process.go`](../pkg/storage/internal/actions/process.go)) | at the start, only for a call that introduces a new transaction (`IsNewTx` with a reference); `sendWith`-only calls re-send earlier transactions and never arm | right before the tx is queued (delayed) or claimed for posting (immediate). It is also disarmed early when the referenced transaction is not this call's to release: missing, not outgoing, or no longer processable. | errors before the hand-off, including those **after** `SpendTransaction` commits: building or verifying the BEEF, script verification, the batch write |
+| Storage provider `ProcessAction` ([`provider.go`](../pkg/storage/provider.go)) | via `ReleaseUnprocessedAction` | — | invalid arguments: the call is rejected before `Process` runs, so the action is released at once |
+
+The wallet and storage releases hand over at `ProcessAction`: the wallet disarms just
+before the call, and storage arms its own release when the call starts. A failure in
+between, such as a transport error with remote storage before the request arrives, is
+released by neither. The action then stays `unsigned` and `fail_abandoned` aborts it after
+5 minutes.
+
+#### Details
+
+- **Detached context.** `onError` runs `AbortAction` on `context.WithoutCancel(ctx)` with a
+  10 s timeout. The caller's context is often already cancelled, which can be the very
+  reason the call failed.
+- **Best effort.** A failed abort is logged and never returned, so the caller still sees the
+  original error. The action is then left as it is. An `unsigned` action is aborted by
+  `fail_abandoned` after 5 minutes. A delayed action already past `SpendTransaction` is
+  KnownTx `unsent`, which `fail_abandoned` does not select, so `send_waiting` broadcasts it.
+- **Abort refuses posted transactions.** `AbortAction` rejects any action with broadcast
+  evidence (`was_broadcast` or a recorded attempt), so a release can never free inputs of
+  a transaction that may already be on the network.
+- **Crashes are not errors.** If the process dies, no `defer` runs and nothing is released.
+  An action that died before `SpendTransaction` is still `unsigned` (or `unprocessed`) and
+  is aborted by `fail_abandoned`. One that died after it is `unsent` and is broadcast by
+  `send_waiting`.
+- **A nil release is permanently disarmed.** Callers that own no action of their own, such
+  as the `send_waiting` sweep, pass `nil`: a failed retry of a queued transaction must be
+  retried again, not abandoned.
 
 ### ProcessAction and broadcast
 
@@ -173,7 +230,7 @@ spendable and **spent inputs are deliberately left spent**. A missing-inputs or
 double-spend verdict can be a false positive, and re-spending an input that is still valid
 risks a real double spend; losing access to the input is the safer failure.
 
-Only `AbortAction` and the abandoned sweep restore inputs, via `RecreateSpentOutputs`.
+Inputs are restored, via `RecreateSpentOutputs`, only by `AbortAction` (including a fired release), the abandoned sweep, and `un_fail` when a re-checked transaction is still not found on chain.
 
 This is the opposite default from the TypeScript implementation, which releases inputs on
 `failed` and then re-marks only those the chain positively confirms are gone. Neither
@@ -281,31 +338,6 @@ What is genuinely not reproduced here is the TypeScript `reviewStatus` cascade, 
 reconciles transaction rows against their proof requests; statuses that only that cascade
 advances do not advance here. Purge and action-batch cleanup also have no counterpart, the
 latter because there is no action batching in this implementation.
-
-### Known parity gaps
-
-Tracked in `plans/`, and mirrored in the ts-stack page's difference list:
-
-| Issue | Gap |
-|---|---|
-| `issue-818-internalize-broadcast.md` | `InternalizeAction` broadcasts in band in TypeScript, only queues here |
-| `issue-819-process-action-error-fields.md` | `WERR_REVIEW_ACTIONS` lacks `txid`, `tx`, `sendWithResults`, `reviewActionResults`, `noSendChange`; `SignAction` `noSendChange` incomplete |
-| `issue-820-list-outputs-include-labels.md` | `ListOutputs` `includeLabels` |
-| `issue-821-list-outputs-known-txids.md` | `knownTxids` and BEEF trimming |
-| `issue-822-list-actions-brc114-time.md` | BRC-114 time-control labels in `ListActions` |
-| `issue-776-inputbeef-json-array.md` | `inputBEEF` JSON wire format against TypeScript storage servers |
-| `issue-769-cert-type-serial-wire.md` | certificate type and serial wire format |
-
-One further difference is not yet tracked as an issue:
-
-- **The V1 storage client returns empty results for two methods.**
-  `findOutputBasketsAuth` and `findOutputsAuth` in `pkg/storage/client.go` return empty
-  collections with a nil error, which a caller cannot distinguish from a genuine empty
-  result. `SetActive` and `ProcessSyncChunk` return not-implemented errors.
-
-Conformance vectors here are vendored: ten of the twenty-seven BRC-100 vector files,
-pinned by `conformance/SOURCE`. The remaining seventeen are not exercised against this
-implementation.
 
 ### See also
 
