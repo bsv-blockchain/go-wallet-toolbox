@@ -90,8 +90,17 @@ type KnownTxRepo interface {
 	// AdvanceKnownTxToBroadcasted atomically advances a tx to the post-broadcast state
 	// (KnownTx -> unmined guarded by skipForStatuses FIRST; Transactions -> unproven and
 	// UTXOs for spendable change outputs only when the guarded transition applied). Returns
-	// applied=false (and writes nothing) when the guard held.
-	AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder) (bool, error)
+	// applied=false (and writes nothing) when the guard held. A tx that was requeued for
+	// rebroadcast moves to unproven only when networkEvidence is true.
+	AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, skipForStatuses []wdk.ProvenTxReqStatus, txNotes []history.Builder, networkEvidence bool) (bool, error)
+	// IsRequeuedForRebroadcast reports whether the tx was put back in the rebroadcast queue
+	// after a broadcast at least once (rebroadcast_attempts > 0). Such a tx, and its
+	// change, stay 'sending' until there is network evidence for it.
+	IsRequeuedForRebroadcast(ctx context.Context, txID string) (bool, error)
+	// PromoteRequeuedTxOnNetworkEvidence moves a requeued tx that is back in flight from
+	// 'sending' to 'unproven', with its change, once the network is seen to have it.
+	// applied=false for a tx that was never requeued or is not 'sending'.
+	PromoteRequeuedTxOnNetworkEvidence(ctx context.Context, txID string, txNotes []history.Builder) (bool, error)
 	// RequeueKnownTxForRebroadcast atomically demotes an in-flight broadcast tx back to the
 	// rebroadcast queue (KnownTx -> unsent with rebroadcast_attempts+1, or terminal invalid
 	// when the budget is exhausted), guarded by fromStatuses inside the UPDATE. Returns the

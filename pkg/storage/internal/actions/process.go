@@ -878,8 +878,30 @@ func (p *process) updateSingleTx(
 			return fmt.Errorf("failed to update known tx status after broadcast: %w", uowErr)
 		}
 
-		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, newTxStatus,
+		// A tx the network lost or rejected once (requeued for rebroadcast) is not
+		// promoted to 'unproven' by an accepted (re)broadcast: acceptance is not network
+		// evidence, and the same broadcaster accepted it before rejecting it. It and its
+		// change stay 'sending' until a SEEN_* event, a WhatsOnChain hit or a proof (see
+		// repo.demoteToSending).
+		txStatus := newTxStatus
+		var requeued bool
+		if txStatus == wdk.TxStatusUnproven {
+			requeued, uowErr = repos.KnownTxRepo().IsRequeuedForRebroadcast(txCtx, txID)
+			if uowErr != nil {
+				return fmt.Errorf("failed to check whether tx %s was requeued: %w", txID, uowErr)
+			}
+			if requeued {
+				txStatus = wdk.TxStatusSending
+			}
+		}
+
+		uowErr = repos.TransactionsRepo().UpdateTransactionStatusByTxID(txCtx, txID, txStatus,
 			wdk.TxStatusUnprocessed, wdk.TxStatusSending, wdk.TxStatusNoSend, wdk.TxStatusUnproven)
+		if uowErr != nil && requeued && errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
+			// Already 'sending' from the demotion: some databases report no affected row
+			// for an unchanged value. Nothing to change; carry on.
+			uowErr = nil
+		}
 		if uowErr != nil {
 			if errors.Is(uowErr, repo.ErrStatusUpdateSkipped) {
 				p.logger.WarnContext(txCtx, "broadcast result not applied to user transactions (no row in the expected pre-proof state)",

@@ -46,6 +46,22 @@ const (
 // evidence that the broadcaster accepted/propagated the tx (advance unsent/
 // sending → unmined and activate UserUTXO rows). Without these mappings, live
 // Arcade streams leave utxo_status="" and funding fails with "not enough funds".
+// isExternalNetworkEvidenceStatus reports whether an external status shows the
+// network itself has the tx (it was seen on the network, or is being mined), as
+// opposed to a broadcaster merely having accepted it. Only evidence promotes a tx
+// that was requeued for rebroadcast back to 'unproven'; see repo.demoteToSending.
+func isExternalNetworkEvidenceStatus(status string) bool {
+	switch status {
+	case externalTxStatusSeenOnNetwork,
+		externalTxStatusSeenMultipleNodes,
+		externalTxStatusSeenOnMultipleNodes,
+		externalTxStatusStumpProcessing:
+		return true
+	default:
+		return false
+	}
+}
+
 func isExternalBroadcastedStatus(status string) bool {
 	switch status {
 	case externalTxStatusReceived,
@@ -120,7 +136,7 @@ func (p *process) ProcessExternalTxStatusUpdate(ctx context.Context, ev wdk.Broa
 	case ev.Status == externalTxStatusMined || ev.Status == externalTxStatusImmutable:
 		return p.applyExternalMined(ctx, &ev)
 	case isExternalBroadcastedStatus(ev.Status):
-		return p.advanceToBroadcastedFromExternalEvent(ctx, &ev, current)
+		return p.advanceToBroadcastedFromExternalEvent(ctx, &ev, current, isExternalNetworkEvidenceStatus(ev.Status))
 	case isExternalRejectedStatus(ev.Status):
 		return p.applyExternalRejected(ctx, &ev, current)
 	default:
@@ -277,7 +293,28 @@ func (p *process) merklePathFromServices(ctx context.Context, txID string) (*tra
 // to the same post-broadcast status broadcastTxs sets after a successful broadcast:
 // KnownTx -> unmined, Transaction -> unproven, spendable outputs get UTXOs.
 // Transactions already at or past that status are left untouched.
-func (p *process) advanceToBroadcastedFromExternalEvent(ctx context.Context, ev *wdk.BroadcastStatusEvent, current wdk.ProvenTxReqStatus) ([]wdk.TxSynchronizedStatus, error) {
+//
+// A tx that was requeued for rebroadcast is different: without networkEvidence it
+// advances to unmined but its Transaction and change stay 'sending'. When evidence
+// arrives for one that is already back in flight (unmined after a rebroadcast), it is
+// promoted to 'unproven' here.
+func (p *process) advanceToBroadcastedFromExternalEvent(ctx context.Context, ev *wdk.BroadcastStatusEvent, current wdk.ProvenTxReqStatus, networkEvidence bool) ([]wdk.TxSynchronizedStatus, error) {
+	if networkEvidence && current == wdk.ProvenTxStatusUnmined {
+		notes := []history.Builder{externalStatusNote(ev).WithNewStatus(string(wdk.ProvenTxStatusUnmined))}
+		promoted, err := p.knownTxRepo.PromoteRequeuedTxOnNetworkEvidence(ctx, ev.TxID, notes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to promote requeued tx %s on network evidence: %w", ev.TxID, err)
+		}
+		if promoted {
+			p.logger.InfoContext(
+				ctx, "Requeued transaction seen on the network - its change is spendable again",
+				slog.String("txID", ev.TxID),
+				slog.String("externalStatus", ev.Status),
+			)
+		}
+		return nil, nil
+	}
+
 	if current != wdk.ProvenTxStatusUnsent && current != wdk.ProvenTxStatusSending {
 		p.logger.DebugContext(
 			ctx, "External status event does not advance the transaction - leaving the stored status untouched",
@@ -289,7 +326,7 @@ func (p *process) advanceToBroadcastedFromExternalEvent(ctx context.Context, ev 
 	}
 
 	notes := []history.Builder{externalStatusNote(ev).WithNewStatus(string(wdk.ProvenTxStatusUnmined))}
-	applied, err := p.knownTxRepo.AdvanceKnownTxToBroadcasted(ctx, ev.TxID, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes)
+	applied, err := p.knownTxRepo.AdvanceKnownTxToBroadcasted(ctx, ev.TxID, wdk.ProvenTxReqBeyondBroadcastStageStatuses, notes, networkEvidence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to advance tx %s to the post-broadcast state: %w", ev.TxID, err)
 	}
@@ -329,7 +366,8 @@ func (p *process) applyExternalRejected(ctx context.Context, ev *wdk.BroadcastSt
 	switch verdict.Status {
 	case wdk.AggregatedPostedTxIDSuccess:
 		// False positive - the network knows the tx; make sure it's recorded as broadcast.
-		return p.advanceToBroadcastedFromExternalEvent(ctx, ev, current)
+		// The re-check found it on the network, which is evidence.
+		return p.advanceToBroadcastedFromExternalEvent(ctx, ev, current, true)
 	case wdk.AggregatedPostedTxIDServiceError:
 		return p.requeueExternallyRejectedTx(ctx, ev, verdict, current)
 	case wdk.AggregatedPostedTxIDDoubleSpend:
