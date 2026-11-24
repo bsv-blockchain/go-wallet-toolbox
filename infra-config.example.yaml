@@ -44,7 +44,7 @@ fail_abandoned:
   min_transaction_age_seconds: 300
 fee_model:
   type: sat/kb
-  value: 100
+  value: 100 # 0 is allowed for fee-free (e.g. private/test Teranode) networks
 hsm:
   enabled: false
   key_label: ""

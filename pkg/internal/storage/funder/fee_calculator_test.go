@@ -40,6 +40,13 @@ func TestFeeCalculatorPerBytePrecision(t *testing.T) {
 			description:   "240/1000 * 10 = 2.4, ceil = 3",
 		},
 		{
+			name:          "zero fee rate yields zero fee",
+			txSize:        1500,
+			satoshisPerKB: 0,
+			expectedFee:   0,
+			description:   "1500/1000 * 0 = 0 - fee-free networks",
+		},
+		{
 			name:          "250 bytes at 500 sats/KB",
 			txSize:        250,
 			satoshisPerKB: 500,
