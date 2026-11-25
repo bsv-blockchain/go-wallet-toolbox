@@ -101,6 +101,16 @@ func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Pro
 
 var _ wdk.WalletStorageProvider = (*Provider)(nil)
 
+// warnIfZeroFeeOnMainnet logs a warning when a 0 sat/kb fee model is used on
+// mainnet. FeeModel.Validate accepts 0 for fee-free private/test networks, but
+// mainnet miners reject transactions that pay no fee.
+func warnIfZeroFeeOnMainnet(log *slog.Logger, chain defs.BSVNetwork, feeModel defs.FeeModel) {
+	if chain == defs.NetworkMainnet && feeModel.Value == 0 {
+		log.Warn("fee model is 0 sat/kb on mainnet; miners will reject these transactions",
+			slog.String("network", string(chain)))
+	}
+}
+
 // NewGORMProvider creates a new storage provider with GORM repository.
 func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...ProviderOption) (*Provider, error) {
 	if services == nil {
@@ -113,6 +123,8 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 	}
 
 	log := options.Logger
+
+	warnIfZeroFeeOnMainnet(log, chain, options.FeeModel)
 
 	db, err := configureDatabase(log, options.DBConfig, &options)
 	if err != nil {

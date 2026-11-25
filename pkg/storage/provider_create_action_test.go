@@ -792,5 +792,5 @@ func TestCreateActionZeroFee(t *testing.T) {
 	for _, output := range result.Outputs {
 		outputsTotal += output.Satoshis
 	}
-	assert.Equal(t, primitives.SatoshiValue(result.Inputs[0].SourceSatoshis), outputsTotal)
+	assert.EqualValues(t, result.Inputs[0].SourceSatoshis, outputsTotal)
 }

@@ -745,6 +745,42 @@ func TestFunderSQLFundChangeManagement(t *testing.T) {
 			"ChangeOutputsCount should not exceed the runtime-updated cap")
 	})
 
+	t.Run("zero fee rate: all excess comes back as change split across the desired outputs", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		funderSvc := given.NewFunderServiceWithFeeRate(0)
+		basket := given.BasketFor(testusers.Alice).WithNumberOfDesiredUTXOs(3)
+
+		// when: over-fund by 3500 sats
+		result, err := funderSvc.Fund(ctx, -3500, smallTransactionSize, noOutputs, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// then: no fee is taken, so every excess sat is change, across the 3 desired outputs
+		then.Result(result).WithoutError(err)
+		require.Equal(t, uint64(3), result.ChangeOutputsCount)
+		require.EqualValues(t, 3500, result.ChangeAmount)
+		require.Zero(t, result.Fee)
+	})
+
+	t.Run("zero fee rate: dust floor stays at 1 sat, so a 1 sat excess still becomes a change output", func(t *testing.T) {
+		// given:
+		given, then, cleanup := testabilities.New(t)
+		defer cleanup()
+
+		funderSvc := given.NewFunderServiceWithFeeRate(0)
+		basket := given.BasketFor(testusers.Alice).ThatPrefersSingleChange()
+
+		// when: over-fund by 1 sat
+		result, err := funderSvc.Fund(ctx, -1, smallTransactionSize, oneOutput, basket, testusers.Alice.ID, nil, nil, false, false, 0, given.GormDB())
+
+		// then: the single sat comes back as one change output rather than a fee
+		then.Result(result).WithoutError(err)
+		require.Equal(t, uint64(1), result.ChangeOutputsCount)
+		require.EqualValues(t, 1, result.ChangeAmount)
+		require.Zero(t, result.Fee)
+	})
+
 	t.Run("dust floor: change below dust floor (at high fee rate) is given to the miner instead of creating an output", func(t *testing.T) {
 		// given:
 		const feeRate = int64(500)
