@@ -17,6 +17,7 @@ commission:
   satoshis: 0
 db:
   engine: sqlite
+  insert_batch_size: 0
   max_connection_idle_time: 6m0s
   max_connection_time: 1m0s
   max_idle_connections: 5
@@ -38,6 +39,7 @@ db:
     ssl_mode: verify-full
     time_zone: UTC
     user: postgres
+  prepare_statements: false
   sqlite:
     connection_string: ./storage.sqlite
 fail_abandoned:

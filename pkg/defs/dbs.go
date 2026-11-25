@@ -53,7 +53,26 @@ type Database struct {
 
 	// MaxOpenConnections specifies the maximum number of open connections to the database.
 	MaxOpenConnections int `mapstructure:"max_open_connections"`
+
+	// PrepareStatements makes GORM prepare each distinct SQL text once per connection and reuse it
+	// (gorm.Config.PrepareStmt). Default false. Mostly useful on SQLite and on Postgres, where the
+	// driver runs in simple-protocol mode and never prepares by itself. The statement cache is
+	// bounded (see DBPreparedStatementCacheSize).
+	PrepareStatements bool `mapstructure:"prepare_statements"`
+
+	// InsertBatchSize caps the number of rows per INSERT statement for multi-row inserts
+	// (gorm.Config.CreateBatchSize). 0 (default) keeps the current behaviour: slice inserts go out
+	// as one statement and the bulk repository helpers insert row by row. A value > 0 splits
+	// slice inserts into statements of at most that many rows and lets the batched repository
+	// helpers use them. It also applies to every other slice or association insert on the
+	// connection.
+	InsertBatchSize int `mapstructure:"insert_batch_size"`
 }
+
+// DBPreparedStatementCacheSize bounds the GORM prepared statement cache when PrepareStatements is on.
+// GORM keys the cache by SQL text, so variable-length IN lists and variable-row inserts create one
+// entry each; the bound keeps the cache (and the server-side statements) from growing without limit.
+const DBPreparedStatementCacheSize = 1000
 
 // SQLite is configuration struct for SQLite database
 type SQLite struct {
@@ -128,6 +147,10 @@ func DefaultDBConfig() Database {
 func (db *Database) Validate() (err error) {
 	if db.Engine, err = ParseDBTypeStr(string(db.Engine)); err != nil {
 		return fmt.Errorf("invalid DB engine: %w", err)
+	}
+
+	if db.InsertBatchSize < 0 {
+		return fmt.Errorf("invalid DB insert batch size %d: must not be negative", db.InsertBatchSize)
 	}
 
 	return nil
