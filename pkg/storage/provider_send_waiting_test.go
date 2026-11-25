@@ -285,6 +285,11 @@ func TestSendWaitingTransactions_DelayedBroadcastCountsOnlyActualPost(t *testing
 	// then: after the background broadcaster actually posts it, attempts reflects exactly one post.
 	thenDBState := testabilities.ThenDBState(t, activeStorage)
 	thenDBState.WaitForTxStatusByReference(testusers.Alice, createActionResult.Reference, wdk.TxStatusUnproven, 5*time.Second)
+	// The background broadcaster bumps attempts after it applies the status, so wait for it.
+	require.Eventually(t, func() bool {
+		found, err := activeStorage.KnownTxEntity().Read().TxID(txID).Find(t.Context())
+		return err == nil && len(found) == 1 && found[0].Attempts == 1
+	}, 5*time.Second, 50*time.Millisecond)
 	thenDBState.HasKnownTX(txID).
 		WithStatus(wdk.ProvenTxStatusUnmined).
 		WithAttempts(1)

@@ -153,7 +153,7 @@ func (s *synchronizeTxStatuses) getNewestBlocks(ctx context.Context) ([]NewestBl
 // recordNewestBlock keeps the ProofCheckAfterBlocks newest blocks with their first-seen time.
 // A height already in the list is not replaced, so a reorg does not count as an extra block.
 func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height uint, hash string) error {
-	keep := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks) //nolint:gosec // G115: small config value
+	keep := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks)
 	if keep == 0 {
 		return nil
 	}
@@ -186,7 +186,7 @@ func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height ui
 // proofCheckCutoff returns the broadcast time before which a transaction is overdue.
 // ok is false when fewer than ProofCheckAfterBlocks blocks have been seen yet.
 func (s *synchronizeTxStatuses) proofCheckCutoff(ctx context.Context) (cutoff *time.Time, ok bool, err error) {
-	need := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks) //nolint:gosec // G115: small config value
+	need := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks)
 	if need == 0 {
 		return nil, true, nil
 	}
