@@ -60,13 +60,25 @@ func (e *StaleUTXOIndexError) Error() string {
 func (e *StaleUTXOIndexError) Unwrap() error { return ErrUTXOContention }
 
 type Transactions struct {
-	query *genquery.Query
-	db    *gorm.DB
-	retry *dbretry.Policy
+	query   *genquery.Query
+	db      *gorm.DB
+	retry   *dbretry.Policy
+	baskets *basketRegistry
 }
 
 func NewTransactions(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *Transactions {
-	return &Transactions{db: db, query: query, retry: retry}
+	return &Transactions{db: db, query: query, retry: retry, baskets: newBasketRegistry()}
+}
+
+// ForgetBasket drops the remembered existence of a basket. Call it whenever a basket row is
+// deleted, so the next transaction that targets the basket re-creates it.
+func (txs *Transactions) ForgetBasket(userID int, name string) {
+	txs.baskets.forget(userID, name)
+}
+
+// ForgetUserBaskets drops every remembered basket of a user.
+func (txs *Transactions) ForgetUserBaskets(userID int) {
+	txs.baskets.forgetUser(userID)
 }
 
 func (txs *Transactions) CreateTransaction(ctx context.Context, newTx *entity.NewTx) error {
@@ -98,6 +110,88 @@ func (txs *Transactions) CreateTransactionInTx(ctx context.Context, tx *gorm.DB,
 	if err != nil {
 		return fmt.Errorf("failed to create transaction in tx: %w", err)
 	}
+	return nil
+}
+
+// CreateTransactions creates many transactions, with their outputs, labels and change UTXOs, in
+// one database transaction. Each element has the semantics of CreateTransaction.
+func (txs *Transactions) CreateTransactions(ctx context.Context, newTxs []*entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransactions")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(newTxs) == 0 {
+		return nil
+	}
+
+	err = runInTransaction(ctx, txs.db, txs.retry, func(tx *gorm.DB) error {
+		return txs.createTransactionsInTx(tx, newTxs)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transactions: %w", err)
+	}
+
+	return nil
+}
+
+// CreateTransactionsInTx is CreateTransactions inside an externally-managed DB transaction (see
+// CreateTransactionInTx). With InsertBatchSize > 0 (see defs.Database) the transaction rows, and
+// the outputs and change UTXOs hanging off them, are inserted with multi-row statements; with the
+// default of 0 each transaction is inserted on its own, as CreateTransactionInTx does.
+func (txs *Transactions) CreateTransactionsInTx(ctx context.Context, tx *gorm.DB, newTxs []*entity.NewTx) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-CreateTransactionsInTx")
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	err = txs.createTransactionsInTx(tx.WithContext(ctx), newTxs)
+	if err != nil {
+		return fmt.Errorf("failed to create transactions in tx: %w", err)
+	}
+
+	return nil
+}
+
+func (txs *Transactions) createTransactionsInTx(tx *gorm.DB, newTxs []*entity.NewTx) error {
+	if InsertBatchSize(tx) <= 0 {
+		for _, newTx := range newTxs {
+			if err := txs.createTransactionInTx(tx, newTx); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	modelsToCreate := make([]*models.Transaction, len(newTxs))
+	for i, newTx := range newTxs {
+		model, err := txs.toTransactionModel(newTx)
+		if err != nil {
+			return err
+		}
+		if err = txs.connectOutputsWithBaskets(tx, newTx, model); err != nil {
+			return fmt.Errorf("failed to connect outputs with baskets: %w", err)
+		}
+		modelsToCreate[i] = model
+	}
+
+	if err := createRows(tx, modelsToCreate); err != nil {
+		return fmt.Errorf("failed to create new transaction models: %w", err)
+	}
+
+	for i, newTx := range newTxs {
+		modelID := modelsToCreate[i].ID
+		if err := txs.reserveUTXOs(tx, modelID, newTx.UserID, newTx.ReservedOutputIDs); err != nil {
+			return err
+		}
+		if err := txs.markReservedOutputsAsNotSpendable(tx, modelID, newTx.UserID, newTx.SpentOutputIDs); err != nil {
+			return fmt.Errorf("failed to mark reserved outputs as not spendable: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -187,7 +281,7 @@ func (txs *Transactions) toTransactionModel(newTx *entity.NewTx) (*models.Transa
 }
 
 func (txs *Transactions) connectOutputsWithBaskets(tx *gorm.DB, newTx *entity.NewTx, model *models.Transaction) error {
-	basketMaker := newCachedBasketMaker(tx, newTx.UserID)
+	basketMaker := newCachedBasketMaker(tx, newTx.UserID, txs.baskets)
 	for _, out := range model.Outputs {
 		if out.BasketName == nil || *out.BasketName == "" {
 			continue
