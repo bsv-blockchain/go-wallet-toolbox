@@ -342,14 +342,27 @@ func createUTXOsForSpendableOutputsByTxID(ctx context.Context, query *genquery.Q
 }
 
 // findSpendableChangeOutputsByTxID returns the spendable change outputs of the transactions with the given txID.
+//
+// It resolves the transaction ids first and filters the outputs by literal ids. Written as
+// "transaction_id IN (SELECT id ... WHERE tx_id = ?)", SQLite without ANALYZE picks the
+// low-selectivity spendable index and scans every spendable output; with literal ids the
+// planner starts from the transaction_id index. Results are identical.
 func findSpendableChangeOutputsByTxID(ctx context.Context, query *genquery.Query, txID string) ([]*outputWithTxStatus, error) {
-	filterScope := func(dao gen.Dao) gen.Dao {
-		subquery := query.Transaction.
-			Select(query.Transaction.ID).
-			Where(query.Transaction.TxID.Eq(txID))
+	var transactionIDs []uint
+	err := query.Transaction.WithContext(ctx).
+		Where(query.Transaction.TxID.Eq(txID)).
+		Pluck(query.Transaction.ID, &transactionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find transaction ids for txID %q: %w", txID, err)
+	}
 
+	if len(transactionIDs) == 0 {
+		return nil, nil
+	}
+
+	filterScope := func(dao gen.Dao) gen.Dao {
 		return dao.
-			Where(field.ContainsSubQuery([]field.Expr{query.Output.TransactionID}, subquery.UnderlyingDB())).
+			Where(query.Output.TransactionID.In(transactionIDs...)).
 			Where(query.Output.Spendable.Is(true)).
 			Scopes(isChangeDaoScope(query))
 	}
