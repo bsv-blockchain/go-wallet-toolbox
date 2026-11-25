@@ -89,8 +89,8 @@ func (s *SyncTransaction) FindTransactionsForSync(ctx context.Context, userID in
 	return slices.Map(resultModels, s.mapModelToTableTransaction), nil
 }
 
-func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error) {
-	model := models.Transaction{
+func transactionModelFromEntity(entity *pkgentity.Transaction) models.Transaction {
+	return models.Transaction{
 		Model: gorm.Model{
 			CreatedAt: entity.CreatedAt,
 			UpdatedAt: entity.UpdatedAt,
@@ -106,6 +106,10 @@ func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *
 		TxID:        entity.TxID,
 		InputBeef:   entity.InputBEEF,
 	}
+}
+
+func (s *SyncTransaction) UpsertTransactionForSync(ctx context.Context, entity *pkgentity.Transaction) (isNew bool, transactionID uint, err error) {
+	model := transactionModelFromEntity(entity)
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer.
