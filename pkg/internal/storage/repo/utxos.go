@@ -329,6 +329,20 @@ func (u *UTXOs) CreateUTXOForSpendableOutputsByTxID(ctx context.Context, txID st
 // (transaction-bound) query, so that callers composing larger atomic flows can run
 // it inside their own database transaction.
 func createUTXOsForSpendableOutputsByTxID(ctx context.Context, query *genquery.Query, txID string) error {
+	changeOutputs, err := findSpendableChangeOutputsByTxID(ctx, query, txID)
+	if err != nil {
+		return err
+	}
+
+	if err := createUTXOsFromOutputs(ctx, query, changeOutputs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// findSpendableChangeOutputsByTxID returns the spendable change outputs of the transactions with the given txID.
+func findSpendableChangeOutputsByTxID(ctx context.Context, query *genquery.Query, txID string) ([]*outputWithTxStatus, error) {
 	filterScope := func(dao gen.Dao) gen.Dao {
 		subquery := query.Transaction.
 			Select(query.Transaction.ID).
@@ -340,16 +354,7 @@ func createUTXOsForSpendableOutputsByTxID(ctx context.Context, query *genquery.Q
 			Scopes(isChangeDaoScope(query))
 	}
 
-	changeOutputs, err := getOutputsWithTxStatus(ctx, query, filterScope)
-	if err != nil {
-		return err
-	}
-
-	if err := createUTXOsFromOutputs(ctx, query, changeOutputs); err != nil {
-		return err
-	}
-
-	return nil
+	return getOutputsWithTxStatus(ctx, query, filterScope)
 }
 
 func notReserved() func(*gorm.DB) *gorm.DB {

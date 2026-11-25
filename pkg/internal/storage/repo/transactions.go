@@ -407,6 +407,26 @@ func (txs *Transactions) FindTransactionByReference(ctx context.Context, userID 
 	return txs.mapModelToTransactionEntity(&transaction), nil
 }
 
+// findUnspentChangeOutputs returns id and vout of the unspent change outputs the given transaction created
+// for the user. It is served by idx_bsv_outputs_transaction_id_user_id.
+func findUnspentChangeOutputs(tx *gorm.DB, query *genquery.Query, userID int, transactionID uint) ([]*models.Output, error) {
+	var changeOutputs []*models.Output
+	err := tx.Model(&models.Output{}).
+		Select(query.Output.ID.ColumnName().String(), query.Output.Vout.ColumnName().String()).
+		Scopes(scopes.UserID(userID)).
+		Where(query.Output.TransactionID.Eq(transactionID)).
+		Where(query.Output.BasketName.IsNotNull()).
+		Where(query.Output.Change.Is(true)).
+		Where(query.Output.Satoshis.Gt(0)).
+		Where(query.Output.SpentBy.IsNull()).
+		Find(&changeOutputs).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to find outputs for transaction: %w", err)
+	}
+
+	return changeOutputs, nil
+}
+
 func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.UpdatedTx, txNote history.Builder) error {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-Transaction-SpendTransaction", attribute.Int("UserID", updatedTx.UserID), attribute.String("TransactionID", updatedTx.TxID))
@@ -432,18 +452,9 @@ func (txs *Transactions) SpendTransaction(ctx context.Context, updatedTx entity.
 			return err
 		}
 
-		var changeOutputs []*models.Output
-		err = tx.Model(&models.Output{}).
-			Select(txs.query.Output.ID.ColumnName().String(), txs.query.Output.Vout.ColumnName().String()).
-			Scopes(scopes.UserID(updatedTx.UserID)).
-			Where(txs.query.Output.TransactionID.Eq(updatedTx.TransactionID)).
-			Where(txs.query.Output.BasketName.IsNotNull()).
-			Where(txs.query.Output.Change.Is(true)).
-			Where(txs.query.Output.Satoshis.Gt(0)).
-			Where(txs.query.Output.SpentBy.IsNull()).
-			Find(&changeOutputs).Error
+		changeOutputs, err := findUnspentChangeOutputs(tx, txs.query, updatedTx.UserID, updatedTx.TransactionID)
 		if err != nil {
-			return fmt.Errorf("failed to find outputs for transaction: %w", err)
+			return err
 		}
 
 		for _, output := range changeOutputs {
