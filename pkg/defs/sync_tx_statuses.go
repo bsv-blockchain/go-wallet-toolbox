@@ -11,6 +11,7 @@ type SynchronizeTxStatuses struct {
 	MaxRebroadcastAttempts uint64 `mapstructure:"max_rebroadcast_attempts"`
 	CheckNoSendPeriodHours uint64 `mapstructure:"check_no_send_period_hours"`
 	BlocksDelay            uint   `mapstructure:"blocks_delay"`
+	ProofCheckAfterBlocks  uint   `mapstructure:"proof_check_after_blocks"`
 }
 
 // DefaultSynchronizeTxStatuses returns the default configuration for synchronizing transaction statuses with retries.
@@ -20,5 +21,6 @@ func DefaultSynchronizeTxStatuses() SynchronizeTxStatuses {
 		MaxRebroadcastAttempts: 0,
 		CheckNoSendPeriodHours: 24,
 		BlocksDelay:            1,
+		ProofCheckAfterBlocks:  2,
 	}
 }

@@ -152,3 +152,17 @@ monitor:
 ```
 
 `synchronize_tx_statuses.blocks_delay` adds a separate, block-based safeguard in both modes: a proof is accepted only once the transaction has at least that many confirmations.
+
+### Where proofs come from
+
+With Arcade enabled, merkle proofs arrive on the Arcade SSE stream (`MINED` events). A chaintracks new-tip event only records the block and the local time it was first seen; it does not poll anything. The `check_for_proofs` task also records the tip it reads, so counting works without chaintracks.
+
+`check_for_proofs` polls the merkle path itself only for transactions still unproven after `synchronize_tx_statuses.proof_check_after_blocks` (default 2) blocks were first seen after the transaction was broadcast. The wallet keeps the newest `proof_check_after_blocks` blocks in the key-value store; a transaction is overdue when it was broadcast before the oldest of them was seen. Without Arcade the same rule applies, and this task is the only source of proofs. `0` polls every unproven transaction on each run.
+
+Metrics:
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `wallet.proofs.overdue_txs` | gauge | Overdue transactions found in the last `check_for_proofs` run |
+| `wallet.proofs.manual_checks_total` | counter (`result` = `found` \| `not_found` \| `error`) | Manual merkle-path checks |
+| `wallet.proofs.applied_total` | counter (`source` = `sse` \| `manual`) | Proofs applied, by where they came from |

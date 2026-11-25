@@ -23,6 +23,7 @@ type KnownTx struct {
 	Notify string `gorm:"type:text;default:'{}'"`
 
 	WasBroadcast bool
+	BroadcastAt  *time.Time `gorm:"index"`
 
 	RawTx     []byte
 	InputBeef []byte

@@ -324,6 +324,7 @@ func applyKnownTxStatusGuarded(tx *gorm.DB, txID string, status wdk.ProvenTxReqS
 	}
 	if status.WasBroadcastStatus() {
 		updates["was_broadcast"] = true
+		updates["broadcast_at"] = gorm.Expr("COALESCE(broadcast_at, ?)", time.Now())
 	}
 
 	result := query.UpdateColumns(updates)
@@ -357,6 +358,7 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 	}
 	if status.WasBroadcastStatus() {
 		updates["was_broadcast"] = true
+		updates["broadcast_at"] = gorm.Expr("COALESCE(broadcast_at, ?)", time.Now())
 	}
 
 	result := query.UpdateColumns(updates)
@@ -507,7 +509,7 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 	return mapKnownTxRowsForStatusSync(rows), nil
 }
 
-func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, broadcastBefore *time.Time, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsReadyForStatusSync")
 	defer func() {
@@ -523,6 +525,9 @@ func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus
 	if reorgReproveDelay > 0 {
 		// updated_at is set when HandleReorg clears the proof; attempt counters do not touch it.
 		query = query.Where("NOT (status = ? AND updated_at > ?)", wdk.ProvenTxStatusReorg, time.Now().Add(-reorgReproveDelay))
+	}
+	if broadcastBefore != nil {
+		query = query.Where("COALESCE(broadcast_at, created_at) < ?", *broadcastBefore)
 	}
 
 	err = query.Find(&rows).Error
@@ -811,6 +816,7 @@ func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64)
 			"attempts":             uint64(0),
 			"was_broadcast":        true,
 			"rebroadcast_attempts": knownTx.RebroadcastAttempts + 1,
+			"broadcast_at":         nil,
 		}
 	}
 

@@ -63,7 +63,7 @@ type KnownTxRepo interface {
 	FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	// FindKnownTxIDsReadyForStatusSync skips reorged txs whose proof was cleared less than
 	// reorgReproveDelay ago (zero disables the delay).
-	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
+	FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, broadcastBefore *time.Time, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error)
 	FindKnownTxIDsByStatusesNeedingFailureReview(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, limit int) ([]*entity.KnownTxForStatusSync, error)
 	GetBEEFForTxID(ctx context.Context, txID string, opts ...entity.GetBEEFOption) (*transaction.Beef, error)
 	UpdateKnownTxAsMined(ctx context.Context, provenTxAsMined *entity.KnownTxAsMined) error

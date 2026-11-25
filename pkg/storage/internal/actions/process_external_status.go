@@ -12,6 +12,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/slices"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/tracing"
@@ -178,6 +179,7 @@ func (p *process) applyExternalMined(ctx context.Context, ev *wdk.BroadcastStatu
 	if err != nil {
 		return nil, fmt.Errorf("failed to update known tx %s as mined: %w", ev.TxID, err)
 	}
+	metrics.RecordProofApplied(ctx, metrics.ProofSourceSSE)
 
 	reference, labels, err := p.referenceAndLabelsForTxID(ctx, ev.TxID)
 	if err != nil {

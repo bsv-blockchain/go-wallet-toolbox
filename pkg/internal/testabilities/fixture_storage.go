@@ -150,7 +150,7 @@ func newStorageFixture(t testing.TB, identityKey, name string, configModifiers .
 		commission:             defs.Commission{},
 		feeModel:               defs.FeeModel{Type: defs.SatPerKB, Value: 1},
 		failAbandoned:          defs.DefaultFailAbandoned(),
-		syncTxStatuses:         defs.DefaultSynchronizeTxStatuses(),
+		syncTxStatuses:         syncTxStatusesWithoutProofWait(),
 		changeBasket:           defs.DefaultChangeBasket(),
 		utxoManagement:         defs.DefaultUTXOManagement(),
 		randomizer:             randomizer.New(),
@@ -269,4 +269,10 @@ func (s *storageFixture) RecordKnownTx(tx *transaction.Transaction, inputBEEF []
 	}
 
 	s.require.NoError(s.db.DB.WithContext(s.t.Context()).Create(knownTx).Error)
+}
+
+func syncTxStatusesWithoutProofWait() defs.SynchronizeTxStatuses {
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0
+	return cfg
 }
