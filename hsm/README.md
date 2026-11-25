@@ -1,0 +1,234 @@
+# hsm
+
+BRC-42 / BRC-43 key derivation and signing for the wallet toolbox, with the
+root private key kept inside a Securosys HSM. The default toolbox build does
+not link this module's PKCS#11 code. HSM mode is selected with `hsm.enabled`
+and a binary built with `-tags pkcs11`.
+
+## Why a separate module
+
+`github.com/miekg/pkcs11` uses cgo. Putting it in this module, and compiling
+the provider binding only with `-tags pkcs11`, keeps `go test` of
+`go-wallet-toolbox` free of cgo and of the Securosys provider. The toolbox
+talks to a small interface in `pkg/keyderiver`. The software key path is
+unchanged and remains the default.
+
+go-sdk cannot host this yet. `wallet.KeyDeriver` is a concrete struct that
+returns derived private keys, and `wallet.ProtoWallet` stores that concrete
+type and reads the unexported root scalar (including for the BRC-69 Schnorr
+linkage proof). See the proposal at the bottom.
+
+## What the token does
+
+Validated on the Securosys developer HSM Grimsel (firmware RX-3.4.0-T,
+PKCS#11 provider 2.8.2):
+
+1. `CKM_ECDH1_DERIVE_COMPRESSED_POINT` (`0x80000E12`) with
+   `CK_ECDH1_DERIVE_PARAMS{kdf=CKD_NULL}` and a 33-byte compressed
+   counterparty point. The secret is a session object:
+   `CKO_SECRET_KEY`, `CKK_GENERIC_SECRET`, `TOKEN=false`, `SENSITIVE=true`,
+   `EXTRACTABLE=false`, `SIGN=true`, `VALUE_LEN=33`. That value is the
+   33-byte SEC1 shared point S. BRC-69 linkage reveal uses the same
+   mechanism with `EXTRACTABLE=true` and `SENSITIVE=false`.
+2. `CKM_SHA256_HMAC` of the invoice under S, inside the token. The 32-byte
+   digest `h` is returned to the caller. That is a known gap: Securosys may
+   later offer a handle so `h` never leaves the token. `h` is wiped after
+   the point addition.
+3. `CKM_EC_SCALAR_CHILD_DERIVE` (`0x80000E11`) with
+   `CK_EC_SCALAR_CHILD_DERIVE_PARAMS{pScalar=h, ulScalarLen=32}`. Standard
+   `C_DeriveKey` returns `CKR_MECHANISM_INVALID`. The call goes through the
+   vendor function `C_DeriveKeyPair` (see `pkcs11/primus.go`). The child
+   private key is `TOKEN=false`, `SENSITIVE=true`, `EXTRACTABLE=false`,
+   `SIGN=true`, `DERIVE=true`. `DERIVE` is additional to the Grimsel signing
+   template so BRC-43 can ECDH with the child without exporting it.
+4. `CKM_ECDSA` over the 32-byte digest. `r||s` is converted to low-S DER.
+
+Public keys are `base + h*G` in software (`base` is the root point or the
+counterparty point) and cached. Remote Grimsel latencies were about 205 ms
+ECDH, 430 ms HMAC, 235 ms derive, 407 ms sign. `session_pool_size` keeps
+several logged-in sessions so those round trips can overlap. Derived public
+keys are cached; scalars are not.
+
+## Configuration
+
+Toolbox (`infra-config.yaml` or `INFRA_*`):
+
+```yaml
+hsm:
+  enabled: true
+  library_path: /usr/local/primus/lib/libprimusP11.so
+  pin_file: /run/secrets/pkcs11.pin
+  key_label: server-root
+  slot: -1                 # -1 = first slot that has a token
+  session_pool_size: 4
+  public_key_cache_size: 1024
+```
+
+`server_private_key` is not read when `hsm.enabled` is true. The provider
+still needs its own files, pointed at by the environment (never commit them):
+
+- `SECUROSYS_PKCS11_CONF`
+- `SECUROSYS_SECRETS_CONF`
+
+For the developer HSM, Securosys lists `grimsel.securosys.ch:2410` as the
+[PKCS#11 endpoint](https://docs.securosys.com/connectivity-details/developer-program/).
+
+The PIN file is the user PIN and nothing else. It is not an environment
+variable and it is not passed on argv.
+
+The toolbox module does not import this module. `cmd/infra` in the toolbox
+keeps the hex-key server. The HSM server is a separate command that passes
+`infra.WithKeyDeriverFactory` so downstream modules that import `pkg/infra`
+do not need an unpublished `hsm` version:
+
+```sh
+cd hsm/cmd/infra
+go build -tags pkcs11 -o infra-hsm .
+```
+
+A toolbox binary without that factory refuses to start when `hsm.enabled` is set.
+
+The on-token private key is secp256k1, looked up by label, with
+`SENSITIVE=1`, `EXTRACTABLE=0`, `DERIVE=1`, `SIGN=1`.
+
+## Tests
+
+Unit tests use `NewSoftwareBackend` and check derive-public-key, sign/verify,
+symmetric key, HMAC, encrypt/decrypt, and linkage reveal against go-sdk.
+No hardware and no cgo:
+
+```sh
+cd hsm && go test ./...
+```
+
+The Grimsel integration test is behind `-tags pkcs11` and skips unless the
+env vars are set. It compares the token to a software counterparty (go-sdk
+can derive the child from the root *public* key plus the counterparty
+private key, so the root private key is not required).
+
+```sh
+export SECUROSYS_PKCS11_CONF=/path/primus.cfg
+export SECUROSYS_SECRETS_CONF=/path/.secrets.cfg
+export HSM_PKCS11_LIB=/usr/local/primus/lib/libprimusP11.so
+export HSM_PIN_FILE=/path/pkcs11.pin
+export HSM_KEY_LABEL=server-root
+export HSM_SLOT=0   # optional
+cd hsm && go test -tags pkcs11 -count=1 -v ./pkcs11/ -run TestGrimselBRC42
+```
+
+## Security
+
+- The root scalar is not returned, logged, or written to a session object
+  that is extractable.
+- The PIN is read from `pin_file`, passed to `C_Login`, and the buffer is
+  wiped. Go retains the temporary `string` copy until it is garbage
+  collected; do not log config errors in a way that includes file contents.
+  Login errors from this package do not include the PIN.
+- `h` (the BRC-42 HMAC) is returned by the token between HMAC and
+  `C_DeriveKeyPair`. Callers in this module wipe it. Do not log it.
+- BRC-43 returns the X coordinate of a derived shared point. That coordinate
+  is not the root key; the counterparty can compute the same value. It is
+  still not logged.
+- BRC-69 `RevealCounterpartySecret` deliberately exports the ECDH point.
+  The Schnorr proof go-sdk attaches (`z = r + e*a`) needs the root scalar.
+  `CKM_EC_SCALAR_CHILD_DERIVE` keeps the resulting scalar inside a key
+  object, so HSM mode returns an error from
+  `RevealCounterpartyKeyLinkage`. `RevealSpecificKeyLinkage` does not need
+  that proof and works.
+- The `C_DeriveKeyPair` shim assumes a 64-bit `CK_ULONG` (LP64), which is
+  the ABI of the provider build used on Grimsel.
+
+## go-sdk interface
+
+`pkg/keyderiver.Deriver` is the seam the toolbox uses. go-sdk should export
+the same shape and store it inside `ProtoWallet` instead of `*KeyDeriver`,
+so `rootKey` is no longer read directly:
+
+```go
+type KeyDeriver interface {
+    IdentityKey() *ec.PublicKey
+    DerivePublicKey(protocol Protocol, keyID string, counterparty Counterparty, forSelf bool) (*ec.PublicKey, error)
+    DeriveSymmetricKey(protocol Protocol, keyID string, counterparty Counterparty) (*ec.SymmetricKey, error)
+    Sign(protocol Protocol, keyID string, counterparty Counterparty, digest []byte) (*ec.Signature, error)
+    RevealSpecificSecret(counterparty Counterparty, protocol Protocol, keyID string) ([]byte, error)
+    RevealCounterpartySecret(counterparty Counterparty) (*ec.PublicKey, error)
+}
+```
+
+`Sign` replaces `DerivePrivateKey` followed by `PrivateKey.Sign`. HMAC and
+AES-GCM can stay in the caller once `DeriveSymmetricKey` is available; both
+already run outside the HSM in go-sdk. Linkage revelation that builds a
+Schnorr proof needs one more method that does not return the root scalar,
+for example `ProveCounterpartyLinkage(counterparty *ec.PublicKey) (proof []byte, linkage *ec.PublicKey, error)`.
+`CachedKeyDeriver` already has an unexported interface, but that interface
+still includes `DerivePrivateKey`, and `ProtoWallet` does not use it.
+
+## Session recovery and capacity checks
+
+A failed token operation retires its session, including failures destroying
+session objects. The next borrower closes it, opens and logs in to a fresh
+session, and signs a random challenge to verify the original wallet identity.
+The PIN is read again from `pin_file`; keep that file available for the lifetime
+of the process. Recovery never replays the failed operation. If the token is
+still unavailable, that request fails and a later borrower retries recovery;
+the pool does not permanently lose capacity. Replacing the token with a
+different root key fails identity verification. Shutdown waits for borrowers,
+including recovery in progress. Provider calls still cannot be cancelled by Go;
+configure the provider's network timeouts as well as request deadlines.
+
+Session creation checks the existing token login state before calling `C_Login`.
+Primus 2.8.2 invalidates live object handles on a redundant login even when it
+returns `CKR_USER_ALREADY_LOGGED_IN`. The check and login are serialized across
+session openings, including concurrent recovery. Hardware regression tests cover
+both a single-session pool and recovery while another session remains borrowed.
+
+BRC-29 signing uses `SignWithPublicKey` when the signer implements it, deriving
+and signing in one token session instead of doing ECDH/HMAC twice. The result
+populates the public-key cache; no scalar or private key is cached.
+
+With the hardware environment variables above set, run both correctness and
+recovery tests (the latter closes only its own test session):
+
+```sh
+cd hsm
+go test -tags pkcs11 -count=1 -v ./pkcs11 -run '^TestGrimsel'
+```
+
+Measure the server-side wallet crypto for authenticated requests with unique
+request/response key IDs, at 1, 4, and 8 concurrent clients:
+
+```sh
+cd hsm/cmd/infra
+HSM_POOL_SIZE=4 go test -tags pkcs11 -run '^$' -bench BenchmarkGrimselAuth -benchtime=32x -count=1 -timeout=15m
+```
+
+This benchmark runs nonce `VerifyHMAC`, request `VerifySignature` with public
+cache misses, and response `CreateSignature` through `wallet.NewWithHSM`. Every
+MAC and signature is checked. It reports throughput and p50/p95 latency including
+pool queue time. It excludes HTTP, database work, the initial handshake, and
+transaction signing, so it measures a crypto capacity ceiling, not an HTTP SLA.
+Run it on the deployment network with its actual provider, firmware, pool size,
+and client concurrency before accepting an HSM service traffic target. A larger
+pool does not guarantee proportional throughput on a shared token. Hardware
+checks skip when credentials are absent; a skipped check is not hardware evidence.
+
+### Measured developer-HSM run
+
+On 2026-11-17, the commands above passed against remote Grimsel (firmware
+RX-3.4.0-T) using Primus PKCS#11 2.8.2, Go 1.27.4, and a Linux arm64 VM with
+`GOMAXPROCS=2`. The
+four-session pool completed 32 measured request/response crypto round trips at
+each concurrency, with no failed MAC or signature checks:
+
+| Concurrent clients | Round trips/s | p50 latency (ms) | p95 latency (ms) |
+| --- | --- | --- | --- |
+| 1 | 0.3634 | 2728 | 2877 |
+| 4 | 0.8948 | 4337 | 4728 |
+| 8 | 0.8505 | 9187 | 9697 |
+
+Increasing concurrency beyond the pool size increased queue time without a
+throughput gain in this run. These are small-sample measurements from one remote
+developer-HSM run, not a production capacity guarantee. The correctness tests
+also passed for other/self/anyone derivation, signatures, symmetric keys/HMAC,
+linkage, startup identity verification, and session recovery with pools of one
+and two, including a borrower kept alive during recovery.

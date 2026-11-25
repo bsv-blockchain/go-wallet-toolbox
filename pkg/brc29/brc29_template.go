@@ -100,6 +100,8 @@ var _ transaction.UnlockingScriptTemplate = (*UnlockingScriptTemplate)(nil)
 // UnlockingScriptTemplate is transaction.UnlockingScriptTemplate implementation for BRC29.
 type UnlockingScriptTemplate struct {
 	unlocker *p2pkh.P2PKH
+	// derived signs without a local child private key. Set by UnlockDerived.
+	derived *derivedUnlocker
 }
 
 // Unlock generates an unlocking script for a BRC29 address derived from the sender, key ID, and recipient private key.
@@ -160,6 +162,9 @@ func Unlock[SenderKey CounterpartyPublicKey, RecipientKey CounterpartyPrivateKey
 
 // Sign signs the transaction input with BRC29.
 func (u *UnlockingScriptTemplate) Sign(tx *transaction.Transaction, inputIndex uint32) (*script.Script, error) {
+	if u.derived != nil {
+		return u.derived.sign(tx, inputIndex)
+	}
 	unlockingScript, err := u.unlocker.Sign(tx, inputIndex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign input %d with BRC29: %w", inputIndex, err)
@@ -169,5 +174,10 @@ func (u *UnlockingScriptTemplate) Sign(tx *transaction.Transaction, inputIndex u
 
 // EstimateLength estimates the length of the BRC29 unlocking script for the input.
 func (u *UnlockingScriptTemplate) EstimateLength(tx *transaction.Transaction, inputIndex uint32) uint32 {
+	if u.derived != nil {
+		// Same constant p2pkh.Unlock reports. The DER signature varies by a
+		// byte or two around that estimate.
+		return 106
+	}
 	return u.unlocker.EstimateLength(tx, inputIndex)
 }

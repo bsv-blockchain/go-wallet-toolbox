@@ -15,8 +15,12 @@ import (
 // Config is the configuration for the "remote storage server" service (aka "infra")
 type Config struct {
 	// Name is the human-readable name of this storage server
-	Name                  string                     `mapstructure:"name"`
+	Name string `mapstructure:"name"`
+	// ServerPrivateKey is the hex-encoded root private key. It is required
+	// unless HSM.Enabled is set, in which case the root key stays in the token
+	// and this field is ignored.
 	ServerPrivateKey      string                     `mapstructure:"server_private_key"`
+	HSM                   HSMConfig                  `mapstructure:"hsm"`
 	BSVNetwork            defs.BSVNetwork            `mapstructure:"bsv_network"`
 	FeeModel              defs.FeeModel              `mapstructure:"fee_model"`
 	DBConfig              defs.Database              `mapstructure:"db"`
@@ -33,6 +37,46 @@ type Config struct {
 	BackgroundBroadcaster defs.BackgroundBroadcaster `mapstructure:"background_broadcaster"`
 	Observability         defs.Observability         `mapstructure:"observability"`
 	Cache                 defs.Cache                 `mapstructure:"cache"`
+}
+
+// HSMConfig selects a PKCS#11 root key. Enabled is false by default, which
+// keeps the hex server_private_key path. The PIN is a file path, never a value.
+// The Securosys provider reads SECUROSYS_PKCS11_CONF and SECUROSYS_SECRETS_CONF
+// from the environment.
+type HSMConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	LibraryPath        string `mapstructure:"library_path"`
+	Slot               int    `mapstructure:"slot"`
+	PINFile            string `mapstructure:"pin_file"`
+	KeyLabel           string `mapstructure:"key_label"`
+	SessionPoolSize    int    `mapstructure:"session_pool_size"`
+	PublicKeyCacheSize int    `mapstructure:"public_key_cache_size"`
+}
+
+// Validate checks an enabled HSM configuration. A disabled configuration is valid.
+func (c HSMConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if c.LibraryPath == "" {
+		return fmt.Errorf("library_path is required")
+	}
+	if c.PINFile == "" {
+		return fmt.Errorf("pin_file is required")
+	}
+	if c.KeyLabel == "" {
+		return fmt.Errorf("key_label is required")
+	}
+	if c.SessionPoolSize < 1 || c.SessionPoolSize > 32 {
+		return fmt.Errorf("session_pool_size must be between 1 and 32")
+	}
+	if c.PublicKeyCacheSize < 0 {
+		return fmt.Errorf("public_key_cache_size must be >= 0")
+	}
+	if c.Slot < -1 {
+		return fmt.Errorf("slot must be -1 (first token) or a slot id")
+	}
+	return nil
 }
 
 // DBConfig is the configuration for the database
@@ -77,7 +121,13 @@ func Defaults() Config {
 
 	return Config{
 		Name:             "go-storage-server",
-		ServerPrivateKey: "", // it is not optional, user must provide it
+		ServerPrivateKey: "", // required unless hsm.enabled
+		HSM: HSMConfig{
+			Enabled:            false,
+			Slot:               -1,
+			SessionPoolSize:    4,
+			PublicKeyCacheSize: 1024,
+		},
 
 		BSVNetwork: network,
 		DBConfig:   defs.DefaultDBConfig(),
@@ -180,7 +230,11 @@ func (c *Config) reconcileServiceDefaultsForNetwork() {
 
 // Validate validates the whole configuration
 func (c *Config) Validate() (err error) {
-	if c.ServerPrivateKey == "" {
+	if c.HSM.Enabled {
+		if err = c.HSM.Validate(); err != nil {
+			return fmt.Errorf("invalid hsm config: %w", err)
+		}
+	} else if c.ServerPrivateKey == "" {
 		return fmt.Errorf("server private key is required")
 	}
 	if c.BSVNetwork, err = defs.ParseBSVNetworkStr(string(c.BSVNetwork)); err != nil {

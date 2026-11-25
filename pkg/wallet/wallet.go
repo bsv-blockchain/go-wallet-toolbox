@@ -27,6 +27,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/keyderiver"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/randomizer"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
@@ -94,13 +95,16 @@ type attributesQuery struct {
 
 // Wallet is an implementation of the BRC-100 wallet interface.
 type Wallet struct {
-	trustSettingsCache      atomic.Pointer[wallet_settings_manager.TrustSettingsCache]
-	overlayCache            sync.Map
-	settingsManager         *wallet_settings_manager.WalletSettingsManager
-	lookupResolver          *lookup.LookupResolver
-	proto                   *sdk.ProtoWallet
-	storage                 wdk.WalletStorage
-	keyDeriver              *sdk.KeyDeriver
+	trustSettingsCache atomic.Pointer[wallet_settings_manager.TrustSettingsCache]
+	overlayCache       sync.Map
+	settingsManager    *wallet_settings_manager.WalletSettingsManager
+	lookupResolver     *lookup.LookupResolver
+	proto              *sdk.ProtoWallet
+	storage            wdk.WalletStorage
+	keyDeriver         *sdk.KeyDeriver
+	// hsm is set when the root key lives in a deriver that does not return
+	// private keys. The software path leaves it nil and keeps using proto.
+	hsm                     keyderiver.Deriver
 	flags                   *wallet_opts.Flags
 	services                wdk.Services
 	chain                   defs.BSVNetwork
@@ -219,6 +223,40 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		return nil, fmt.Errorf("valid chain must be provided: %w", err)
 	}
 
+	keyDeriver, err := toKeyDeriver(keySource)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key deriver from key source: %w", err)
+	}
+
+	proto, err := sdk.NewProtoWallet(sdk.ProtoWalletArgs{Type: sdk.ProtoWalletArgsTypeKeyDeriver, KeyDeriver: keyDeriver})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
+	}
+
+	return buildWallet(chain, keyDeriver, proto, nil, activeStorageFactory, opts...)
+}
+
+// NewWithHSM creates a wallet whose root key operations go through deriver.
+// The software constructor is unchanged. The caller closes deriver; this
+// wallet does not.
+func NewWithHSM(chain defs.BSVNetwork, deriver keyderiver.Deriver, activeStorage wdk.WalletStorageProvider, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
+	if activeStorage == nil {
+		return nil, fmt.Errorf("active storage must be provided")
+	}
+	if deriver == nil {
+		return nil, fmt.Errorf("hsm key deriver must be provided")
+	}
+	if deriver.IdentityKey() == nil {
+		return nil, fmt.Errorf("hsm key deriver identity key is nil")
+	}
+	err := chain.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("valid chain must be provided: %w", err)
+	}
+	return buildWallet(chain, nil, nil, deriver, func() wdk.WalletStorageProvider { return activeStorage }, opts...)
+}
+
+func buildWallet[ActiveStorageFactory StorageProviderFactory](chain defs.BSVNetwork, keyDeriver *sdk.KeyDeriver, proto *sdk.ProtoWallet, hsmDeriver keyderiver.Deriver, activeStorageFactory ActiveStorageFactory, opts ...func(*wallet_opts.Opts)) (*Wallet, error) {
 	options := to.OptionsWithDefault(wallet_opts.Opts{
 		Flags: wallet_opts.Flags{
 			IncludeAllSourceTransactions: true,
@@ -235,17 +273,14 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		}),
 	}, opts...)
 
-	keyDeriver, err := toKeyDeriver(keySource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create key deriver from key source: %w", err)
+	var identityHex string
+	if hsmDeriver != nil {
+		identityHex = hsmDeriver.IdentityKey().ToDERHex()
+	} else {
+		identityHex = keyDeriver.IdentityKey().ToDERHex()
 	}
 
-	proto, err := sdk.NewProtoWallet(sdk.ProtoWalletArgs{Type: sdk.ProtoWalletArgsTypeKeyDeriver, KeyDeriver: keyDeriver})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create proto wallet: %w", err)
-	}
-
-	userParty := fmt.Sprintf("user %s", keyDeriver.IdentityKey().ToDERHex())
+	userParty := fmt.Sprintf("user %s", identityHex)
 	logger := logging.Child(options.Logger, "wallet").With("walletName", userParty)
 
 	if options.PendingSignActionsRepo == nil {
@@ -255,6 +290,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 	w := &Wallet{
 		proto:                   proto,
 		keyDeriver:              keyDeriver,
+		hsm:                     hsmDeriver,
 		flags:                   &options.Flags,
 		services:                options.Services,
 		chain:                   chain,
@@ -265,7 +301,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		lookupResolver:          options.LookupResolver,
 		party: &party.WalletParty{
 			UserParty:    userParty,
-			StorageParty: fmt.Sprintf("storage %s", keyDeriver.IdentityKey().ToDERHex()),
+			StorageParty: fmt.Sprintf("storage %s", identityHex),
 			BeefParty:    wdk.NewBeefParty([]string{userParty}),
 		},
 	}
@@ -283,7 +319,7 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 		}
 		w.cleanup = w.cleanup.Add(storageCleanup)
 
-		w.storage = storage.NewWalletStorageManager(keyDeriver.IdentityKey().ToDERHex(), logger, activeStorage)
+		w.storage = storage.NewWalletStorageManager(identityHex, logger, activeStorage)
 	}
 
 	return w, nil
@@ -292,6 +328,13 @@ func NewWithStorageFactory[KeySource PrivateKeySource, ActiveStorageFactory Stor
 // GetPublicKey retrieves a derived or identity public key based on the requested protocol, key ID, counterparty, and other factors.
 func (w *Wallet) GetPublicKey(ctx context.Context, args sdk.GetPublicKeyArgs, originator string) (*sdk.GetPublicKeyResult, error) {
 	w.logger.DebugContext(ctx, "GetPublicKey call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmGetPublicKey(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get public key: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.GetPublicKey(ctx, args, originator)
 	if err != nil {
@@ -303,6 +346,13 @@ func (w *Wallet) GetPublicKey(ctx context.Context, args sdk.GetPublicKeyArgs, or
 // Encrypt encrypts the provided plaintext data using derived keys, based on the protocol ID, key ID, counterparty, and other factors.
 func (w *Wallet) Encrypt(ctx context.Context, args sdk.EncryptArgs, originator string) (*sdk.EncryptResult, error) {
 	w.logger.DebugContext(ctx, "Encrypt call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmEncrypt(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.Encrypt(ctx, args, originator)
 	if err != nil {
@@ -314,6 +364,13 @@ func (w *Wallet) Encrypt(ctx context.Context, args sdk.EncryptArgs, originator s
 // Decrypt decrypts the provided ciphertext using derived keys, based on the protocol ID, key ID, counterparty, and other factors.
 func (w *Wallet) Decrypt(ctx context.Context, args sdk.DecryptArgs, originator string) (*sdk.DecryptResult, error) {
 	w.logger.DebugContext(ctx, "Decrypt call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmDecrypt(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.Decrypt(ctx, args, originator)
 	if err != nil {
@@ -325,6 +382,13 @@ func (w *Wallet) Decrypt(ctx context.Context, args sdk.DecryptArgs, originator s
 // CreateHMAC creates an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
 func (w *Wallet) CreateHMAC(ctx context.Context, args sdk.CreateHMACArgs, originator string) (*sdk.CreateHMACResult, error) {
 	w.logger.DebugContext(ctx, "CreateHMAC call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmCreateHMAC(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HMAC: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.CreateHMAC(ctx, args, originator)
 	if err != nil {
@@ -336,6 +400,13 @@ func (w *Wallet) CreateHMAC(ctx context.Context, args sdk.CreateHMACArgs, origin
 // VerifyHMAC verifies an HMAC (Hash-based Message Authentication Code) based on the provided data, protocol, key ID, counterparty, and other factors.
 func (w *Wallet) VerifyHMAC(ctx context.Context, args sdk.VerifyHMACArgs, originator string) (*sdk.VerifyHMACResult, error) {
 	w.logger.DebugContext(ctx, "VerifyHMAC call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmVerifyHMAC(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify HMAC: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.VerifyHMAC(ctx, args, originator)
 	if err != nil {
@@ -347,6 +418,13 @@ func (w *Wallet) VerifyHMAC(ctx context.Context, args sdk.VerifyHMACArgs, origin
 // CreateSignature creates a digital signature for the provided data or hash using a specific protocol, key, and optionally considering privilege and counterparty.
 func (w *Wallet) CreateSignature(ctx context.Context, args sdk.CreateSignatureArgs, originator string) (*sdk.CreateSignatureResult, error) {
 	w.logger.DebugContext(ctx, "CreateSignature call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmCreateSignature(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create signature: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.CreateSignature(ctx, args, originator)
 	if err != nil {
@@ -358,6 +436,13 @@ func (w *Wallet) CreateSignature(ctx context.Context, args sdk.CreateSignatureAr
 // VerifySignature verifies a digital signature for the provided data or hash using a specific protocol, key, and optionally considering privilege and counterparty.
 func (w *Wallet) VerifySignature(ctx context.Context, args sdk.VerifySignatureArgs, originator string) (*sdk.VerifySignatureResult, error) {
 	w.logger.DebugContext(ctx, "VerifySignature call", slogx.String("originator", originator))
+	if w.hsm != nil {
+		res, err := hsmVerifySignature(ctx, w.hsm, args)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify signature: %w", err)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.VerifySignature(ctx, args, originator)
 	if err != nil {
@@ -377,13 +462,7 @@ func (w *Wallet) CreateAction(ctx context.Context, args sdk.CreateActionArgs, or
 	w.logger.DebugContext(ctx, "CreateAction start", slogx.String("originator", originator))
 	start := time.Now()
 	defer func() { w.logger.DebugContext(ctx, "CreateAction done", slog.Duration("duration", time.Since(start))) }()
-	action := &actions.CreateAction{
-		Logger:                  w.logger,
-		KeyDeriver:              w.keyDeriver,
-		Storage:                 w.storage,
-		WalletOpts:              w.flags,
-		PendingSignActionsCache: w.pendingSignActionsCache,
-	}
+	action := w.newCreateAction()
 
 	result, err := action.CreateAction(ctx, args, originator, w.party)
 	if err != nil {
@@ -406,15 +485,9 @@ func (w *Wallet) FanOutFuel(ctx context.Context, shape wdk.ShapedChange, origina
 		tracing.EndTracing(span, err)
 	}()
 
-	action := &actions.CreateAction{
-		Logger:                  w.logger,
-		KeyDeriver:              w.keyDeriver,
-		Storage:                 w.storage,
-		WalletOpts:              w.flags,
-		PendingSignActionsCache: w.pendingSignActionsCache,
-		WdkArgsMutator: func(args *wdk.ValidCreateActionArgs) {
-			args.Options.FuelShape = &shape
-		},
+	action := w.newCreateAction()
+	action.WdkArgsMutator = func(args *wdk.ValidCreateActionArgs) {
+		args.Options.FuelShape = &shape
 	}
 
 	result, err := action.CreateAction(ctx, sdk.CreateActionArgs{
@@ -594,7 +667,12 @@ func (w *Wallet) InternalizeAction(ctx context.Context, args sdk.InternalizeActi
 
 	wdkArgs := mapping.MapInternalizeActionArgs(args)
 
-	if err = validate.WalletInternalizeAction(w.keyDeriver, &wdkArgs); err != nil {
+	if w.hsm != nil {
+		err = validate.WalletInternalizeActionDerived(ctx, w.hsm, &wdkArgs)
+	} else {
+		err = validate.WalletInternalizeAction(w.keyDeriver, &wdkArgs)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("invalid internalize action args: %w", err)
 	}
 
@@ -744,6 +822,9 @@ func (w *Wallet) RevealCounterpartyKeyLinkage(ctx context.Context, args sdk.Reve
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
+	if w.hsm != nil {
+		return nil, fmt.Errorf("failed to reveal counterparty key linkage: %w", errHSMLinkageProof)
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.RevealCounterpartyKeyLinkage(ctx, args, originator)
 	if err != nil {
@@ -766,6 +847,13 @@ func (w *Wallet) RevealSpecificKeyLinkage(ctx context.Context, args sdk.RevealSp
 		return nil, fmt.Errorf("invalid originator: %w", err)
 	}
 
+	if w.hsm != nil {
+		res, herr := hsmRevealSpecificKeyLinkage(ctx, w.hsm, args)
+		if herr != nil {
+			return nil, fmt.Errorf("failed to reveal specific key linkage: %w", herr)
+		}
+		return res, nil
+	}
 	// TODO: support for privileged key manager (https://github.com/bitcoin-sv/wallet-toolbox/blob/master/src/sdk/PrivilegedKeyManager.ts)
 	res, err := w.proto.RevealSpecificKeyLinkage(ctx, args, originator)
 	if err != nil {

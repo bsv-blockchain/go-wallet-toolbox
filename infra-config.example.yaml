@@ -45,6 +45,14 @@ fail_abandoned:
 fee_model:
   type: sat/kb
   value: 100
+hsm:
+  enabled: false
+  key_label: ""
+  library_path: ""
+  pin_file: ""
+  public_key_cache_size: 1024
+  session_pool_size: 4
+  slot: -1
 http:
   admin_identity_keys: []
   cors:

@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/wallet"
 
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/brc29"
 	pkgerrors "github.com/bsv-blockchain/go-wallet-toolbox/pkg/errors"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/assembler"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
@@ -21,6 +22,7 @@ import (
 type CreateAction struct {
 	Logger                  *slog.Logger
 	KeyDeriver              *wallet.KeyDeriver
+	Signer                  brc29.DerivedSigner
 	Storage                 WalletStorageCreateAndProcessAction
 	WalletOpts              *wallet_opts.Flags
 	PendingSignActionsCache pending.SignActionsRepository
@@ -167,6 +169,15 @@ func (a *CreateAction) handleNewTX(ctx context.Context, args wallet.CreateAction
 
 func (a *CreateAction) handleCreatedNewTx(ctx context.Context, args wallet.CreateActionArgs, storageCreateActionResult *wdk.StorageCreateActionResult) (*wallet.CreateActionResult, error) {
 	txAssembler := assembler.NewCreateActionTransactionAssembler(a.KeyDeriver, args.Inputs, storageCreateActionResult)
+	if a.Signer != nil {
+		signCtx := ctx
+		if a.isSignAction() {
+			// The unlocking template is invoked later, from SignAction, after this
+			// request's context has been cancelled.
+			signCtx = context.WithoutCancel(ctx)
+		}
+		txAssembler.UseDerivedSigner(signCtx, a.Signer)
+	}
 
 	tx, err := txAssembler.Assemble()
 	if err != nil {
