@@ -23,6 +23,16 @@ type (
 	PostTXFunc = func(ctx context.Context, rawTx []byte) (*wdk.PostedTxID, error)
 	// PostEFFunc is a function type for PostEF service method (broadcasts EF format transaction).
 	PostEFFunc = func(ctx context.Context, efHex, txID string) (*wdk.PostedTxID, error)
+	// PostEFBatchFunc is a function type for the PostEFBatch service method: it broadcasts
+	// transactions in extended format, as bytes, all in one call. It returns one result per
+	// transaction, in the order given, or an error when the call as a whole failed.
+	//
+	// An implementation's PostEFBatch takes the place of its PostEF on the broadcast-to-all
+	// path (Arcade disabled): all transactions of a PostFromBEEF call go to it in one call,
+	// parents first, and an implementation that sets both is called only through PostEFBatch.
+	// When a PostEFMethodsModifier is set, it is listed among the PostEF methods instead, as a
+	// PostEF of one transaction, so the modifier still sees and controls every broadcaster.
+	PostEFBatchFunc = func(ctx context.Context, txs []EFTransaction) ([]*wdk.PostedTxID, error)
 	// MerklePathFunc is a function type for MerklePath service method.
 	MerklePathFunc = func(ctx context.Context, txID string) (*wdk.MerklePathResult, error)
 	// FindChainTipHeaderFunc is a function type for FindChainTipHeader service method.
@@ -47,6 +57,14 @@ type (
 	BsvExchangeRateFunc = func(ctx context.Context) (float64, error)
 )
 
+// EFTransaction is one transaction of a PostEFBatch call.
+type EFTransaction struct {
+	// TxID is the transaction's id, as a hex string.
+	TxID string
+	// EF is the transaction in extended format (BRC-30), as bytes. It must not be modified.
+	EF []byte
+}
+
 // Implementation defines all the methods that the services component supports.
 // Each field corresponds to a specific service function.
 // When a field is nil, it indicates that the particular service function doesn't have an implementation available - other services will be tried in that case.
@@ -54,6 +72,7 @@ type Implementation struct {
 	RawTx                RawTxFunc
 	PostTX               PostTXFunc
 	PostEF               PostEFFunc
+	PostEFBatch          PostEFBatchFunc
 	MerklePath           MerklePathFunc
 	FindChainTipHeader   FindChainTipHeaderFunc
 	IsValidRootForHeight IsValidRootForHeightFunc
