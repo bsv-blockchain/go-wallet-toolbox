@@ -27,12 +27,13 @@ const defaultMaxBackpressureWait = 30 * time.Second
 var errNoResult = errors.New("service returned no result")
 
 // broadcastTarget is a single named broadcaster the router can use.
-// post receives both the EF hex and the raw tx bytes so that targets with
-// different broadcast inputs (PostEF vs PostTX) fit the same shape.
+// post receives the transaction in every form a broadcaster takes (EF bytes, EF
+// hex, raw tx bytes) so that targets with different broadcast inputs (PostEF vs
+// PostTX) fit the same shape.
 // post MUST return a non-nil result when err is nil.
 type broadcastTarget struct {
 	name string
-	post func(ctx context.Context, efHex string, rawTx []byte, txID string) (*wdk.PostedTxID, error)
+	post func(ctx context.Context, tx *broadcastTx, txID string) (*wdk.PostedTxID, error)
 }
 
 // broadcastRouter routes each broadcast to the primary (Arcade) and fails over
@@ -53,9 +54,9 @@ type broadcastRouter struct {
 }
 
 // post calls the target and records the attempt in the call history.
-func (r *broadcastRouter) post(ctx context.Context, target broadcastTarget, efHex string, rawTx []byte, txID string) (*wdk.PostedTxID, error) {
+func (r *broadcastRouter) post(ctx context.Context, target broadcastTarget, tx *broadcastTx, txID string) (*wdk.PostedTxID, error) {
 	start := time.Now()
-	posted, err := target.post(ctx, efHex, rawTx, txID)
+	posted, err := target.post(ctx, tx, txID)
 	recorded := err
 	if err == nil && posted == nil {
 		recorded = errNoResult
@@ -81,8 +82,8 @@ func newBroadcastRouter(
 		breaker: breaker,
 		primary: broadcastTarget{
 			name: defs.ArcadeServiceName,
-			post: func(ctx context.Context, efHex string, _ []byte, txID string) (*wdk.PostedTxID, error) {
-				return arcadeService.PostEF(ctx, efHex, txID)
+			post: func(ctx context.Context, tx *broadcastTx, txID string) (*wdk.PostedTxID, error) {
+				return arcadeService.PostEFBytes(ctx, tx.ef, txID)
 			},
 		},
 		maxBackpressureWait: defaultMaxBackpressureWait,
@@ -98,16 +99,16 @@ func newBroadcastRouter(
 	if wocService != nil {
 		router.failovers = append(router.failovers, broadcastTarget{
 			name: whatsonchain.ServiceName,
-			post: func(ctx context.Context, _ string, rawTx []byte, _ string) (*wdk.PostedTxID, error) {
-				return resultAsTransportOutcome(wocService.PostTX(ctx, rawTx))
+			post: func(ctx context.Context, tx *broadcastTx, _ string) (*wdk.PostedTxID, error) {
+				return resultAsTransportOutcome(wocService.PostTX(ctx, tx.rawTx))
 			},
 		})
 	}
 	if bitailsService != nil {
 		router.failovers = append(router.failovers, broadcastTarget{
 			name: bitails.ServiceName,
-			post: func(ctx context.Context, _ string, rawTx []byte, _ string) (*wdk.PostedTxID, error) {
-				return resultAsTransportOutcome(bitailsService.PostTX(ctx, rawTx))
+			post: func(ctx context.Context, tx *broadcastTx, _ string) (*wdk.PostedTxID, error) {
+				return resultAsTransportOutcome(bitailsService.PostTX(ctx, tx.rawTx))
 			},
 		})
 	}
@@ -119,33 +120,33 @@ func newBroadcastRouter(
 // attempted (happy path: exactly one - Arcade). It never returns an empty
 // slice: when nothing can be attempted (circuit open, no failovers configured)
 // a final error result for the primary is returned instead.
-func (r *broadcastRouter) broadcast(ctx context.Context, efHex string, rawTx []byte, txID string) []*wdk.PostFromBEEFServiceResult {
+func (r *broadcastRouter) broadcast(ctx context.Context, tx *broadcastTx, txID string) []*wdk.PostFromBEEFServiceResult {
 	if !r.breaker.Allow() {
 		r.logger.WarnContext(
 			ctx, "primary broadcaster circuit is open, failing over",
 			slog.String("txID", txID),
 			slog.String("service", r.primary.name),
 		)
-		return r.runFailovers(ctx, efHex, rawTx, txID, nil)
+		return r.runFailovers(ctx, tx, txID, nil)
 	}
 
-	results, done := r.tryPrimary(ctx, efHex, rawTx, txID)
+	results, done := r.tryPrimary(ctx, tx, txID)
 	if done {
 		return results
 	}
-	return r.runFailovers(ctx, efHex, rawTx, txID, results)
+	return r.runFailovers(ctx, tx, txID, results)
 }
 
 // tryPrimary attempts the primary broadcaster, handling a single backpressure retry.
 // It returns (results, true) when the outcome is final (success, context cancellation,
 // or a tx-level rejection). It returns (results, false) when the primary transport failed
 // and the caller should continue with the failover chain.
-func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []byte, txID string) ([]*wdk.PostFromBEEFServiceResult, bool) {
-	posted, err := r.post(ctx, r.primary, efHex, rawTx, txID)
+func (r *broadcastRouter) tryPrimary(ctx context.Context, tx *broadcastTx, txID string) ([]*wdk.PostFromBEEFServiceResult, bool) {
+	posted, err := r.post(ctx, r.primary, tx, txID)
 
 	var backpressure *arcade.BackpressureError
 	if errors.As(err, &backpressure) {
-		posted, err = r.retryAfterBackpressure(ctx, efHex, rawTx, txID, backpressure)
+		posted, err = r.retryAfterBackpressure(ctx, tx, txID, backpressure)
 		if ctx.Err() != nil {
 			// the caller went away while the router honored backpressure: report it
 			// without retrying and without poisoning the circuit breaker (Arcade itself
@@ -191,7 +192,7 @@ func (r *broadcastRouter) tryPrimary(ctx context.Context, efHex string, rawTx []
 
 // retryAfterBackpressure waits the Retry-After hint and re-attempts the primary broadcast.
 // It returns a context-wrapped error when the caller is canceled during the wait.
-func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex string, rawTx []byte, txID string, bp *arcade.BackpressureError) (*wdk.PostedTxID, error) {
+func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, tx *broadcastTx, txID string, bp *arcade.BackpressureError) (*wdk.PostedTxID, error) {
 	wait := min(bp.RetryAfter, r.maxBackpressureWait)
 	r.logger.InfoContext(
 		ctx, "primary broadcaster applied backpressure, retrying once",
@@ -202,15 +203,15 @@ func (r *broadcastRouter) retryAfterBackpressure(ctx context.Context, efHex stri
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, fmt.Errorf("broadcast canceled while honoring backpressure: %w", ctxErr)
 	}
-	return r.post(ctx, r.primary, efHex, rawTx, txID)
+	return r.post(ctx, r.primary, tx, txID)
 }
 
 // runFailovers iterates failover targets sequentially, stopping at the first success.
 // It returns partialResults (accumulated primary error results) plus the winning failover result,
 // or all error results if every target fails. It never returns an empty slice.
-func (r *broadcastRouter) runFailovers(ctx context.Context, efHex string, rawTx []byte, txID string, partialResults []*wdk.PostFromBEEFServiceResult) []*wdk.PostFromBEEFServiceResult {
+func (r *broadcastRouter) runFailovers(ctx context.Context, tx *broadcastTx, txID string, partialResults []*wdk.PostFromBEEFServiceResult) []*wdk.PostFromBEEFServiceResult {
 	for _, target := range r.failovers {
-		posted, err := r.post(ctx, target, efHex, rawTx, txID)
+		posted, err := r.post(ctx, target, tx, txID)
 		if err == nil && posted == nil {
 			// the target broke the broadcastTarget contract (nil result, nil error):
 			// report it as a failure so the chain moves on to the next target.
@@ -251,8 +252,8 @@ func isContextError(err error) bool {
 func arcFailoverTarget(svc *arc.Service) broadcastTarget {
 	return broadcastTarget{
 		name: svc.Name(),
-		post: func(ctx context.Context, efHex string, _ []byte, txID string) (*wdk.PostedTxID, error) {
-			return resultAsTransportOutcome(svc.PostEF(ctx, efHex, txID))
+		post: func(ctx context.Context, tx *broadcastTx, txID string) (*wdk.PostedTxID, error) {
+			return resultAsTransportOutcome(svc.PostEF(ctx, tx.efHex(), txID))
 		},
 	}
 }

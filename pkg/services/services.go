@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -757,23 +758,19 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}
 
 		rawTx := tx.Bytes()
-		efHex, err := tx.EFHex()
+		ef, err := tx.EF()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
 		}
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
-		}
-
 		// Arcade-first routing with circuit-breaker failover.
 		if s.broadcastRouter != nil {
-			allResults = append(allResults, s.broadcastRouter.broadcast(ctx, efHex, rawTx, txID)...)
+			allResults = append(allResults, s.broadcastRouter.broadcast(ctx, newBroadcastTx(ef, rawTx), txID)...)
 			continue
 		}
 
 		// legacy path (Arcade disabled, e.g. testnet): broadcast via the parallel queues
-		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
+		efResults, efErr := s.postEFServices.All(ctx, hex.EncodeToString(ef), txID)
 
 		txResults, txErr := s.postTXServices.All(ctx, rawTx)
 
