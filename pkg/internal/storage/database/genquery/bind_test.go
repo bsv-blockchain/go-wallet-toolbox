@@ -2,6 +2,7 @@ package genquery_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 )
 
-func TestQuery_BindTx(t *testing.T) {
+func TestQuery_TransactionBinding(t *testing.T) {
 	ctx := context.Background()
 
 	// given: a database with two connections, so reads outside the transaction do not wait for it
@@ -76,5 +77,57 @@ func TestQuery_BindTx(t *testing.T) {
 		got, err := base.KnownTx.WithContext(ctx).Where(base.KnownTx.TxID.Eq("b1")).First()
 		require.NoError(t, err)
 		require.Equal(t, "b1", got.TxID)
+	})
+	t.Run("RunInTransaction on the pool runs fc on a copy bound to a new transaction", func(t *testing.T) {
+		// when:
+		var inner *genquery.Query
+		err := base.RunInTransaction(func(tx *genquery.Query) error {
+			inner = tx
+			return tx.KnownTx.WithContext(ctx).Create(&models.KnownTx{TxID: "c1"})
+		})
+
+		// then:
+		require.NoError(t, err)
+		require.NotSame(t, base, inner)
+		count, err := base.KnownTx.WithContext(ctx).Where(base.KnownTx.TxID.Eq("c1")).Count()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+	})
+
+	t.Run("RunInTransaction nested in a transaction reuses the bound query in a savepoint", func(t *testing.T) {
+		// given:
+		tx := db.WithContext(ctx).Begin()
+		require.NoError(t, tx.Error)
+		bound := base.BindTx(tx)
+		require.NoError(t, bound.KnownTx.WithContext(ctx).Create(&models.KnownTx{TxID: "d1"}))
+
+		// when: a nested transaction writes and fails
+		var inner *genquery.Query
+		failed := errors.New("nested failure")
+		err := bound.RunInTransaction(func(nested *genquery.Query) error {
+			inner = nested
+			require.NoError(t, nested.KnownTx.WithContext(ctx).Create(&models.KnownTx{TxID: "d2"}))
+			return failed
+		})
+
+		// then: it ran on the bound query, and only its own write was rolled back
+		require.ErrorIs(t, err, failed)
+		require.Same(t, bound, inner)
+
+		got, err := bound.KnownTx.WithContext(ctx).Where(bound.KnownTx.TxID.In("d1", "d2")).Find()
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, "d1", got[0].TxID)
+
+		// when: a nested transaction succeeds, and the outer one commits
+		require.NoError(t, bound.RunInTransaction(func(nested *genquery.Query) error {
+			return nested.KnownTx.WithContext(ctx).Create(&models.KnownTx{TxID: "d3"})
+		}))
+		require.NoError(t, tx.Commit().Error)
+
+		// then:
+		committed, err := base.KnownTx.WithContext(ctx).Where(base.KnownTx.TxID.In("d1", "d2", "d3")).Count()
+		require.NoError(t, err)
+		require.EqualValues(t, 2, committed)
 	})
 }
