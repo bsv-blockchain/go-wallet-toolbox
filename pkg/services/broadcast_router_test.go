@@ -21,6 +21,11 @@ const (
 	testFailoverName  = "ARC"
 )
 
+// testBroadcastTx is the transaction the router tests broadcast.
+func testBroadcastTx() *broadcastTx {
+	return newBroadcastTx([]byte{0xde, 0xad, 0xbe, 0xef}, []byte{0xde, 0xad, 0xbe, 0xef})
+}
+
 // fakeTarget is a scripted broadcastTarget that records every call.
 type fakeTarget struct {
 	name      string
@@ -28,7 +33,7 @@ type fakeTarget struct {
 	responses []func() (*wdk.PostedTxID, error)
 }
 
-func (f *fakeTarget) post(_ context.Context, _ string, _ []byte, txID string) (*wdk.PostedTxID, error) {
+func (f *fakeTarget) post(_ context.Context, _ *broadcastTx, txID string) (*wdk.PostedTxID, error) {
 	idx := f.calls
 	f.calls++
 	if idx >= len(f.responses) {
@@ -48,8 +53,8 @@ func (f *fakeTarget) target() broadcastTarget {
 func (f *fakeTarget) foldedTarget() broadcastTarget {
 	return broadcastTarget{
 		name: f.name,
-		post: func(ctx context.Context, efHex string, rawTx []byte, txID string) (*wdk.PostedTxID, error) {
-			return resultAsTransportOutcome(f.post(ctx, efHex, rawTx, txID))
+		post: func(ctx context.Context, tx *broadcastTx, txID string) (*wdk.PostedTxID, error) {
+			return resultAsTransportOutcome(f.post(ctx, tx, txID))
 		},
 	}
 }
@@ -148,7 +153,7 @@ func (f *routerFixture) withFoldedFailovers(targets ...*fakeTarget) *routerFixtu
 
 func (f *routerFixture) broadcast() []*wdk.PostFromBEEFServiceResult {
 	f.t.Helper()
-	return f.router.broadcast(f.t.Context(), "deadbeef", []byte{0xde, 0xad, 0xbe, 0xef}, testBroadcastTxID)
+	return f.router.broadcast(f.t.Context(), testBroadcastTx(), testBroadcastTxID)
 }
 
 func (f *routerFixture) advanceClock(d time.Duration) {
@@ -330,7 +335,7 @@ func TestBroadcastRouterCancelledDuringBackpressureDoesNotRetryOrTripBreaker(t *
 	given.withFailovers(failover)
 
 	// when:
-	results := given.router.broadcast(ctx, "deadbeef", []byte{0xde, 0xad, 0xbe, 0xef}, testBroadcastTxID)
+	results := given.router.broadcast(ctx, testBroadcastTx(), testBroadcastTxID)
 
 	// then: no retry of the primary, no failover, a single error result for the primary
 	assert.Equal(t, []time.Duration{5 * time.Second}, given.sleeps)
@@ -374,7 +379,7 @@ func TestBroadcastRouterPrimaryContextErrorDoesNotTripBreaker(t *testing.T) {
 			given.withFailovers(failover)
 
 			// when:
-			results := given.router.broadcast(ctx, "deadbeef", []byte{0xde, 0xad, 0xbe, 0xef}, testBroadcastTxID)
+			results := given.router.broadcast(ctx, testBroadcastTx(), testBroadcastTxID)
 
 			// then: the error result for the primary is reported, but no failover is
 			// attempted (the context is dead, failovers cannot succeed)

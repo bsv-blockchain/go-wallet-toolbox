@@ -109,6 +109,11 @@ func (q *Queue1[A, R]) OneByOne(ctx context.Context, a A) (R, error) {
 	})
 }
 
+// Len returns the number of services in the queue.
+func (q *Queue1[A, R]) Len() int {
+	return len(q.services)
+}
+
 // GetNames returns the method name and a slice of service names from the Queue1 instance.
 func (q *Queue1[A, R]) GetNames() (methodName string, serviceNames []string) {
 	methodName = q.methodName
@@ -155,6 +160,11 @@ func (q *Queue2[A, B, R]) OneByOne(ctx context.Context, a A, b B) (R, error) {
 	return processOneByOne(q.logger, q.history, q.methodName, q.services, func(s *Service2[A, B, R]) (R, error) {
 		return s.service(ctx, a, b)
 	})
+}
+
+// Len returns the number of services in the queue.
+func (q *Queue2[A, B, R]) Len() int {
+	return len(q.services)
 }
 
 // GetNames returns the method name and a slice of service names from the Queue1 instance.

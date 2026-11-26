@@ -2,11 +2,14 @@ package services
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	goslices "slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
@@ -47,6 +50,12 @@ type WalletServices struct {
 
 	rawTxServices  servicequeue.Queue1[string, *wdk.RawTxResult]
 	postEFServices servicequeue.Queue2[string, string, *wdk.PostedTxID]
+	// postEFBatchServices are the PostEFBatch implementations, called once per PostFromBEEF.
+	postEFBatchServices servicequeue.BatchQueue[EFTransaction, *wdk.PostedTxID]
+	// postEFOrder ranks the services of both PostEF queues by name, in registration order:
+	// their results are reported in that order.
+	postEFOrder map[string]int
+
 	postTXServices servicequeue.Queue1[[]byte, *wdk.PostedTxID]
 
 	merklePathServices           servicequeue.Queue1[string, *wdk.MerklePathResult]
@@ -273,6 +282,8 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 	}
 
 	allImplementations := append(options.customImplementations, predefined...)
+
+	postEFFuncs, postEFBatchFuncs, postEFRanks := postEFMethods(allImplementations, options.PostEFMethodsModifier)
 	callHistory := servicequeue.NewCallHistory()
 	if router != nil {
 		router.history = callHistory
@@ -303,13 +314,17 @@ func New(logger *slog.Logger, config defs.WalletServices, opts ...func(*Options)
 			logger,
 			callHistory,
 			"PostEF",
-			namedFuncsToServices2(
-				applyModifierIfExists(options.PostEFMethodsModifier,
-					collectSingleMethodImplementations(allImplementations, func(it Implementation) PostEFFunc {
-						return it.PostEF
-					})),
-			)...,
+			namedFuncsToServices2(postEFFuncs)...,
 		),
+		postEFBatchServices: servicequeue.NewBatchQueue(
+			logger,
+			callHistory,
+			"PostEF",
+			slices.Map(postEFBatchFuncs, func(it Named[PostEFBatchFunc]) *servicequeue.BatchService[EFTransaction, *wdk.PostedTxID] {
+				return servicequeue.NewBatchService(it.Name, it.Item)
+			})...,
+		),
+		postEFOrder: postEFRanks,
 
 		postTXServices: servicequeue.NewQueue1(
 			logger,
@@ -489,6 +504,7 @@ func (s *WalletServices) logActiveServices() {
 	services := []loggable{
 		&s.rawTxServices,
 		&s.postEFServices,
+		&s.postEFBatchServices,
 		&s.postTXServices,
 		&s.merklePathServices,
 		&s.findChainTipHeaderServices,
@@ -745,6 +761,19 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		return nil, fmt.Errorf("failed to hydrate beef for script verification: %w", err)
 	}
 
+	// With PostEFBatch implementations every transaction goes to them in one call. That needs
+	// every transaction up front. Hydration above already fails for a subject missing from the
+	// beef; should one still be missing or have no EF, the loop below runs instead, which posts
+	// the transactions before it and then fails, as it always has.
+	if s.broadcastRouter == nil && s.postEFBatchServices.Len() > 0 {
+		if pending, ok := pendingBroadcasts(beef, txIDs); ok {
+			if len(pending) == 0 {
+				return allResults, nil
+			}
+			return s.postToAll(ctx, pending)
+		}
+	}
+
 	for _, txID := range txIDs {
 		tx := beef.FindTransaction(txID)
 		if tx == nil {
@@ -757,23 +786,28 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 		}
 
 		rawTx := tx.Bytes()
-		efHex, err := tx.EFHex()
+		ef, err := tx.EF()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get efhex from tx %s: %w", tx.TxID().String(), err)
 		}
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert tx %s to EF: %w", txID, err)
-		}
-
 		// Arcade-first routing with circuit-breaker failover.
 		if s.broadcastRouter != nil {
-			allResults = append(allResults, s.broadcastRouter.broadcast(ctx, efHex, rawTx, txID)...)
+			allResults = append(allResults, s.broadcastRouter.broadcast(ctx, newBroadcastTx(ef, rawTx), txID)...)
 			continue
 		}
 
 		// legacy path (Arcade disabled, e.g. testnet): broadcast via the parallel queues
-		efResults, efErr := s.postEFServices.All(ctx, efHex, txID)
+		if s.postEFBatchServices.Len() > 0 {
+			results, err := s.postToAll(ctx, []pendingBroadcast{{txID: txID, tx: newBroadcastTx(ef, rawTx)}})
+			if err != nil {
+				return nil, err
+			}
+			allResults = append(allResults, results...)
+			continue
+		}
+
+		efResults, efErr := s.postEFServices.All(ctx, hex.EncodeToString(ef), txID)
 
 		txResults, txErr := s.postTXServices.All(ctx, rawTx)
 
@@ -790,6 +824,101 @@ func (s *WalletServices) PostFromBEEF(ctx context.Context, beef *transaction.Bee
 	}
 
 	return allResults, nil
+}
+
+// pendingBroadcast is a transaction PostFromBEEF has to post.
+type pendingBroadcast struct {
+	txID string
+	tx   *broadcastTx
+}
+
+// pendingBroadcasts returns the transactions of txIDs to post, in order, skipping mined ones.
+// It reports false when a transaction is not in beef or cannot be turned into EF.
+func pendingBroadcasts(beef *transaction.Beef, txIDs []string) ([]pendingBroadcast, bool) {
+	pending := make([]pendingBroadcast, 0, len(txIDs))
+	for _, txID := range txIDs {
+		tx := beef.FindTransaction(txID)
+		if tx == nil {
+			return nil, false
+		}
+		if tx.MerklePath != nil {
+			continue
+		}
+		ef, err := tx.EF()
+		if err != nil {
+			return nil, false
+		}
+		pending = append(pending, pendingBroadcast{txID: txID, tx: newBroadcastTx(ef, tx.Bytes())})
+	}
+	return pending, true
+}
+
+// postToAll posts the transactions, in order, to every PostEF and PostTX service: the
+// broadcast-to-all path used when Arcade is disabled. Each transaction goes to the per-tx
+// services in parallel, one transaction after the other; the PostEFBatch services get all of
+// them in one call, which runs alongside. The results are grouped per transaction, in the
+// order of the transactions: its PostEF results in registration order, then its PostTX results.
+func (s *WalletServices) postToAll(ctx context.Context, pending []pendingBroadcast) ([]*wdk.PostFromBEEFServiceResult, error) {
+	efRegistered := len(s.postEFOrder) > 0
+	if !efRegistered && !s.hasPostTXServices() {
+		return nil, fmt.Errorf("no services registered for broadcasting")
+	}
+
+	hasPostEF, hasPostTX := s.hasPostEFServices(), s.hasPostTXServices()
+
+	var batchResults [][]*servicequeue.NamedResult[*wdk.PostedTxID]
+	var wg sync.WaitGroup
+	if s.postEFBatchServices.Len() > 0 {
+		items := make([]EFTransaction, len(pending))
+		for i, p := range pending {
+			items[i] = EFTransaction{TxID: p.txID, EF: p.tx.ef}
+		}
+		postBatch := func() {
+			// Never ErrNoServicesRegistered: the queue is not empty.
+			batchResults, _ = s.postEFBatchServices.All(ctx, items)
+		}
+		if hasPostEF || hasPostTX {
+			wg.Go(postBatch)
+		} else {
+			postBatch()
+		}
+	}
+
+	perTxEF := make([][]*servicequeue.NamedResult[*wdk.PostedTxID], len(pending))
+	perTxTX := make([][]*servicequeue.NamedResult[*wdk.PostedTxID], len(pending))
+	for i, p := range pending {
+		if hasPostEF {
+			perTxEF[i], _ = s.postEFServices.All(ctx, p.tx.efHex(), p.txID)
+		}
+		if hasPostTX {
+			perTxTX[i], _ = s.postTXServices.All(ctx, p.tx.rawTx)
+		}
+	}
+	wg.Wait()
+
+	allResults := make([]*wdk.PostFromBEEFServiceResult, 0, len(pending)*(len(s.postEFOrder)+1))
+	for i := range pending {
+		efResults := perTxEF[i]
+		if batchResults != nil {
+			efResults = append(efResults, batchResults[i]...)
+		}
+		if len(perTxEF[i]) > 0 && batchResults != nil {
+			goslices.SortStableFunc(efResults, func(a, b *servicequeue.NamedResult[*wdk.PostedTxID]) int {
+				return s.postEFOrder[a.Name()] - s.postEFOrder[b.Name()]
+			})
+		}
+		allResults = append(allResults, slices.Map(efResults, s.mapToPostBEEFServiceResult)...)
+		allResults = append(allResults, slices.Map(perTxTX[i], s.mapToPostBEEFServiceResult)...)
+	}
+	return allResults, nil
+}
+
+func (s *WalletServices) hasPostEFServices() bool {
+	return s.postEFServices.Len() > 0
+}
+
+func (s *WalletServices) hasPostTXServices() bool {
+	return s.postTXServices.Len() > 0
 }
 
 // UtxoStatus attempts to determine the UTXO status of a transaction output.
@@ -1062,5 +1191,69 @@ func (s *WalletServices) mapToPostBEEFServiceResult(r *servicequeue.NamedResult[
 	return &wdk.PostFromBEEFServiceResult{
 		Name:             r.Name(),
 		PostedBEEFResult: &wdk.PostedBEEF{TxIDResults: []wdk.PostedTxID{*r.MustGetValue()}},
+	}
+}
+
+// postEFMethods returns the per-transaction PostEF methods and the PostEFBatch methods of the
+// implementations, and the rank of every one of them by name: registration order, or the
+// modifier's order.
+//
+// Without a modifier, an implementation with PostEFBatch is called only through it. With a
+// modifier, every implementation takes part in the PostEF list the modifier gets - one with
+// only PostEFBatch as a PostEF of one transaction - and there are no batch methods, so the
+// modifier keeps control over every broadcaster as it always has.
+func postEFMethods(
+	implementations []Named[Implementation],
+	modifier func([]Named[PostEFFunc]) []Named[PostEFFunc],
+) (perTx []Named[PostEFFunc], batch []Named[PostEFBatchFunc], order map[string]int) {
+	order = make(map[string]int)
+	rank := func(name string) {
+		if _, ok := order[name]; !ok {
+			order[name] = len(order)
+		}
+	}
+
+	if modifier != nil {
+		perTx = modifier(collectSingleMethodImplementations(implementations, func(it Implementation) PostEFFunc {
+			if it.PostEF == nil && it.PostEFBatch != nil {
+				return postEFViaBatch(it.PostEFBatch)
+			}
+			return it.PostEF
+		}))
+		for _, it := range perTx {
+			rank(it.Name)
+		}
+		return perTx, nil, order
+	}
+
+	for _, it := range implementations {
+		switch {
+		case it.Item.PostEFBatch != nil:
+			batch = append(batch, Named[PostEFBatchFunc]{Name: it.Name, Item: it.Item.PostEFBatch})
+		case it.Item.PostEF != nil:
+			perTx = append(perTx, Named[PostEFFunc]{Name: it.Name, Item: it.Item.PostEF})
+		default:
+			continue
+		}
+		rank(it.Name)
+	}
+	return perTx, batch, order
+}
+
+// postEFViaBatch adapts a PostEFBatch method to a PostEF of one transaction.
+func postEFViaBatch(batch PostEFBatchFunc) PostEFFunc {
+	return func(ctx context.Context, efHex, txID string) (*wdk.PostedTxID, error) {
+		ef, err := hex.DecodeString(efHex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode ef hex of tx %s: %w", txID, err)
+		}
+		results, err := batch(ctx, []EFTransaction{{TxID: txID, EF: ef}})
+		if err != nil {
+			return nil, err
+		}
+		if len(results) != 1 {
+			return nil, fmt.Errorf("batch service returned %d results for 1 transaction", len(results))
+		}
+		return results[0], nil
 	}
 }

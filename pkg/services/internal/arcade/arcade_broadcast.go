@@ -40,17 +40,29 @@ func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.Posted
 	}()
 
 	efBytes, decodeErr := hex.DecodeString(efHex)
-	if decodeErr == nil && len(efBytes) == 0 {
-		decodeErr = errors.New("empty transaction hex")
-	}
 	if decodeErr != nil {
-		result := wdk.PostedTxID{
-			TxID:   txID,
-			Result: wdk.PostedTxIDResultError,
-			Error:  fmt.Errorf("failed to decode ef hex of tx %s: %w", txID, decodeErr),
-		}
-		withBroadcastNote(&result, efHex, []string{txID})
-		return &result, nil
+		return decodeFailure(efHex, txID, decodeErr), nil
+	}
+
+	return s.postEF(ctx, efBytes, func() string { return efHex }, txID)
+}
+
+// PostEFBytes is PostEF for a transaction whose EF is already binary, which is what Arcade
+// takes: it skips the hex round trip. Its results are PostEF's for the hex of efBytes; the hex
+// is encoded only for the broadcast note of a result that is not a success.
+func (s *Service) PostEFBytes(ctx context.Context, efBytes []byte, txID string) (_ *wdk.PostedTxID, err error) {
+	ctx, span := tracing.StartTracing(ctx, "Services-PostEF", attribute.String("service", "arcade"))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	return s.postEF(ctx, efBytes, func() string { return hex.EncodeToString(efBytes) }, txID)
+}
+
+// postEF posts efBytes; efHex returns their hex, for broadcast notes.
+func (s *Service) postEF(ctx context.Context, efBytes []byte, efHex func() string, txID string) (*wdk.PostedTxID, error) {
+	if len(efBytes) == 0 {
+		return decodeFailure(efHex(), txID, errors.New("empty transaction hex")), nil
 	}
 
 	info, rejection, err := s.broadcast(ctx, efBytes)
@@ -72,6 +84,18 @@ func (s *Service) PostEF(ctx context.Context, efHex, txID string) (_ *wdk.Posted
 	withBroadcastNote(&result, efHex, []string{txID})
 
 	return &result, nil
+}
+
+// decodeFailure is the result for an EF that cannot be posted because it is not valid hex or
+// is empty.
+func decodeFailure(efHex, txID string, decodeErr error) *wdk.PostedTxID {
+	result := wdk.PostedTxID{
+		TxID:   txID,
+		Result: wdk.PostedTxIDResultError,
+		Error:  fmt.Errorf("failed to decode ef hex of tx %s: %w", txID, decodeErr),
+	}
+	withBroadcastNote(&result, func() string { return efHex }, []string{txID})
+	return &result
 }
 
 // broadcast POSTs the binary EF bytes to Arcade. It returns either the transaction
@@ -192,7 +216,9 @@ func toResultForPostTxID(txID string, info *TXInfo) wdk.PostedTxID {
 	return result
 }
 
-func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
+// withBroadcastNote sets the history note of result. efHex is called only for a result that is
+// not a success, whose note carries the EF.
+func withBroadcastNote(result *wdk.PostedTxID, efHex func() string, txIDs []string) {
 	switch result.Result {
 	case wdk.PostedTxIDResultSuccess, wdk.PostedTxIDResultAlreadyKnown:
 		result.Notes = history.NewBuilder().PostBeefSuccess(ServiceName, txIDs).Note().AsList()
@@ -203,6 +229,6 @@ func withBroadcastNote(result *wdk.PostedTxID, efHex string, txIDs []string) {
 		if result.Error != nil {
 			msg += fmt.Sprintf(" and error: %v", result.Error)
 		}
-		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(efHex), txIDs, msg).Note().AsList()
+		result.Notes = history.NewBuilder().PostBeefError(ServiceName, history.Hex(efHex()), txIDs, msg).Note().AsList()
 	}
 }
