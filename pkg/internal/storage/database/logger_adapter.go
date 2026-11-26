@@ -14,6 +14,11 @@ type SlogGormLogger struct {
 	logger *slog.Logger
 }
 
+// NewSlogGormLogger returns a gorm logger that writes SQL traces to logger at debug level.
+func NewSlogGormLogger(logger *slog.Logger) *SlogGormLogger {
+	return &SlogGormLogger{logger: logger}
+}
+
 // Info logs info-level messages
 func (l *SlogGormLogger) Info(ctx context.Context, msg string, args ...any) {
 	l.logger.InfoContext(ctx, fmt.Sprintf(msg, args...))
