@@ -31,7 +31,7 @@ func (p *KnownTx) GetBEEFForTxID(ctx context.Context, txID string, opts ...entit
 		beef = options.MergeToBEEF
 	}
 
-	err = p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, nil)
+	err = p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build valid BEEF: %w", err)
 	}
@@ -61,15 +61,17 @@ func (p *KnownTx) GetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], o
 	}
 
 	var preFetched map[string]models.KnownTx
+	var parsed parsedTxs
 	if len(missingTxIDs) > 0 {
 		preFetched = make(map[string]models.KnownTx)
-		if err := p.preFetchAncestry(ctx, preFetched, missingTxIDs, options); err != nil {
+		parsed = make(parsedTxs)
+		if err := p.preFetchAncestry(ctx, preFetched, parsed, missingTxIDs, options); err != nil {
 			return nil, err
 		}
 	}
 
 	for _, txID := range missingTxIDs {
-		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, preFetched); err != nil {
+		if err := p.recursiveBuildValidBEEF(ctx, 0, beef, txID, options, preFetched, parsed); err != nil {
 			return nil, fmt.Errorf("failed for txid %s: %w", txID, err)
 		}
 	}
@@ -125,7 +127,10 @@ func (p *KnownTx) preFetchInto(ctx context.Context, dst map[string]models.KnownT
 //
 // Bounded by maxDepthOfRecursion, which the recursion enforces too, and it
 // stops as soon as a generation adds nothing.
-func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.KnownTx, seedIDs []string, options entity.GetBEEFOptions) error {
+//
+// The raw txs it parses to find each generation's parents are kept in parsed, for the build
+// to take instead of parsing them again.
+func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.KnownTx, parsed parsedTxs, seedIDs []string, options entity.GetBEEFOptions) error {
 	frontier := withoutKnownTxIDs(seedIDs, options)
 
 	// Under TrustSelf the build turns every row storage holds into a bare txid
@@ -153,7 +158,7 @@ func (p *KnownTx) preFetchAncestry(ctx context.Context, dst map[string]models.Kn
 			return nil
 		}
 
-		frontier = withoutKnownTxIDs(parentIDsOf(added, dst, options), options)
+		frontier = withoutKnownTxIDs(parentIDsOf(added, dst, parsed, options), options)
 	}
 
 	return nil
@@ -231,9 +236,9 @@ func needsInputBEEF(tx *transaction.Transaction, options entity.GetBEEFOptions, 
 }
 
 // parentIDsOf returns the txids spent by one generation of fetched transactions,
-// skipping any already present in fetched.
+// skipping any already present in fetched. Each transaction it parses is kept in parsed.
 // A raw tx that cannot be parsed is skipped: the build reports that properly.
-func parentIDsOf(generation []models.KnownTx, fetched map[string]models.KnownTx, options entity.GetBEEFOptions) []string {
+func parentIDsOf(generation []models.KnownTx, fetched map[string]models.KnownTx, parsed parsedTxs, options entity.GetBEEFOptions) []string {
 	// A proved transaction ends the walk, so its parents are never read - unless
 	// MinProofLevel deliberately withholds the proof and forces the walk on.
 	provenIsTerminal := options.MinProofLevel == 0
@@ -251,6 +256,7 @@ func parentIDsOf(generation []models.KnownTx, fetched map[string]models.KnownTx,
 		if err != nil {
 			continue
 		}
+		parsed[model.TxID] = tx
 		for _, input := range tx.Inputs {
 			if input.SourceTXID == nil {
 				continue
@@ -276,6 +282,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	txID string,
 	options entity.GetBEEFOptions,
 	preFetched map[string]models.KnownTx,
+	parsed parsedTxs,
 ) error {
 	if depth > maxDepthOfRecursion {
 		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
@@ -350,7 +357,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		return fmt.Errorf("raw tx is nil in transaction %s", txID)
 	}
 
-	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
+	tx, err := parsed.take(txID, model.RawTx)
 	if err != nil {
 		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
 	}
@@ -385,9 +392,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 
 		if !options.AnchoredParents {
-			if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
-				return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
-			}
+			mergeParsedRawTx(mergeToBeef, tx)
 			return nil
 		}
 
@@ -406,9 +411,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 			return nil
 		}
 
-		if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
-			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
-		}
+		mergeParsedRawTx(mergeToBeef, tx)
 
 		// Unproven: its own input beef carries the proofs that anchor it. This is
 		// one blob for one generation, not the recursive walk DirectSourcesOnly
@@ -448,10 +451,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 		}
 	}
 
-	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
-	}
+	mergeParsedRawTx(mergeToBeef, tx)
 
 	if len(model.InputBeef) > 0 && needsInputBEEF(tx, options, preFetched) {
 		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
@@ -473,7 +473,7 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 	for _, input := range tx.Inputs {
 		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
 		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
-			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options, preFetched)
+			err = p.recursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options, preFetched, parsed)
 			if err != nil {
 				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
 			}
@@ -482,4 +482,34 @@ func (p *KnownTx) recursiveBuildValidBEEF(
 
 	// Result is in mergeToBeef
 	return nil
+}
+
+// parsedTxs holds transactions already parsed from the raw tx of a pre-fetched known tx, by
+// txid, so that a BEEF build parses each raw tx once.
+type parsedTxs map[string]*transaction.Transaction
+
+// take returns the transaction parsed from rawTx, the raw tx of txID: the one kept for txID,
+// which it hands over (a transaction merged into a BEEF must not be merged anywhere else), or
+// else a new parse of rawTx. A nil parsedTxs always parses.
+func (p parsedTxs) take(txID string, rawTx []byte) (*transaction.Transaction, error) {
+	if tx, ok := p[txID]; ok {
+		delete(p, txID)
+		return tx, nil
+	}
+	return transaction.NewTransactionFromBytes(rawTx)
+}
+
+// mergeParsedRawTx merges tx, freshly parsed from a raw tx and not yet merged anywhere, into
+// beef exactly as beef.MergeRawTx(rawTx, nil) does, without parsing the bytes a second time:
+// any entry with the same txid is replaced by a raw-tx entry with no proof.
+//
+// MergeRawTx parses leniently while tx came from NewTransactionFromBytes, which also rejects
+// trailing bytes, so a raw tx reaching this point is one MergeRawTx accepts as well.
+func mergeParsedRawTx(beef *transaction.Beef, tx *transaction.Transaction) {
+	txid := tx.TxID()
+	beef.RemoveExistingTxid(txid)
+	beef.Transactions[*txid] = &transaction.BeefTx{
+		DataFormat:  transaction.RawTx,
+		Transaction: tx,
+	}
 }

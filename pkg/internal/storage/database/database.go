@@ -29,9 +29,7 @@ type Database struct {
 // NewDatabase will configure and return database based on provided config
 func NewDatabase(cfg defs.Database, baseLogger *slog.Logger) (*Database, error) {
 	logger := logging.Child(baseLogger, "database")
-	gormLogger := &SlogGormLogger{
-		logger: logger,
-	}
+	gormLogger := NewSlogGormLogger(logger)
 
 	dialector, ok := dialectors[cfg.Engine]
 	if !ok {
