@@ -86,7 +86,7 @@ func runSyncBatchScenario(t *testing.T, batchSize int) syncBatchOutcome {
 	knownReq := func(i int, at time.Time, status wdk.ProvenTxReqStatus) *entity.KnownTx {
 		return &entity.KnownTx{
 			CreatedAt: at, UpdatedAt: at, TxID: fmt.Sprintf("%064x", i), Status: status,
-			RawTx: []byte{byte(i)}, TxNotes: note(fmt.Sprintf("n%d-%s", i, status)),
+			RawTx: []byte(fmt.Sprint(i)), TxNotes: note(fmt.Sprintf("n%d-%s", i, status)),
 		}
 	}
 	for i := range 2 {
@@ -126,7 +126,7 @@ func runSyncBatchScenario(t *testing.T, batchSize int) syncBatchOutcome {
 		return &entity.Output{
 			CreatedAt: t1, UpdatedAt: at, UserID: user.ID, TransactionID: txID, Vout: vout, Satoshis: sats,
 			BasketName: &basket, Spendable: true, Change: true, ProvidedBy: "storage", Purpose: "change", Type: "P2PKH",
-			UserUTXO: &entity.UserUTXO{UserID: user.ID, BasketName: basket, Satoshis: uint64(sats), EstimatedInputSize: 148, CreatedAt: t1},
+			UserUTXO: &entity.UserUTXO{UserID: user.ID, BasketName: basket, Satoshis: uint64(max(sats, 0)), EstimatedInputSize: 148, CreatedAt: t1},
 		}
 	}
 	_, _, err = repos.UpsertOutputForSync(ctx, outEntity(txRes[2].TransactionID, 0, t1, 100))

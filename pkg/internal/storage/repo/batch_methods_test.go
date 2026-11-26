@@ -36,7 +36,7 @@ func TestUpsertKnownTxs_AllBatchSizesGiveTheSameRows(t *testing.T) {
 
 			mk := func(i int, status wdk.ProvenTxReqStatus, skip ...wdk.ProvenTxReqStatus) *storageentity.UpsertKnownTx {
 				return &storageentity.UpsertKnownTx{
-					TxID: fmt.Sprintf("%064x", i), Status: status, RawTx: []byte{byte(i)}, SkipForStatuses: skip,
+					TxID: fmt.Sprintf("%064x", i), Status: status, RawTx: []byte(fmt.Sprint(i)), SkipForStatuses: skip,
 				}
 			}
 			note := history.NewBuilder().ProcessAction(1)
@@ -105,7 +105,7 @@ func TestCreateTransactions_AllBatchSizesGiveTheSameRows(t *testing.T) {
 
 			newTxs := make([]*storageentity.NewTx, 7)
 			for i := range newTxs {
-				newTxs[i] = f.newTx(user.ID, "custom")
+				newTxs[i] = f.newTx(user.ID)
 				newTxs[i].Reference = fmt.Sprintf("batch-ref-%d", i)
 				newTxs[i].Outputs[0].Change = true
 				newTxs[i].Outputs[0].Purpose = wdk.ChangePurpose
@@ -158,7 +158,7 @@ func TestCreateTransaction_BatchedOutputsShareCreatedAt(t *testing.T) {
 	user, err := f.repos.CreateUser(ctx, "batch-ts-user", "s", wdk.DefaultBasketConfiguration())
 	require.NoError(t, err)
 
-	newTx := f.newTx(user.ID, "custom")
+	newTx := f.newTx(user.ID)
 	first := newTx.Outputs[0]
 	for vout := uint32(1); vout < 5; vout++ {
 		out := *first

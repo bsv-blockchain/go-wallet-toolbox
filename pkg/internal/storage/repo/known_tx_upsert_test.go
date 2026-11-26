@@ -92,7 +92,7 @@ func TestUpsertKnownTx_SingleStatementMatchesReadModifyWrite(t *testing.T) {
 		defer cleanup()
 		_ = repo.NewSQLRepositories(db.DB, dbretry.NoRetry())
 
-		var out []knownTxSnapshot
+		out := make([]knownTxSnapshot, 0, len(steps))
 		for _, s := range steps {
 			if s.seed != nil {
 				s.seed(db.DB)

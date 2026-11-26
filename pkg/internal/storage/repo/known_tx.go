@@ -257,7 +257,7 @@ func upsertKnownTxs(tx *gorm.DB, reqs []*entity.UpsertKnownTx, txNote history.Bu
 // changing the result: batching is on, the engine reports guarded skips reliably, no request has a
 // skip list and no tx id repeats (Postgres rejects an upsert touching a row twice).
 func canBatchKnownTxUpserts(tx *gorm.DB, reqs []*entity.UpsertKnownTx) bool {
-	if InsertBatchSize(tx) <= 0 || tx.Dialector.Name() == "mysql" {
+	if InsertBatchSize(tx) <= 0 || tx.Name() == "mysql" {
 		return false
 	}
 
@@ -311,7 +311,7 @@ func knownTxUpsertConflict(skipStatuses []wdk.ProvenTxReqStatus) clause.OnConfli
 // single INSERT ... ON CONFLICT DO UPDATE; MySQL keeps the read-modify-write path because its
 // affected-rows count cannot tell a guarded skip from an unchanged row.
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
-	if tx.Dialector.Name() == "mysql" {
+	if tx.Name() == "mysql" {
 		return upsertKnownTxReadModifyWrite(tx, req, txNote)
 	}
 

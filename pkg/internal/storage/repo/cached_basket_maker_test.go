@@ -1,6 +1,7 @@
 package repo_test
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
+
+const testBasket = "custom"
 
 type basketFixture struct {
 	t       *testing.T
@@ -45,13 +48,13 @@ func newBasketFixtureWith(t *testing.T, modifiers ...dbfixtures.DBConfigModifier
 	return f
 }
 
-func (f *basketFixture) newTx(userID int, basket string) *storageentity.NewTx {
+func (f *basketFixture) newTx(userID int) *storageentity.NewTx {
 	f.seq++
-	name := basket
+	name := testBasket
 	return &storageentity.NewTx{
 		UserID:    userID,
 		Status:    wdk.TxStatusUnsigned,
-		Reference: "basket-cache-ref-" + string(rune('a'+f.seq%26)) + string(rune('a'+f.seq/26)),
+		Reference: fmt.Sprintf("basket-cache-ref-%d", f.seq),
 		Version:   1,
 		Outputs: []*storageentity.NewOutput{{
 			Satoshis:   satoshi.MustFrom(1000),
@@ -65,9 +68,9 @@ func (f *basketFixture) newTx(userID int, basket string) *storageentity.NewTx {
 	}
 }
 
-func (f *basketFixture) basketExists(userID int, name string) bool {
+func (f *basketFixture) basketExists(userID int) bool {
 	var n int64
-	require.NoError(f.t, f.db.Unscoped().Model(&models.OutputBasket{}).Where("user_id = ? AND name = ?", userID, name).Count(&n).Error)
+	require.NoError(f.t, f.db.Unscoped().Model(&models.OutputBasket{}).Where("user_id = ? AND name = ?", userID, testBasket).Count(&n).Error)
 	return n == 1
 }
 
@@ -80,13 +83,13 @@ func TestBasketCache_SkipsInsertAfterBasketIsKnownCommitted(t *testing.T) {
 	base := f.inserts.Load() // creating the user inserts its default baskets
 	counts := make([]int64, 0, 5)
 	for range 5 {
-		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID, "custom")))
+		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID)))
 		counts = append(counts, f.inserts.Load()-base)
 	}
 
 	// 1st call inserts the row, 2nd finds it (0 rows) and remembers it, the rest skip the statement.
 	assert.Equal(t, []int64{1, 2, 2, 2, 2}, counts)
-	assert.True(t, f.basketExists(user.ID, "custom"))
+	assert.True(t, f.basketExists(user.ID))
 }
 
 func TestBasketCache_ForgetBasketRecreatesDeletedBasket(t *testing.T) {
@@ -96,7 +99,7 @@ func TestBasketCache_ForgetBasketRecreatesDeletedBasket(t *testing.T) {
 	require.NoError(t, err)
 
 	for range 3 {
-		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID, "custom")))
+		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID)))
 	}
 	before := f.inserts.Load()
 
@@ -104,11 +107,11 @@ func TestBasketCache_ForgetBasketRecreatesDeletedBasket(t *testing.T) {
 	// invalidation makes the next call re-create it
 	require.NoError(t, f.db.Unscoped().Where("user_id = ? AND basket_name = ?", user.ID, "custom").Delete(&models.Output{}).Error)
 	require.NoError(t, f.db.Unscoped().Where("user_id = ? AND name = ?", user.ID, "custom").Delete(&models.OutputBasket{}).Error)
-	f.repos.Transactions.ForgetBasket(user.ID, "custom")
+	f.repos.ForgetBasket(user.ID, "custom")
 
-	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID, "custom")))
+	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID)))
 	assert.Equal(t, before+1, f.inserts.Load())
-	assert.True(t, f.basketExists(user.ID, "custom"))
+	assert.True(t, f.basketExists(user.ID))
 }
 
 func TestBasketCache_RolledBackInsertIsNotRemembered(t *testing.T) {
@@ -121,16 +124,16 @@ func TestBasketCache_RolledBackInsertIsNotRemembered(t *testing.T) {
 	// own uncommitted row (0 rows). Neither may be remembered, because the transaction rolls back.
 	errRollback := assert.AnError
 	err = f.db.Transaction(func(tx *gorm.DB) error {
-		require.NoError(t, f.repos.Transactions.CreateTransactionInTx(ctx, tx, f.newTx(user.ID, "custom")))
-		require.NoError(t, f.repos.Transactions.CreateTransactionInTx(ctx, tx, f.newTx(user.ID, "custom")))
+		require.NoError(t, f.repos.CreateTransactionInTx(ctx, tx, f.newTx(user.ID)))
+		require.NoError(t, f.repos.CreateTransactionInTx(ctx, tx, f.newTx(user.ID)))
 		return errRollback
 	})
 	require.ErrorIs(t, err, errRollback)
-	require.False(t, f.basketExists(user.ID, "custom"), "rollback removed the basket")
+	require.False(t, f.basketExists(user.ID), "rollback removed the basket")
 
 	// the next call must insert the basket again instead of trusting a phantom entry
-	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID, "custom")))
-	assert.True(t, f.basketExists(user.ID, "custom"))
+	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(user.ID)))
+	assert.True(t, f.basketExists(user.ID))
 }
 
 func TestBasketCache_IsPerUser(t *testing.T) {
@@ -142,14 +145,14 @@ func TestBasketCache_IsPerUser(t *testing.T) {
 	require.NoError(t, err)
 
 	for range 3 {
-		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(first.ID, "custom")))
+		require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(first.ID)))
 	}
-	require.True(t, f.basketExists(first.ID, "custom"))
-	require.False(t, f.basketExists(second.ID, "custom"))
+	require.True(t, f.basketExists(first.ID))
+	require.False(t, f.basketExists(second.ID))
 
 	// a new user does not inherit the other user's cached basket
-	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(second.ID, "custom")))
-	assert.True(t, f.basketExists(second.ID, "custom"))
+	require.NoError(t, f.repos.CreateTransaction(ctx, f.newTx(second.ID)))
+	assert.True(t, f.basketExists(second.ID))
 }
 
 func TestBasketCache_ConcurrentActionsAreSafe(t *testing.T) {
@@ -160,7 +163,7 @@ func TestBasketCache_ConcurrentActionsAreSafe(t *testing.T) {
 
 	txs := make([]*storageentity.NewTx, 8)
 	for i := range txs {
-		txs[i] = f.newTx(user.ID, "custom")
+		txs[i] = f.newTx(user.ID)
 	}
 	errs := make(chan error, len(txs))
 	for _, nt := range txs {
@@ -169,5 +172,5 @@ func TestBasketCache_ConcurrentActionsAreSafe(t *testing.T) {
 	for range txs {
 		require.NoError(t, <-errs)
 	}
-	assert.True(t, f.basketExists(user.ID, "custom"))
+	assert.True(t, f.basketExists(user.ID))
 }
