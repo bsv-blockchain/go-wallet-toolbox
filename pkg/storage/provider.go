@@ -151,6 +151,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 	var group actions.GroupCommitter
 	var committer *groupcommit.Committer[actions.GroupScope]
 	if gc := options.DBConfig.GroupCommit; gc.Enabled {
+		warnGroupCommitDialect(log, db.DB.Name())
 		committer = groupcommit.New(db.DB, log, gc, actions.NewGroupScope)
 		group = committer
 	}
@@ -213,6 +214,16 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 	}
 
 	return p, nil
+}
+
+// warnGroupCommitDialect warns when group commit is enabled on Postgres, where it was measured
+// slower than ungrouped transactions: it is intended for SQLite's single writer.
+func warnGroupCommitDialect(logger *slog.Logger, dialect string) {
+	if dialect != "postgres" {
+		return
+	}
+	logger.Warn("group commit is enabled on Postgres, where it was measured slower than without it; it is intended for SQLite",
+		slog.String("dialect", dialect))
 }
 
 // poolSnapshot returns the not-reserved UTXO inventory grouped by basket and
