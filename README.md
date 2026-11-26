@@ -230,6 +230,7 @@ no-ops until a provider is supplied either way.
 - Storage Server: `./docs/storage_server.md`
 - Storage: `./docs/storage.md`
 - Wallet: `./docs/wallet.md`
+- Transaction lifecycle (triggers, sleep points, failure paths): `./docs/tx-lifecycle.md`
 - Throughput Docker live-test (privacy vs 1000 TPS stack): `./docs/throughput-docker.md`
 - Throughput demo dashboard (mainnet compose, fund → FuelKeeper → stream runbook): `./docs/throughput-dashboard.md`
 
