@@ -539,7 +539,7 @@ func TestCommitter_CanceledContextRunsSoloWithoutQueueing(t *testing.T) {
 // so every unit of the batch must fall back to its own transaction instead of failing.
 func TestCommitter_DeferredSQLiteBatchWithAStaleSnapshotRunsSolo(t *testing.T) {
 	cfg := defs.DefaultDBConfig()
-	cfg.SQLite.ConnectionString = "file:" + filepath.Join(t.TempDir(), "deferred.sqlite") // no _txlock
+	cfg.SQLite.ConnectionString = "file:" + filepath.Join(t.TempDir(), "deferred.sqlite") + "?_txlock=deferred" // explicit, so the test holds if the default DSN switches to _txlock=immediate
 	cfg.MaxOpenConnections = 4
 	cfg.MaxIdleConnections = 4
 	database, err := database.NewDatabase(cfg, logging.NewTestLogger(t))
