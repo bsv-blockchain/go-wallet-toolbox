@@ -149,3 +149,28 @@ func TestCreateTransactions_AllBatchSizesGiveTheSameRows(t *testing.T) {
 }
 
 func zeroTime() time.Time { return time.Time{} }
+
+// With a small batch size the outputs of one transaction are inserted by several statements; they
+// must still share created_at, which the sync chunk ordering (created_at DESC, id) relies on.
+func TestCreateTransaction_BatchedOutputsShareCreatedAt(t *testing.T) {
+	f := newBasketFixtureWith(t, withBatchSize(2))
+	ctx := t.Context()
+	user, err := f.repos.CreateUser(ctx, "batch-ts-user", "s", wdk.DefaultBasketConfiguration())
+	require.NoError(t, err)
+
+	newTx := f.newTx(user.ID, "custom")
+	first := newTx.Outputs[0]
+	for vout := uint32(1); vout < 5; vout++ {
+		out := *first
+		out.Vout = vout
+		newTx.Outputs = append(newTx.Outputs, &out)
+	}
+	require.NoError(t, f.repos.CreateTransaction(ctx, newTx))
+
+	var outputs []models.Output
+	require.NoError(t, f.db.Order("vout").Find(&outputs).Error)
+	require.Len(t, outputs, 5)
+	for _, o := range outputs {
+		assert.True(t, o.CreatedAt.Equal(outputs[0].CreatedAt), "vout %d created_at differs", o.Vout)
+	}
+}

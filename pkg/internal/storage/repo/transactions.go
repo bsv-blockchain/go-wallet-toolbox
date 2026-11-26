@@ -178,7 +178,7 @@ func (txs *Transactions) createTransactionsInTx(tx *gorm.DB, newTxs []*entity.Ne
 		modelsToCreate[i] = model
 	}
 
-	if err := createRows(tx, modelsToCreate); err != nil {
+	if err := createRows(withStableNow(tx), modelsToCreate); err != nil {
 		return fmt.Errorf("failed to create new transaction models: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func (txs *Transactions) createTransactionInTx(tx *gorm.DB, newTx *entity.NewTx)
 		return fmt.Errorf("failed to connect outputs with baskets: %w", err)
 	}
 
-	if err = tx.Create(model).Error; err != nil {
+	if err = withStableNow(tx).Create(model).Error; err != nil {
 		return fmt.Errorf("failed to create new transaction model: %w", err)
 	}
 

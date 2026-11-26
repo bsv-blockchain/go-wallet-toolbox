@@ -100,7 +100,9 @@ func TestBasketCache_ForgetBasketRecreatesDeletedBasket(t *testing.T) {
 	}
 	before := f.inserts.Load()
 
-	// the basket row is hard-deleted; the explicit invalidation makes the next call re-create it
+	// the basket row is hard-deleted (after its outputs, which reference it); the explicit
+	// invalidation makes the next call re-create it
+	require.NoError(t, f.db.Unscoped().Where("user_id = ? AND basket_name = ?", user.ID, "custom").Delete(&models.Output{}).Error)
 	require.NoError(t, f.db.Unscoped().Where("user_id = ? AND name = ?", user.ID, "custom").Delete(&models.OutputBasket{}).Error)
 	f.repos.Transactions.ForgetBasket(user.ID, "custom")
 

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -36,4 +37,19 @@ func createRows[T any](tx *gorm.DB, rows []*T) error {
 	}
 
 	return nil
+}
+
+// withStableNow makes every statement issued through the returned handle stamp created_at and
+// updated_at with the same instant. When a multi-row insert is split into batches, each batch would
+// otherwise call the clock again, so rows of one logical insert (the outputs of one transaction,
+// say) would no longer share a timestamp, which changes created_at based orderings such as the sync
+// chunk order. With batching off the handle is returned unchanged.
+func withStableNow(tx *gorm.DB) *gorm.DB {
+	if InsertBatchSize(tx) <= 0 {
+		return tx
+	}
+
+	now := tx.NowFunc()
+
+	return tx.Session(&gorm.Session{NowFunc: func() time.Time { return now }})
 }

@@ -136,7 +136,7 @@ func addTxNotes(tx *gorm.DB, txNotes []*entity.TxHistoryNote) error {
 		}
 	})
 
-	if err := tx.Create(&modelsToAdd).Error; err != nil {
+	if err := withStableNow(tx).Create(&modelsToAdd).Error; err != nil {
 		return fmt.Errorf("failed to create transaction history notes: %w", err)
 	}
 
