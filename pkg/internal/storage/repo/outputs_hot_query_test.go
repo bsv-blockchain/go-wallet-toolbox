@@ -18,16 +18,16 @@ func TestHotQueries_ReturnTargetChangeOutputsOnly(t *testing.T) {
 	db, cleanup := dbfixtures.TestDatabase(t)
 	defer cleanup()
 
-	transactionID, txID := seedHotQueryOutputs(t, db.DB, 50)
+	userID, transactionID, txID := seedHotQueryOutputs(t, db.DB, 50)
 
 	findChange := repo.NewUnspentChangeOutputsFinderForTest(db.DB)
 	findSpendable := repo.NewSpendableChangeOutputsFinderForTest(db.DB)
 
-	found, err := findChange(hotQueryUserID, transactionID)
+	found, err := findChange(userID, transactionID)
 	require.NoError(t, err)
 	require.Len(t, found, 2)
 
-	none, err := findChange(hotQueryUserID+1, transactionID)
+	none, err := findChange(userID+1, transactionID)
 	require.NoError(t, err)
 	require.Empty(t, none)
 
@@ -50,14 +50,14 @@ func TestHotQueries_UseTransactionIDIndex(t *testing.T) {
 		t.Skip("query plan assertions are SQLite specific")
 	}
 
-	transactionID, txID := seedHotQueryOutputs(t, db.DB, 200)
+	userID, transactionID, txID := seedHotQueryOutputs(t, db.DB, 200)
 
 	var captured []string
 	capture := db.DB.Session(&gorm.Session{
 		Logger: logger.New(captureWriter{&captured}, logger.Config{LogLevel: logger.Info}),
 	})
 
-	_, err := repo.NewUnspentChangeOutputsFinderForTest(capture)(hotQueryUserID, transactionID)
+	_, err := repo.NewUnspentChangeOutputsFinderForTest(capture)(userID, transactionID)
 	require.NoError(t, err)
 	_, err = repo.NewSpendableChangeOutputsFinderForTest(capture)(t.Context(), txID)
 	require.NoError(t, err)

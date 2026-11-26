@@ -8,26 +8,31 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/dbfixtures"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
-
-const hotQueryUserID = 1
 
 // seedHotQueryOutputs inserts `others` filler transactions (one spendable change output each,
 // spent_by NULL, mimicking a wallet that has been running for a while) and one target
 // transaction with two spendable change outputs. It returns the target's id and tx_id.
-func seedHotQueryOutputs(tb testing.TB, db *gorm.DB, others int) (uint, string) {
+func seedHotQueryOutputs(tb testing.TB, db *gorm.DB, others int) (userID int, transactionID uint, txID string) {
 	tb.Helper()
 
-	basket := "default"
+	user, err := repo.NewSQLRepositories(db, dbretry.NoRetry()).
+		CreateUser(tb.Context(), "hot-query-user", "test-storage", wdk.DefaultBasketConfiguration())
+	require.NoError(tb, err)
+	userID = user.ID
+
+	basket := string(wdk.BasketNameForChange)
 	targetTxID := fmt.Sprintf("%064x", others+1)
 
 	txs := make([]*models.Transaction, 0, others+1)
 	for i := 0; i <= others; i++ {
 		txID := fmt.Sprintf("%064x", i+1)
 		txs = append(txs, &models.Transaction{
-			UserID:    hotQueryUserID,
+			UserID:    userID,
 			Status:    "completed",
 			Reference: fmt.Sprintf("ref-%d", i),
 			TxID:      &txID,
@@ -38,18 +43,18 @@ func seedHotQueryOutputs(tb testing.TB, db *gorm.DB, others int) (uint, string) 
 	outs := make([]*models.Output, 0, others+2)
 	for _, tx := range txs {
 		outs = append(outs, &models.Output{
-			UserID: hotQueryUserID, TransactionID: tx.ID, Vout: 0, Satoshis: 1000,
+			UserID: userID, TransactionID: tx.ID, Vout: 0, Satoshis: 1000,
 			Spendable: true, Change: true, BasketName: &basket, Type: "P2PKH",
 		})
 	}
 	target := txs[len(txs)-1]
 	outs = append(outs, &models.Output{
-		UserID: hotQueryUserID, TransactionID: target.ID, Vout: 1, Satoshis: 2000,
+		UserID: userID, TransactionID: target.ID, Vout: 1, Satoshis: 2000,
 		Spendable: true, Change: true, BasketName: &basket, Type: "P2PKH",
 	})
 	require.NoError(tb, db.CreateInBatches(outs, 500).Error)
 
-	return target.ID, targetTxID
+	return userID, target.ID, targetTxID
 }
 
 // BenchmarkHotOutputQueries measures the per-call cost of the two per-transaction output lookups
@@ -63,7 +68,7 @@ func BenchmarkHotOutputQueries(b *testing.B) {
 			db, cleanup := dbfixtures.TestDatabase(b)
 			defer cleanup()
 
-			transactionID, txID := seedHotQueryOutputs(b, db.DB, n)
+			userID, transactionID, txID := seedHotQueryOutputs(b, db.DB, n)
 
 			findChange := repo.NewUnspentChangeOutputsFinderForTest(db.DB)
 			findSpendable := repo.NewSpendableChangeOutputsFinderForTest(db.DB)
@@ -71,7 +76,7 @@ func BenchmarkHotOutputQueries(b *testing.B) {
 			b.Run("SpendTransactionChangeFind", func(b *testing.B) {
 				b.ReportAllocs()
 				for i := 0; i < b.N; i++ {
-					found, err := findChange(hotQueryUserID, transactionID)
+					found, err := findChange(userID, transactionID)
 					require.NoError(b, err)
 					require.Len(b, found, 2)
 				}
