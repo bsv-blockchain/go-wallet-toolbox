@@ -72,6 +72,14 @@ func sqliteDSNWithDefaults(dsn string) string {
 	if !strings.Contains(dsn, "_busy_timeout") {
 		missing = append(missing, "_busy_timeout=5000")
 	}
+	// Deferred transactions (the driver default) that read before they write
+	// cannot wait for the write lock: SQLite fails the upgrade at once with
+	// "database is locked", without calling the busy handler. CreateAction
+	// does exactly that, so concurrent callers fail. "immediate" takes the
+	// write lock at BEGIN, where _busy_timeout does apply.
+	if !strings.Contains(dsn, "_txlock") {
+		missing = append(missing, "_txlock=immediate")
+	}
 	if len(missing) == 0 {
 		return dsn
 	}
