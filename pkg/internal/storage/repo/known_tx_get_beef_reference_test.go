@@ -1,0 +1,338 @@
+package repo
+
+// The BEEF build as it was before it parsed each raw tx once, kept verbatim (renamed, tracing
+// dropped) so that a differential test can check the current build against it.
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"iter"
+
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"github.com/go-softwarelab/common/pkg/to"
+	"gorm.io/gorm"
+
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
+)
+
+// ReferenceGetBEEFForTxIDs is GetBEEFForTxIDs before the single-parse change.
+func (p *KnownTx) ReferenceGetBEEFForTxIDs(ctx context.Context, txIDs iter.Seq[string], opts ...entity.GetBEEFOption) (*transaction.Beef, error) {
+	options := to.OptionsWithDefault(entity.GetBEEFOptions{}, opts...)
+	beef := transaction.NewBeefV2()
+	if options.MergeToBEEF != nil {
+		beef = options.MergeToBEEF
+	}
+
+	var missingTxIDs []string
+	for txID := range txIDs {
+		if beef.FindTransaction(txID) != nil {
+			continue
+		}
+		missingTxIDs = append(missingTxIDs, txID)
+	}
+
+	var preFetched map[string]models.KnownTx
+	if len(missingTxIDs) > 0 {
+		preFetched = make(map[string]models.KnownTx)
+		if err := p.referencePreFetchAncestry(ctx, preFetched, missingTxIDs, options); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, txID := range missingTxIDs {
+		if err := p.referenceRecursiveBuildValidBEEF(ctx, 0, beef, txID, options, preFetched); err != nil {
+			return nil, fmt.Errorf("failed for txid %s: %w", txID, err)
+		}
+	}
+
+	return beef, nil
+}
+
+func (p *KnownTx) referencePreFetchAncestry(ctx context.Context, dst map[string]models.KnownTx, seedIDs []string, options entity.GetBEEFOptions) error {
+	frontier := withoutKnownTxIDs(seedIDs, options)
+
+	// Under TrustSelf the build turns every row storage holds into a bare txid
+	// stub without reading a single column of it, and never descends from it to
+	// its parents (see recursiveBuildValidBEEF). Walking the ancestry here would
+	// ship each generation's raw tx, proof and stored input beef across the wire
+	// for a result that discards all of it - on an unconfirmed chain, the whole
+	// unmined history per call. Existence of the subjects is all it needs.
+	if options.TrustsSelfAsKnown() {
+		return p.preFetchExistence(ctx, dst, frontier, options)
+	}
+
+	for depth := 0; depth < maxDepthOfRecursion && len(frontier) > 0; depth++ {
+		added, err := p.preFetchInto(ctx, dst, frontier, options)
+		if err != nil {
+			return err
+		}
+		if len(added) == 0 {
+			return nil
+		}
+
+		// DirectSourcesOnly makes the parents terminal, so nothing below them is
+		// ever read and pre-reading it would be waste.
+		if options.DirectSourcesOnly && depth >= 1 {
+			return nil
+		}
+
+		frontier = withoutKnownTxIDs(referenceParentIDsOf(added, dst, options), options)
+	}
+
+	return nil
+}
+
+func referenceParentIDsOf(generation []models.KnownTx, fetched map[string]models.KnownTx, options entity.GetBEEFOptions) []string {
+	// A proved transaction ends the walk, so its parents are never read - unless
+	// MinProofLevel deliberately withholds the proof and forces the walk on.
+	provenIsTerminal := options.MinProofLevel == 0
+
+	seen := make(map[string]struct{}, len(generation))
+	var parents []string
+	for _, model := range generation {
+		if model.RawTx == nil {
+			continue
+		}
+		if provenIsTerminal && model.HasMerklePath() {
+			continue
+		}
+		tx, err := transaction.NewTransactionFromBytes(model.RawTx)
+		if err != nil {
+			continue
+		}
+		for _, input := range tx.Inputs {
+			if input.SourceTXID == nil {
+				continue
+			}
+			sourceID := input.SourceTXID.String()
+			if _, ok := fetched[sourceID]; ok {
+				continue
+			}
+			if _, dup := seen[sourceID]; dup {
+				continue
+			}
+			seen[sourceID] = struct{}{}
+			parents = append(parents, sourceID)
+		}
+	}
+	return parents
+}
+
+func (p *KnownTx) referenceRecursiveBuildValidBEEF(
+	ctx context.Context,
+	depth int,
+	mergeToBeef *transaction.Beef,
+	txID string,
+	options entity.GetBEEFOptions,
+	preFetched map[string]models.KnownTx,
+) error {
+	if depth > maxDepthOfRecursion {
+		return fmt.Errorf("max depth of recursion reached: %d", maxDepthOfRecursion)
+	}
+
+	if options.IsKnownTxID(txID) {
+		h, err := chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse string txID Hex to chainhash %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(h)
+		return nil
+	}
+
+	var model models.KnownTx
+	var err error
+
+	if cachedModel, ok := preFetched[txID]; ok {
+		model = cachedModel
+	} else {
+		// Under TrustSelf a row found here becomes a stub before any of its
+		// columns are read, so only its existence is worth fetching.
+		columns := "raw_tx, input_beef, merkle_path"
+		if options.TrustsSelfAsKnown() {
+			columns = "tx_id"
+		}
+
+		query := p.db.WithContext(ctx).
+			Model(&model).
+			Select(columns)
+
+		if len(options.StatusesToFilterOut) > 0 {
+			query = query.Where("status NOT IN ? ", options.StatusesToFilterOut)
+		}
+
+		err = query.First(&model, "tx_id = ? ", txID).Error
+	}
+
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		if options.TxGetterFcn == nil {
+			return fmt.Errorf("transaction txID: %q is not known to storage: %w", txID, wdk.ErrNotFoundError)
+		}
+
+		var rawTx []byte
+		var merklePath *transaction.MerklePath
+		rawTx, merklePath, err = options.TxGetterFcn(ctx, txID)
+		if err != nil {
+			return fmt.Errorf("failed to get raw tx and merkle path for tx (TxID: %q) using services: %w", txID, err)
+		}
+
+		inputBeef, _ := transaction.NewBeefV2().Bytes()
+
+		model = models.KnownTx{
+			TxID:       txID,
+			RawTx:      rawTx,
+			MerklePath: to.If(merklePath != nil, merklePath.Bytes).ElseThen(nil),
+			InputBeef:  inputBeef,
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to find known tx, raw tx and input beef for tx (id: %s): %w", txID, err)
+	} else if options.TrustsSelfAsKnown() {
+		var txIDHash *chainhash.Hash
+		txIDHash, err = chainhash.NewHashFromHex(txID)
+		if err != nil {
+			return fmt.Errorf("failed to parse txid %s: %w", txID, err)
+		}
+		mergeToBeef.MergeTxidOnly(txIDHash)
+		return nil
+	}
+
+	if model.RawTx == nil {
+		return fmt.Errorf("raw tx is nil in transaction %s", txID)
+	}
+
+	tx, err := transaction.NewTransactionFromBytes(model.RawTx)
+	if err != nil {
+		return fmt.Errorf("failed to build transaction object from raw tx (id: %s): %w", txID, err)
+	}
+
+	// DirectSourcesOnly: parents are terminal, so nothing below them is walked.
+	// Terminal still has to mean ANCHORED, though, and that is the part this
+	// branch used to get wrong.
+	//
+	// It merged the parent's raw tx alone — no proof, no input beef — to skip
+	// BUMP root validation, the hot spot at high TPS. But unanchorableSources
+	// treats a full, proof-less transaction as unanchored and demands ITS
+	// sources. So a parent handed over bare does not end the walk; it moves the
+	// walk one generation further back, into transactions the caller never sent
+	// and storage may never have internalized. The optimisation paid for itself
+	// only while the caller's own BEEF still carried the proofs.
+	//
+	// Collapsing an ancestry with knownTxids is what makes storage responsible
+	// for supplying them. Seen on mainnet 2026-09-29: a payment declared an
+	// ancestor whose stored record was itself collapsed, the parent hydrated
+	// proof-less, the next round demanded a grandparent that was a previously
+	// refused payment and therefore unknown, and the payment was rejected after
+	// the payer had already broadcast it.
+	//
+	// So a caller whose validator will reject a bare parent asks for AnchoredParents,
+	// and gets a parent made terminal the only two ways a parent can be: with its own
+	// merkle proof, or with the input beef that anchors it. Every other caller --
+	// script verification, EF construction, the broadcast path -- keeps the cheap
+	// bare parent, because that is all it needs and anchoring is not free.
+	if options.DirectSourcesOnly && depth >= 1 {
+		if model.RawTx == nil {
+			return fmt.Errorf("raw tx is nil in transaction %s", txID)
+		}
+
+		if !options.AnchoredParents {
+			if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
+				return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+			}
+			return nil
+		}
+
+		// Proven: the proof IS the anchor and the walk stops here for good.
+		if model.HasMerklePath() {
+			merklePath, pathErr := transaction.NewMerklePathFromBinary(model.MerklePath)
+			if pathErr != nil {
+				return fmt.Errorf("failed to build merkle path from binary for source tx (id: %s): %w", txID, pathErr)
+			}
+			if proofErr := tx.AddMerkleProof(merklePath); proofErr != nil {
+				return fmt.Errorf("failed to add merkle proof to source tx (id: %s): %w", txID, proofErr)
+			}
+			if _, mergeErr := mergeToBeef.MergeTransaction(tx); mergeErr != nil {
+				return fmt.Errorf("failed to merge proven source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+			}
+			return nil
+		}
+
+		if _, mergeErr := mergeToBeef.MergeRawTx(model.RawTx, nil); mergeErr != nil {
+			return fmt.Errorf("failed to merge raw source tx (id: %s) into BEEF object: %w", txID, mergeErr)
+		}
+
+		// Unproven: its own input beef carries the proofs that anchor it. This is
+		// one blob for one generation, not the recursive walk DirectSourcesOnly
+		// exists to prevent, and without it the caller is asked for ancestors it
+		// was entitled to leave out.
+		if len(model.InputBeef) > 0 {
+			if mergeErr := mergeToBeef.MergeBeefBytes(model.InputBeef); mergeErr != nil {
+				return fmt.Errorf("failed to merge input beef of unproven source tx (id: %s): %w", txID, mergeErr)
+			}
+		}
+		return nil
+	}
+
+	ignoreMerkleProof := options.MinProofLevel > 0 && depth < options.MinProofLevel // If enabled, we intentionally skip attaching the merkle proof at this depth
+	if model.HasMerklePath() && !ignoreMerkleProof {
+		var merklePath *transaction.MerklePath
+		merklePath, err = transaction.NewMerklePathFromBinary(model.MerklePath)
+		if err != nil {
+			return fmt.Errorf("failed to build merkle path from binary for tx (id: %s): %w", txID, err)
+		}
+		err = tx.AddMerkleProof(merklePath)
+		if err != nil {
+			return fmt.Errorf("failed to add merkle proof to transaction (id: %s): %w", txID, err)
+		}
+
+		_, err = mergeToBeef.MergeTransaction(tx)
+		if err != nil {
+			return fmt.Errorf("failed to merge transaction (id: %s) into BEEF object: %w", txID, err)
+		}
+
+		return nil
+	}
+
+	for i := range tx.Inputs {
+		if len(tx.Inputs[i].SourceTXID) == 0 {
+			return fmt.Errorf("input of tx (id: %s) has empty SourceTXID at index %d ", txID, i)
+		}
+	}
+
+	_, err = mergeToBeef.MergeRawTx(model.RawTx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to merge raw tx (id: %s) into BEEF object: %w", txID, err)
+	}
+
+	if len(model.InputBeef) > 0 && needsInputBEEF(tx, options, preFetched) {
+		err = mergeToBeef.MergeBeefBytes(model.InputBeef)
+		if err != nil {
+			return fmt.Errorf("failed to merge input beef into BEEF object: %w", err)
+		}
+	}
+
+	subjectTx := mergeToBeef.FindTransaction(txID)
+	if subjectTx == nil {
+		return fmt.Errorf("transaction %q has not been merged into BEEF object, even though its raw tx was merged", txID)
+	}
+
+	if subjectTx.MerklePath != nil {
+		// The Transaction already has a merkle path, no need to recursively build it
+		return nil
+	}
+
+	for _, input := range tx.Inputs {
+		beefTx := mergeToBeef.Transactions[*input.SourceTXID]
+		if beefTx == nil || beefTx.DataFormat == transaction.TxIDOnly {
+			err = p.referenceRecursiveBuildValidBEEF(ctx, depth+1, mergeToBeef, input.SourceTXID.String(), options, preFetched)
+			if err != nil {
+				return fmt.Errorf("failed to recursively find known tx and merge into BEEF: %w", err)
+			}
+		}
+	}
+
+	// Result is in mergeToBeef
+	return nil
+}
