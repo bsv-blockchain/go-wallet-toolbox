@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/gen"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	pkgentity "github.com/bsv-blockchain/go-wallet-toolbox/pkg/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
@@ -192,18 +193,172 @@ func (p *KnownTx) ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string)
 	return claimed, nil
 }
 
+// UpsertKnownTxs upserts many known txs, writing one history note per tx built from txNote, in a
+// single database transaction. Each request has the semantics of UpsertKnownTx.
+//
+// With InsertBatchSize > 0 (see defs.Database) and requests that are unique per tx id and carry no
+// SkipForStatuses, the known txs go out as multi-row INSERT ... ON CONFLICT DO UPDATE statements
+// and the notes as one multi-row insert. Anything else, and the default of 0, runs the requests one
+// by one through the single-row path.
+func (p *KnownTx) UpsertKnownTxs(ctx context.Context, reqs []*entity.UpsertKnownTx, txNote history.Builder) error {
+	var err error
+	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-UpsertKnownTxs", attribute.Int("Count", len(reqs)))
+	defer func() {
+		tracing.EndTracing(span, err)
+	}()
+
+	if len(reqs) == 0 {
+		return nil
+	}
+
+	err = runInTransaction(ctx, p.db, p.retry, func(tx *gorm.DB) error {
+		return upsertKnownTxs(tx, reqs, txNote)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upsert known txs: %w", err)
+	}
+
+	return nil
+}
+
+func upsertKnownTxs(tx *gorm.DB, reqs []*entity.UpsertKnownTx, txNote history.Builder) error {
+	if !canBatchKnownTxUpserts(tx, reqs) {
+		for _, req := range reqs {
+			if err := upsertKnownTx(tx, req, txNote); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	rows := make([]*models.KnownTx, len(reqs))
+	notes := make([]*pkgentity.TxHistoryNote, len(reqs))
+	for i, req := range reqs {
+		rows[i] = &models.KnownTx{
+			TxID:         req.TxID,
+			Status:       req.Status,
+			RawTx:        req.RawTx,
+			InputBeef:    req.InputBeef,
+			WasBroadcast: req.Status.WasBroadcastStatus(),
+		}
+		notes[i] = txNote.Entity(req.TxID)
+	}
+
+	err := tx.Clauses(knownTxUpsertConflict(nil)).CreateInBatches(rows, InsertBatchSize(tx)).Error
+	if err != nil {
+		return fmt.Errorf("cannot save known txs: %w", err)
+	}
+
+	return addTxNotes(tx, notes)
+}
+
+// canBatchKnownTxUpserts tells whether the requests may be written as multi-row upserts without
+// changing the result: batching is on, the engine reports guarded skips reliably, no request has a
+// skip list and no tx id repeats (Postgres rejects an upsert touching a row twice).
+func canBatchKnownTxUpserts(tx *gorm.DB, reqs []*entity.UpsertKnownTx) bool {
+	if InsertBatchSize(tx) <= 0 || tx.Name() == "mysql" {
+		return false
+	}
+
+	seen := make(map[string]struct{}, len(reqs))
+	for _, req := range reqs {
+		if len(req.SkipForStatuses) > 0 {
+			return false
+		}
+		if _, dup := seen[req.TxID]; dup {
+			return false
+		}
+		seen[req.TxID] = struct{}{}
+	}
+
+	return true
+}
+
+// knownTxUpsertConflict is the ON CONFLICT clause shared by the single and multi-row upserts.
+// skipStatuses, when not empty, guards the update branch.
+func knownTxUpsertConflict(skipStatuses []wdk.ProvenTxReqStatus) clause.OnConflict {
+	current := func(column string) clause.Column {
+		return clause.Column{Table: clause.CurrentTable, Name: column}
+	}
+	excluded := func(column string) clause.Column {
+		return clause.Column{Table: "excluded", Name: column}
+	}
+
+	onConflict := clause.OnConflict{
+		Columns: []clause.Column{{Name: "tx_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			statusColumn: excluded(statusColumn),
+			"raw_tx":     excluded("raw_tx"),
+			"input_beef": excluded("input_beef"),
+			"updated_at": excluded("updated_at"),
+			"was_broadcast": clause.Expr{
+				SQL:  "? OR ?",
+				Vars: []any{current("was_broadcast"), excluded("was_broadcast")},
+			},
+		}),
+	}
+	if len(skipStatuses) > 0 {
+		onConflict.Where = clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "? NOT IN ?", Vars: []any{current(statusColumn), skipStatuses}},
+		}}
+	}
+
+	return onConflict
+}
+
+// upsertKnownTx writes the known tx and its history note. On SQLite and Postgres the write is a
+// single INSERT ... ON CONFLICT DO UPDATE; MySQL keeps the read-modify-write path because its
+// affected-rows count cannot tell a guarded skip from an unchanged row.
 func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
+	if tx.Name() == "mysql" {
+		return upsertKnownTxReadModifyWrite(tx, req, txNote)
+	}
+
+	return upsertKnownTxSingleStatement(tx, req, txNote)
+}
+
+// upsertKnownTxSingleStatement is the one-statement form of upsertKnownTxReadModifyWrite.
+//
+// On conflict it overwrites status, raw_tx, input_beef (even with a nil request value), updated_at
+// and sets was_broadcast = existing OR new. Every other column (created_at, attempts, notify,
+// batch, merkle fields, ...) is left untouched, exactly like the full-row save of the loaded row.
+// SkipForStatuses becomes a guard on the update branch; when it holds, no row is affected and
+// no history note is written.
+func upsertKnownTxSingleStatement(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
+	model := models.KnownTx{
+		TxID:         req.TxID,
+		Status:       req.Status,
+		RawTx:        req.RawTx,
+		InputBeef:    req.InputBeef,
+		WasBroadcast: req.Status.WasBroadcastStatus(),
+	}
+
+	onConflict := knownTxUpsertConflict(req.SkipForStatuses)
+
+	result := tx.Clauses(onConflict).Create(&model)
+	if result.Error != nil {
+		return fmt.Errorf("cannot save known tx: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		// the existing row is in one of the statuses that must not be overwritten
+		return nil
+	}
+
+	return addTxNote(tx, txNote.Entity(req.TxID))
+}
+
+// upsertKnownTxReadModifyWrite is the original SELECT + UPDATE + INSERT implementation.
+func upsertKnownTxReadModifyWrite(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builder) error {
 	var model models.KnownTx
 	err := tx.First(&model, "tx_id = ? ", req.TxID).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("cannot upsert known tx: %w", err)
 	}
 
-	if len(req.SkipForStatuses) > 0 {
-		for _, skipStatus := range req.SkipForStatuses {
-			if model.Status == skipStatus {
-				return nil
-			}
+	for _, skipStatus := range req.SkipForStatuses {
+		if model.Status == skipStatus {
+			return nil
 		}
 	}
 
@@ -218,12 +373,7 @@ func upsertKnownTx(tx *gorm.DB, req *entity.UpsertKnownTx, txNote history.Builde
 		return fmt.Errorf("cannot save known tx: %w", err)
 	}
 
-	err = addTxNote(tx, txNote.Entity(req.TxID))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return addTxNote(tx, txNote.Entity(req.TxID))
 }
 
 // FailKnownTxAsDoubleSpend atomically applies the terminal double-spend failure for a
@@ -691,7 +841,9 @@ func (p *KnownTx) IncreaseKnownTxAttemptsForTxIDs(ctx context.Context, txIDs []s
 		return nil
 	}
 
-	err = p.db.WithContext(ctx).Model(&models.KnownTx{}).
+	// A single UPDATE is atomic on its own, so it skips GORM's default BEGIN/COMMIT wrap (two
+	// extra round trips). Only this statement skips it; the connection default is unchanged.
+	err = p.db.WithContext(ctx).Session(&gorm.Session{SkipDefaultTransaction: true}).Model(&models.KnownTx{}).
 		Where("tx_id IN ? ", txIDs).
 		UpdateColumn("attempts", gorm.Expr("attempts + 1")).Error
 	if err != nil {

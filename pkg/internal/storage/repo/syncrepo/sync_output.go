@@ -138,8 +138,8 @@ func (s *SyncOutput) UpsertOutputForSync(ctx context.Context, entity *entity.Out
 	return isNew, outputID, nil
 }
 
-func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew bool, outputID uint, err error) {
-	model := models.Output{
+func outputModelFromEntity(entity *entity.Output) models.Output {
+	return models.Output{
 		Model: gorm.Model{
 			CreatedAt: entity.CreatedAt,
 			UpdatedAt: entity.UpdatedAt,
@@ -161,6 +161,10 @@ func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew boo
 		Type:               entity.Type,
 		SenderIdentityKey:  entity.SenderIdentityKey,
 	}
+}
+
+func (s *SyncOutput) upsertOutput(tx *gorm.DB, entity *entity.Output) (isNew bool, outputID uint, err error) {
+	model := outputModelFromEntity(entity)
 
 	// BRC-40 stale-chunk guard: only apply UPDATE when incoming is strictly newer
 	// than existing. Equal updated_at must SKIP. See:

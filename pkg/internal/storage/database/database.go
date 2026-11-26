@@ -79,7 +79,7 @@ func (d *Database) CreateFunder(feeModel defs.FeeModel, maxChangeOutputsPerTx ui
 
 func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Database, logger glogger.Interface) (*gorm.DB, error) {
 	db, err := gorm.Open(dialector, createGormConfig(
-		logger,
+		logger, cfg,
 	))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize GORM database connection: %w", err)
@@ -104,7 +104,7 @@ func createAndConfigureDatabaseConnection(dialector gorm.Dialector, cfg defs.Dat
 }
 
 // createGormConfig returns valid gorm.Config for database connections
-func createGormConfig(logger glogger.Interface) *gorm.Config {
+func createGormConfig(logger glogger.Interface, cfg defs.Database) *gorm.Config {
 	// Set the prefix
 	tablePrefix := defs.DefaultTablePrefix
 
@@ -117,7 +117,7 @@ func createGormConfig(logger glogger.Interface) *gorm.Config {
 		AllowGlobalUpdate:        false,
 		ClauseBuilders:           nil,
 		ConnPool:                 nil,
-		CreateBatchSize:          0,
+		CreateBatchSize:          cfg.InsertBatchSize,
 		Dialector:                nil,
 		DisableAutomaticPing:     false,
 		DisableNestedTransaction: false,
@@ -130,13 +130,22 @@ func createGormConfig(logger glogger.Interface) *gorm.Config {
 		},
 		NowFunc:                nil,
 		Plugins:                nil,
-		PrepareStmt:            false,
+		PrepareStmt:            cfg.PrepareStatements,
+		PrepareStmtMaxSize:     preparedStmtCacheSize(cfg),
 		QueryFields:            false,
 		SkipDefaultTransaction: false,
 		TranslateError:         true,
 	}
 
 	return gormCfg
+}
+
+// preparedStmtCacheSize bounds the GORM prepared statement cache; 0 (unbounded) when it is not in use.
+func preparedStmtCacheSize(cfg defs.Database) int {
+	if !cfg.PrepareStatements {
+		return 0
+	}
+	return defs.DBPreparedStatementCacheSize
 }
 
 // normalizeTimeZone changes every "/" in timezone to special char "%2F" for mysql to parse time location correctly

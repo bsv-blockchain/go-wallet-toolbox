@@ -41,6 +41,8 @@ type ProviderFixture interface {
 	WithReorg(config defs.Reorg) ProviderFixture
 	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
 	WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture
+	WithGroupCommit(cfg defs.GroupCommit) ProviderFixture
+	WithLogger(logger *slog.Logger) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -62,6 +64,7 @@ type providerFixture struct {
 	reorg                  defs.Reorg
 	changeBasket           defs.ChangeBasket
 	utxoManagement         defs.UTXOManagement
+	groupCommit            defs.GroupCommit
 	randomizer             wdk.Randomizer
 	services               wdk.Services
 	beefVerifierFixture    *beefVerifierFixture
@@ -121,6 +124,17 @@ func (p *providerFixture) WithChangeBasket(cfg defs.ChangeBasket) ProviderFixtur
 
 func (p *providerFixture) WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture {
 	p.utxoManagement = cfg
+	return p
+}
+
+func (p *providerFixture) WithGroupCommit(cfg defs.GroupCommit) ProviderFixture {
+	p.groupCommit = cfg
+	return p
+}
+
+// WithLogger replaces the provider's and services' test logger, e.g. with a quiet one in benchmarks.
+func (p *providerFixture) WithLogger(logger *slog.Logger) ProviderFixture {
+	p.logger = logger
 	return p
 }
 
@@ -184,6 +198,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 		storage.WithReorg(p.reorg),
 		storage.WithChangeBasket(p.changeBasket),
 		storage.WithUTXOManagement(p.utxoManagement),
+		storage.WithGroupCommit(p.groupCommit),
 	)
 	p.require.NoError(err)
 

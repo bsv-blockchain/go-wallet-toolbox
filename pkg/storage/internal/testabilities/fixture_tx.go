@@ -35,6 +35,13 @@ type TxGeneratorFixture interface {
 	Created() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 	Processed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
 	Unprocessed() (createActionResult *wdk.StorageCreateActionResult, signedTx *transaction.Transaction)
+
+	// CreateActionArgsSpending returns the createAction arguments Created uses, spending vout 0 of
+	// parentTx. With Internalized and Sign it lets a test run the createAction calls itself, for
+	// example concurrently.
+	CreateActionArgsSpending(parentTx *transaction.Transaction) wdk.ValidCreateActionArgs
+	// Sign assembles and signs the transaction described by a createAction result.
+	Sign(createActionResult *wdk.StorageCreateActionResult) *transaction.Transaction
 }
 
 type txGeneratorFixture struct {
@@ -161,6 +168,27 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	t.Helper()
 	_, parentTx := t.Internalized()
 
+	result, err := t.activeStorage.CreateAction(
+		t.Context(),
+		testusers.Alice.AuthID(),
+		t.CreateActionArgsSpending(parentTx),
+	)
+	require.NoError(t, err)
+
+	signedTx = t.buildAndSignTxFromCreateAction(result, parentTx)
+	require.NotNil(t, signedTx)
+
+	return result, signedTx
+}
+
+func (t *txGeneratorFixture) Sign(createActionResult *wdk.StorageCreateActionResult) *transaction.Transaction {
+	t.Helper()
+	return t.buildAndSignTxFromCreateAction(createActionResult, nil)
+}
+
+func (t *txGeneratorFixture) CreateActionArgsSpending(parentTx *transaction.Transaction) wdk.ValidCreateActionArgs {
+	t.Helper()
+
 	keyID := brc29.KeyID{
 		DerivationPrefix: fixtures.DerivationPrefix,
 		DerivationSuffix: fixtures.DerivationSuffix,
@@ -219,17 +247,7 @@ func (t *txGeneratorFixture) Created() (createActionResult *wdk.StorageCreateAct
 	args.IsSignAction = false
 	args.IncludeAllSourceTransactions = false
 
-	result, err := t.activeStorage.CreateAction(
-		t.Context(),
-		testusers.Alice.AuthID(),
-		args,
-	)
-	require.NoError(t, err)
-
-	signedTx = t.buildAndSignTxFromCreateAction(result, parentTx)
-	require.NotNil(t, signedTx)
-
-	return result, signedTx
+	return args
 }
 
 func (t *txGeneratorFixture) buildAndSignTxFromCreateAction(createActionResult *wdk.StorageCreateActionResult, _ *transaction.Transaction) *transaction.Transaction {
