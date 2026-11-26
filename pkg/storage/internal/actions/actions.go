@@ -97,6 +97,7 @@ func New(
 	txBroadcastedChannel chan<- wdk.CurrentTxStatus,
 	throughput ThroughputConfig,
 	broadcasterCfg defs.BackgroundBroadcaster,
+	group GroupCommitter,
 ) *Actions {
 	abortAction := newAbortAction(logger, repos.Transactions, repos.Outputs, repos.UTXOs, repos.KnownTx, uow)
 
@@ -118,6 +119,7 @@ func New(
 		resolveBroadcasterSizing(broadcasterCfg, throughput),
 		syncTxStatusesConfig.MaxRebroadcastAttempts,
 		abortAction,
+		group,
 	)
 
 	return &Actions{
@@ -139,6 +141,7 @@ func New(
 			scriptsVerifier,
 			throughput,
 			abortAction,
+			group,
 		),
 		internalize: newInternalizeAction(
 			logger,

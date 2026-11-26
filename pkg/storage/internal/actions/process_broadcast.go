@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/go-softwarelab/common/pkg/seq"
+	"gorm.io/gorm"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/txutils"
@@ -108,17 +109,26 @@ func (p *process) queueDelayed(
 	}, nil
 }
 
+// broadcastClaim is the outcome of claimForPost. Under group commit the claim and the attempts
+// bump of postClaimed share one unit of work; attemptsCounted then records that the bump already
+// ran and attemptsErr its outcome, so postClaimed reports it at the same point as before.
+type broadcastClaim struct {
+	toPostTxIDs     []string
+	attemptsCounted bool
+	attemptsErr     error
+}
+
 // claimForPost claims the transactions for broadcast and returns the ones that were actually
 // claimed, in the order they have to be posted in.
-func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyToSendTxIDs []string, beef *transaction.Beef) ([]string, error) {
+func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyToSendTxIDs []string, beef *transaction.Beef) (broadcastClaim, error) {
 	logger.DebugContext(
 		ctx, "Claiming transactions for broadcast",
 		slog.Int("readyToSendCount", len(readyToSendTxIDs)),
 	)
 
-	claimedTxIDs, err := p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+	claim, claimedTxIDs, err := p.claimKnownTxs(ctx, readyToSendTxIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to claim txs for broadcast: %w", err)
+		return broadcastClaim{}, fmt.Errorf("failed to claim txs for broadcast: %w", err)
 	}
 	if len(claimedTxIDs) != len(readyToSendTxIDs) {
 		// Whatever could not be claimed was aborted or moved on in the meantime; posting it
@@ -130,7 +140,7 @@ func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyTo
 		)
 	}
 	if len(claimedTxIDs) == 0 {
-		return nil, nil
+		return broadcastClaim{}, nil
 	}
 	// Keep the caller's order rather than adopting the claim's: the sweep hands these over
 	// oldest-first, and the claim query returns whatever order the database happens to use.
@@ -140,7 +150,56 @@ func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyTo
 	// and Arcade forwards upstream in receive order, so a child posted before the parent it
 	// spends is rejected by Teranode. The reordering is stable, so the creation order above
 	// survives everywhere there is no dependency to respect.
-	return txutils.ParentsFirst(beef, claimedInOrder), nil
+	claim.toPostTxIDs = txutils.ParentsFirst(beef, claimedInOrder)
+	return claim, nil
+}
+
+// claimKnownTxs claims the transactions for broadcast. Under group commit it also bumps their
+// attempts in the same unit of work - the bump postClaimed would otherwise run on its own right
+// after - inside a nested savepoint, so that a failed bump leaves the claim committed exactly as
+// the ungrouped path does. The bump covers the claimed set, which is the set postClaimed bumps.
+func (p *process) claimKnownTxs(ctx context.Context, readyToSendTxIDs []string) (broadcastClaim, []string, error) {
+	var (
+		claim        broadcastClaim
+		claimedTxIDs []string
+	)
+
+	solo := func(ctx context.Context) error {
+		claim = broadcastClaim{}
+		var err error
+		claimedTxIDs, err = p.knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+		return err
+	}
+
+	var err error
+	if p.group == nil {
+		err = solo(ctx)
+	} else {
+		err = p.group.Do(ctx, func(ctx context.Context, scope GroupScope) error {
+			claim, claimedTxIDs = broadcastClaim{}, nil
+
+			knownTxRepo := scope.Repos().KnownTxRepo()
+			claimed, claimErr := knownTxRepo.ClaimKnownTxsForBroadcast(ctx, readyToSendTxIDs)
+			if claimErr != nil {
+				return claimErr
+			}
+			claimedTxIDs = claimed
+			if len(claimed) == 0 {
+				return nil
+			}
+
+			// The repository runs on tx's connection, so its statement lands inside the savepoint.
+			claim.attemptsCounted = true
+			claim.attemptsErr = scope.Tx.WithContext(ctx).Transaction(func(*gorm.DB) error {
+				return knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, claimed)
+			})
+			return nil
+		}, solo)
+	}
+	if err != nil {
+		return broadcastClaim{}, nil, err
+	}
+	return claim, claimedTxIDs, nil
 }
 
 // postClaimed posts the claimed transactions and aggregates the per-tx outcome of the post
@@ -148,9 +207,12 @@ func (p *process) claimForPost(ctx context.Context, logger *slog.Logger, readyTo
 func (p *process) postClaimed(
 	ctx context.Context,
 	logger *slog.Logger,
-	txIDs, toPostTxIDs []string,
+	txIDs []string,
+	claim broadcastClaim,
 	beef *transaction.Beef,
 ) (map[string]*wdk.AggregatedPostedTxID, map[string]error, error) {
+	toPostTxIDs := claim.toPostTxIDs
+
 	// Count the attempt only for the txs we are ACTUALLY posting now (toPostTxIDs), right
 	// before the post. Already-sent txs (which took the early return / sendWithResults branch) and
 	// delayed/queued txs are intentionally NOT bumped here, so attempts reflect real broadcast
@@ -160,8 +222,12 @@ func (p *process) postClaimed(
 		slog.Int("readyToSendCount", len(toPostTxIDs)),
 	)
 
-	if err := p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, toPostTxIDs); err != nil {
-		return nil, nil, fmt.Errorf("failed to increase known tx attempts: %w", err)
+	attemptsErr := claim.attemptsErr
+	if !claim.attemptsCounted {
+		attemptsErr = p.knownTxRepo.IncreaseKnownTxAttemptsForTxIDs(ctx, toPostTxIDs)
+	}
+	if attemptsErr != nil {
+		return nil, nil, fmt.Errorf("failed to increase known tx attempts: %w", attemptsErr)
 	}
 
 	logger.DebugContext(

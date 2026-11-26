@@ -23,6 +23,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/groupcommit"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/repo"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/validate"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
@@ -63,6 +64,9 @@ type Provider struct {
 	// callback on Stop. Unlike the pool gauges this is registered for every
 	// strategy, because the delayed-broadcast queue is always in play.
 	unregisterBroadcasterGauges func()
+
+	// groupCommit is the group committer when DBConfig.GroupCommit is enabled, else nil.
+	groupCommit *groupcommit.Committer[actions.GroupScope]
 }
 
 type providersWrapper struct {
@@ -143,6 +147,14 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 		}
 	}
 
+	// A nil interface (not a nil *Committer) keeps every call site on its ungrouped path.
+	var group actions.GroupCommitter
+	var committer *groupcommit.Committer[actions.GroupScope]
+	if gc := options.DBConfig.GroupCommit; gc.Enabled {
+		committer = groupcommit.New(db.DB, log, gc, actions.NewGroupScope)
+		group = committer
+	}
+
 	p := &Provider{
 		Chain:         chain,
 		Database:      db,
@@ -172,11 +184,13 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 				TargetTPS:          options.UTXOManagement.Throughput.TargetTPS,
 			},
 			options.BackgroundBroadcaster,
+			group,
 		),
 		options:          &options,
 		logger:           log,
 		services:         services,
 		fuelDenomination: fuelDenomination,
+		groupCommit:      committer,
 	}
 	p.defaultChangeBasket.Store(&defaultBasketCfg)
 
@@ -228,6 +242,13 @@ func (p *Provider) poolSnapshot(ctx context.Context) ([]metrics.PoolRow, error) 
 // Once Stop returns nothing sends to the subscriber channel, so its owner may close it.
 func (p *Provider) Stop(ctx context.Context) {
 	p.actions.StopBackgroundBroadcaster(ctx)
+
+	// After the background broadcaster (which submits broadcast results) and before the database.
+	if p.groupCommit != nil {
+		if err := p.groupCommit.Close(ctx); err != nil {
+			p.logger.WarnContext(ctx, "Group commit did not drain cleanly", slog.Any("err", err))
+		}
+	}
 
 	if p.unregisterPoolGauges != nil {
 		p.unregisterPoolGauges()

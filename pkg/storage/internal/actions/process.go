@@ -55,6 +55,8 @@ type process struct {
 	// double-spend-confirmed) tx is requeued for rebroadcast; 0 means unlimited.
 	maxRebroadcastAttempts uint64
 	aborter                actionAborter
+	// group is the group committer; nil when group commit is off.
+	group GroupCommitter
 
 	// overflow* throttle the queue-full warning. A burst rejects hundreds of
 	// transactions within a second or two, and one line per rejection would bury
@@ -83,6 +85,7 @@ func newProcessAction(
 	broadcasterSizing service.Sizing,
 	maxRebroadcastAttempts uint64,
 	aborter actionAborter,
+	group GroupCommitter,
 ) *process {
 	logger = logging.Child(logger, "processAction")
 	p := &process{
@@ -100,6 +103,7 @@ func newProcessAction(
 		scriptsVerifier:        scriptsVerifier,
 		maxRebroadcastAttempts: maxRebroadcastAttempts,
 		aborter:                aborter,
+		group:                  group,
 	}
 
 	p.backgroundBroadcaster = service.NewBackgroundBroadcaster(ctx, logger, p, txBroadcastedChannel, broadcasterSizing)
@@ -305,7 +309,7 @@ func (p *process) processNewTx(ctx context.Context, userID int, release *release
 		slog.String("newReqStatus", string(newReqStatus)),
 	)
 
-	err = p.txRepo.SpendTransaction(ctx, entity.UpdatedTx{
+	updatedTx := entity.UpdatedTx{
 		UserID:        userID,
 		TransactionID: txEntity.ID,
 		TxID:          txID,
@@ -314,7 +318,16 @@ func (p *process) processNewTx(ctx context.Context, userID int, release *release
 		RawTx:         args.RawTx,
 		InputBeef:     txEntity.InputBEEF,
 		Tx:            tx,
-	}, history.NewBuilder().ProcessAction(userID))
+	}
+	txNote := history.NewBuilder().ProcessAction(userID)
+	err = grouped(ctx, p.group,
+		func(ctx context.Context, repos Providers) error {
+			return repos.TransactionsRepo().SpendTransaction(ctx, updatedTx, txNote)
+		},
+		func(ctx context.Context) error {
+			return p.txRepo.SpendTransaction(ctx, updatedTx, txNote)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update transaction: %w", err)
 	}
@@ -490,15 +503,16 @@ func (p *process) broadcastTxs(ctx context.Context, txIDs []string, isDelayed bo
 	// by this call.
 	release.disarm()
 
-	toPostTxIDs, err := p.claimForPost(ctx, logger, readyToSendTxIDs, beef)
+	claim, err := p.claimForPost(ctx, logger, readyToSendTxIDs, beef)
 	if err != nil {
 		return nil, err
 	}
+	toPostTxIDs := claim.toPostTxIDs
 	if len(toPostTxIDs) == 0 {
 		return &wdk.ProcessActionResult{SendWithResults: sendWithResults}, nil
 	}
 
-	aggregated, serviceErrors, err := p.postClaimed(ctx, logger, txIDs, toPostTxIDs, beef)
+	aggregated, serviceErrors, err := p.postClaimed(ctx, logger, txIDs, claim, beef)
 	if err != nil {
 		return nil, err
 	}
@@ -866,7 +880,7 @@ func (p *process) updateSingleTx(
 
 	notes := p.notesForPostBEEF(newReqStatus, aggBroadcastResult, serviceErrors, beef, txIDs)
 
-	err = p.uow.Do(ctx, func(txCtx context.Context, repos Providers) error {
+	apply := func(txCtx context.Context, repos Providers) error {
 		var uowErr error
 		uowErr = repos.KnownTxRepo().UpdateKnownTxStatus(txCtx, txID, newReqStatus, broadcastResultSkipStatuses, notes)
 		if uowErr != nil {
@@ -914,6 +928,10 @@ func (p *process) updateSingleTx(
 		}
 
 		return nil
+	}
+
+	err = grouped(ctx, p.group, apply, func(ctx context.Context) error {
+		return p.uow.Do(ctx, apply)
 	})
 
 	return sendWithResult, reviewActionResult, err

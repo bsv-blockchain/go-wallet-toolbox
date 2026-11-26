@@ -157,6 +157,8 @@ type create struct {
 	scriptsVerifier wdk.ScriptsVerifier
 	throughput      ThroughputConfig
 	aborter         actionAborter
+	// group is the group committer; nil when group commit is off.
+	group GroupCommitter
 }
 
 func newCreateAction(
@@ -177,6 +179,7 @@ func newCreateAction(
 	scriptsVerifier wdk.ScriptsVerifier,
 	throughput ThroughputConfig,
 	aborter actionAborter,
+	group GroupCommitter,
 ) *create {
 	logger = logging.Child(logger, "createAction")
 	c := &create{
@@ -197,6 +200,7 @@ func newCreateAction(
 		scriptsVerifier: scriptsVerifier,
 		throughput:      throughput,
 		aborter:         aborter,
+		group:           group,
 	}
 
 	if commissionCfg.Enabled() {
@@ -460,7 +464,11 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	// The existingUTXOs snapshot above is deliberately NOT refreshed across attempts (it cannot
 	// run inside the transaction, see the deadlock note); staleness only affects how many change
 	// outputs are created, which is clamped to >=1 downstream — never funds-safety.
-	fundingClosure := func(dbTx *gorm.DB) error {
+	//
+	// ctx is a parameter (shadowing the caller's) because under group commit the closure runs on
+	// a shared transaction with a context that carries the caller's values but not its
+	// cancellation.
+	fundingClosure := func(ctx context.Context, dbTx *gorm.DB) error {
 		var fundErr error
 		funding, fundErr = c.sqlFunder.FundWithConstraints(ctx, funder.FundArgs{
 			TargetSat:          targetSat,
@@ -636,7 +644,7 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 	}
 
 	err = retryOnContention(ctx, c.logger, c.random, func() error {
-		fundingErr := c.db.WithContext(ctx).Transaction(fundingClosure)
+		fundingErr := c.runFunding(ctx, fundingClosure)
 
 		// Funding selected an output the UserUTXO index still advertised as
 		// fundable but which is already spent. The failing transaction rolled
@@ -721,6 +729,23 @@ func (c *create) Create(ctx context.Context, userID int, params CreateActionPara
 		InputBeef:               beef,
 		NoSendChangeOutputVouts: c.changeOutputVoutsResult(params.IsNoSend, newOutputs...),
 	}, nil
+}
+
+// runFunding runs one funding attempt in a database transaction: a shared one under group commit,
+// otherwise its own. The stale-index heal and the contention retry stay with the caller, outside
+// any transaction.
+func (c *create) runFunding(ctx context.Context, fundingClosure func(ctx context.Context, dbTx *gorm.DB) error) error {
+	solo := func(ctx context.Context) error {
+		return c.db.WithContext(ctx).Transaction(func(dbTx *gorm.DB) error {
+			return fundingClosure(ctx, dbTx)
+		})
+	}
+	if c.group == nil {
+		return solo(ctx)
+	}
+	return c.group.Do(ctx, func(ctx context.Context, scope GroupScope) error {
+		return fundingClosure(ctx, scope.Tx)
+	}, solo)
 }
 
 // FundingOutcome classifies how a throughput-mode request was funded; it feeds
