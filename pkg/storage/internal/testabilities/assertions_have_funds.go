@@ -17,6 +17,9 @@ import (
 
 type FundsAssertion interface {
 	CanReserveSatoshis(amount uint64) bool
+	// CanReserveSatoshisWithDelayedBroadcast is CanReserveSatoshis for a delayed
+	// broadcast (AcceptDelayedBroadcast true), which may also fund from 'sending' change.
+	CanReserveSatoshisWithDelayedBroadcast(amount uint64) bool
 	ShouldBeAbleToReserveSatoshis(amount uint64)
 	ShouldNotBeAbleToReserveSatoshis(amount uint64)
 }
@@ -37,6 +40,14 @@ type thenFundsAssertion struct {
 }
 
 func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
+	return t.canReserveSatoshis(amount, false)
+}
+
+func (t *thenFundsAssertion) CanReserveSatoshisWithDelayedBroadcast(amount uint64) bool {
+	return t.canReserveSatoshis(amount, true)
+}
+
+func (t *thenFundsAssertion) canReserveSatoshis(amount uint64, delayed bool) bool {
 	amount -= 1 // leave 1 satoshi for fee
 
 	keyID := brc29.KeyID{
@@ -62,7 +73,7 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 		Version:  1,
 		Labels:   []primitives.StringUnder300{fixtures.CreateActionTestLabel},
 		Options: wdk.ValidCreateActionOptions{
-			AcceptDelayedBroadcast: to.Ptr(primitives.BooleanDefaultTrue(false)),
+			AcceptDelayedBroadcast: to.Ptr(primitives.BooleanDefaultTrue(delayed)),
 			SendWith:               []primitives.TXIDHexString{},
 			SignAndProcess:         to.Ptr(primitives.BooleanDefaultTrue(true)),
 			KnownTxids:             []primitives.TXIDHexString{},
@@ -71,7 +82,7 @@ func (t *thenFundsAssertion) CanReserveSatoshis(amount uint64) bool {
 			TrustSelf:              to.Ptr(sdk.TrustSelfKnown),
 		},
 		IsSendWith:                   false,
-		IsDelayed:                    false,
+		IsDelayed:                    delayed,
 		IsNoSend:                     false,
 		IsNewTx:                      true,
 		IsRemixChange:                false,

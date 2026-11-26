@@ -556,6 +556,11 @@ func TestExternalStatusRejectedWithoutEvidenceIsRequeuedForRebroadcast(t *testin
 	// and: the network does not know the tx:
 	given.Provider().WhatsOnChain().WillRespondOnTxStatusNotFound()
 
+	// and: its change is spendable by any CreateAction:
+	testabilities.ThenDBState(t, activeStorage).
+		ChangeUTXOsOfTx(testusers.Alice, txID).
+		AllWithStatus(wdk.UTXOStatusUnproven)
+
 	// when:
 	results, err := activeStorage.ProcessExternalTxStatusUpdate(t.Context(), wdk.BroadcastStatusEvent{
 		TxID:   txID,
@@ -573,7 +578,10 @@ func TestExternalStatusRejectedWithoutEvidenceIsRequeuedForRebroadcast(t *testin
 		WithAttempts(0).
 		WithRebroadcastAttempts(1).
 		WasBroadcast(true)
-	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusUnproven)
+	// and: the tx and its change are demoted to 'sending', so a non-delayed CreateAction
+	// no longer builds on a tx the network rejected:
+	thenDBState.HasUserTransactionByTxID(testusers.Alice, txID).WithStatus(wdk.TxStatusSending)
+	thenDBState.ChangeUTXOsOfTx(testusers.Alice, txID).AllWithStatus(wdk.UTXOStatusSending)
 }
 
 // A repeated REJECTED event for a tx already requeued (unsent) must be a no-op: the

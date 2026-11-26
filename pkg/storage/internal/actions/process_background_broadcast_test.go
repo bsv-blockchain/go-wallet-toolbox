@@ -116,6 +116,10 @@ func (bgUowKnownTxRepo) UpdateKnownTxStatus(_ context.Context, _ string, _ wdk.P
 	return nil
 }
 
+func (bgUowKnownTxRepo) IsRequeuedForRebroadcast(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
 type bgUowUTXORepo struct{ UTXORepo }
 
 func (bgUowUTXORepo) CreateUTXOForSpendableOutputsByTxID(_ context.Context, _ string) error {
@@ -259,6 +263,12 @@ func (s *bgOrderUowKnownTxRepo) UpdateKnownTxStatus(_ context.Context, txID stri
 		return fmt.Errorf("%w: known tx %s -> %s", repo.ErrStatusUpdateSkipped, txID, status)
 	}
 	return nil
+}
+
+// IsRequeuedForRebroadcast is a read of the KnownTx already written above, so it is not
+// a write in the lock order this test pins and is not recorded.
+func (s *bgOrderUowKnownTxRepo) IsRequeuedForRebroadcast(_ context.Context, _ string) (bool, error) {
+	return false, nil
 }
 
 type bgOrderUowTxRepo struct {

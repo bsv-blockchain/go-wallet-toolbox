@@ -23,6 +23,8 @@ import (
 type StorageReader interface {
 	KnownTxEntity() crud.KnownTx
 	TransactionEntity() crud.Transaction
+	OutputsEntity() crud.Output
+	UserUTXOEntity() crud.UserUTXO
 	FindOrInsertUser(ctx context.Context, identityKey string) (*wdk.FindOrInsertUserResponse, error)
 	ListOutputs(ctx context.Context, auth wdk.AuthID, args wdk.ListOutputsArgs) (*wdk.ListOutputsResult, error)
 	ListActions(ctx context.Context, auth wdk.AuthID, args wdk.ListActionsArgs) (*wdk.ListActionsResult, error)
@@ -38,6 +40,9 @@ type DBStateAssertion interface {
 	HasUserTransactionsByTxIDsWithStatus(user testusers.User, status wdk.TxStatus, txIDs ...string)
 
 	AllOutputs(user testusers.User) OutputsListAssertion
+	// ChangeUTXOsOfTx asserts on the UserUTXO rows of the user's change outputs of txID:
+	// the funding index CreateAction selects from, with its tier (mined/unproven/sending).
+	ChangeUTXOsOfTx(user testusers.User, txID string) UTXOsAssertion
 	Outputs(user testusers.User, basketName string) OutputsListAssertion
 	WaitForTxStatusByReference(
 		user testusers.User,
@@ -78,6 +83,11 @@ type OutputsListAssertion interface {
 	WithCount(expected int) OutputsListAssertion
 	WithCountHavingTxID(expected int) OutputsListAssertion
 	WithCountHavingTags(expected int, tags ...string) OutputsListAssertion
+}
+
+type UTXOsAssertion interface {
+	// AllWithStatus asserts there is at least one UTXO and every one has the given tier.
+	AllWithStatus(status wdk.UTXOStatus) UTXOsAssertion
 }
 
 type TxNotesAssertion interface {
@@ -515,4 +525,45 @@ func (d *dbStateAssertion) CanCreateActionForSatoshis(user testusers.User, satos
 		IncludeAllSourceTransactions: true,
 	})
 	require.NoError(d.TB, err)
+}
+
+func (d *dbStateAssertion) ChangeUTXOsOfTx(user testusers.User, txID string) UTXOsAssertion {
+	d.Helper()
+
+	userID := d.userIDByIdentityKey(user.IdentityKey(d))
+	outputs, err := d.storage.OutputsEntity().Read().
+		UserID().Equals(userID).
+		TxID().Equals(txID).
+		Change().Equals(true).
+		Find(d.Context())
+	require.NoError(d, err)
+	require.NotEmpty(d, outputs, "expected change outputs for tx %s", txID)
+
+	outputIDs := make([]uint, 0, len(outputs))
+	for _, output := range outputs {
+		outputIDs = append(outputIDs, output.ID)
+	}
+
+	utxos, err := d.storage.UserUTXOEntity().Read().
+		OutputID().In(outputIDs...).
+		Find(d.Context())
+	require.NoError(d, err)
+
+	return &utxosAssertion{TB: d.TB, utxos: utxos}
+}
+
+type utxosAssertion struct {
+	testing.TB
+
+	utxos []*pkgentity.UserUTXO
+}
+
+func (u *utxosAssertion) AllWithStatus(status wdk.UTXOStatus) UTXOsAssertion {
+	u.Helper()
+
+	require.NotEmpty(u, u.utxos, "expected at least one UserUTXO")
+	for _, utxo := range u.utxos {
+		assert.Equal(u, status, utxo.Status, "UserUTXO for output %d", utxo.OutputID)
+	}
+	return u
 }
