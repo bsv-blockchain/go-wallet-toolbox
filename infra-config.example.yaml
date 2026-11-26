@@ -17,6 +17,11 @@ commission:
   satoshis: 0
 db:
   engine: sqlite
+  group_commit:
+    enabled: false
+    max_batch: 16
+    max_wait: 0s
+    workers: 1
   insert_batch_size: 0
   max_connection_idle_time: 6m0s
   max_connection_time: 1m0s

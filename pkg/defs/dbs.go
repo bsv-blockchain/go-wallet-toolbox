@@ -67,6 +67,54 @@ type Database struct {
 	// helpers use them. It also applies to every other slice or association insert on the
 	// connection.
 	InsertBatchSize int `mapstructure:"insert_batch_size"`
+
+	// GroupCommit lets concurrent createAction/processAction calls share database transactions
+	// instead of each opening its own. Off by default.
+	GroupCommit GroupCommit `mapstructure:"group_commit"`
+}
+
+// GroupCommit configures group commit: the write transactions of concurrent createAction and
+// processAction calls (funding, signing, broadcast claim and broadcast result) are queued and run
+// as savepoints inside one shared database transaction per batch. Every call still returns only
+// after its own work committed, and one call's failure never fails the others.
+type GroupCommit struct {
+	// Enabled turns group commit on. Default false: every call runs its own transactions.
+	Enabled bool `mapstructure:"enabled"`
+
+	// MaxBatch caps the units of work per shared transaction. 0 selects DefaultGroupCommitMaxBatch.
+	MaxBatch int `mapstructure:"max_batch"`
+
+	// MaxWait is how long a batch that is not full waits for more work before it starts. 0 (the
+	// default) never waits: a batch takes whatever queued up while the previous one ran, so a lone
+	// caller is not delayed.
+	MaxWait time.Duration `mapstructure:"max_wait"`
+
+	// Workers is the number of batches that may run at the same time, each on its own connection.
+	// 0 selects 1, which is the right value for SQLite (a single writer). Postgres can use more.
+	Workers int `mapstructure:"workers"`
+}
+
+// Group commit defaults.
+const (
+	// DefaultGroupCommitMaxBatch keeps a batch, with its per-item and nested savepoints, inside the
+	// 64 subtransactions Postgres caches per backend.
+	DefaultGroupCommitMaxBatch = 16
+	// DefaultGroupCommitWorkers is one batch at a time.
+	DefaultGroupCommitWorkers = 1
+)
+
+// Validate checks the group commit settings.
+func (g *GroupCommit) Validate() error {
+	if g.MaxBatch < 0 {
+		return fmt.Errorf("invalid group commit max batch %d: must not be negative", g.MaxBatch)
+	}
+	if g.MaxWait < 0 {
+		return fmt.Errorf("invalid group commit max wait %s: must not be negative", g.MaxWait)
+	}
+	if g.Workers < 0 {
+		return fmt.Errorf("invalid group commit workers %d: must not be negative", g.Workers)
+	}
+	return nil
 }
 
 // DBPreparedStatementCacheSize bounds the GORM prepared statement cache when PrepareStatements is on.
@@ -118,6 +166,10 @@ func DefaultDBConfig() Database {
 		MaxConnectionIdleTime: 360 * time.Second,
 		MaxConnectionTime:     60 * time.Second,
 		MaxOpenConnections:    5,
+		GroupCommit: GroupCommit{
+			MaxBatch: DefaultGroupCommitMaxBatch,
+			Workers:  DefaultGroupCommitWorkers,
+		},
 		PostgreSQL: PostgreSQL{
 			SslMode: "verify-full",
 			SQLCommon: SQLCommon{
@@ -151,6 +203,10 @@ func (db *Database) Validate() (err error) {
 
 	if db.InsertBatchSize < 0 {
 		return fmt.Errorf("invalid DB insert batch size %d: must not be negative", db.InsertBatchSize)
+	}
+
+	if err = db.GroupCommit.Validate(); err != nil {
+		return err
 	}
 
 	return nil

@@ -20,7 +20,9 @@ type ProviderOption = func(*ProviderConfig)
 // ProviderConfig contains configuration and dependencies required for initializing and running a storage provider instance.
 type ProviderConfig struct {
 	DBConfig defs.Database
-	GormDB   *gorm.DB // NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig is ignored.
+	// NOTE: GormDB overrides DBConfig if both are provided. When set, DBConfig's connection settings
+	// are ignored; DBConfig.GroupCommit still applies (see WithGroupCommit).
+	GormDB *gorm.DB
 
 	Funder                 *funder.SQL
 	Randomizer             wdk.Randomizer
@@ -167,6 +169,15 @@ func WithDBConfig(dbConfig defs.Database) ProviderOption {
 	}
 }
 
+// WithGroupCommit sets the group commit configuration (DBConfig.GroupCommit). Use it to enable group
+// commit when the provider runs on your own *gorm.DB (WithGORM), where the rest of DBConfig is
+// ignored. Apply it after WithDBConfig, which replaces the whole database configuration.
+func WithGroupCommit(cfg defs.GroupCommit) ProviderOption {
+	return func(o *ProviderConfig) {
+		o.DBConfig.GroupCommit = cfg
+	}
+}
+
 // WithChangeBasket sets the initial change basket configuration for the provider.
 // NumberOfDesiredUTXOs and MinimumDesiredUTXOValue are used as defaults when creating new users.
 // MaxChangeOutputsPerTx limits how many change outputs are created per transaction.
@@ -222,6 +233,9 @@ func (p *ProviderConfig) verify() error {
 	}
 	if err := p.UTXOManagement.Validate(p.FeeModel, p.Commission); err != nil {
 		return fmt.Errorf("provided UTXO management config is invalid: %w", err)
+	}
+	if err := p.DBConfig.GroupCommit.Validate(); err != nil {
+		return fmt.Errorf("provided group commit config is invalid: %w", err)
 	}
 	return nil
 }
