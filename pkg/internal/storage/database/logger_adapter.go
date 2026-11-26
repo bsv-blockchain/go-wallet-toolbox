@@ -34,8 +34,16 @@ func (l *SlogGormLogger) Error(ctx context.Context, msg string, args ...any) {
 	l.logger.ErrorContext(ctx, fmt.Sprintf(msg, args...))
 }
 
-// Trace logs SQLCommon queries with execution time
+// Trace logs SQLCommon queries with execution time.
+//
+// gorm calls it after every statement. fc renders the SQL with its arguments inlined, which
+// costs more than many of the statements it describes, so it runs only when the record
+// would actually be written.
 func (l *SlogGormLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	if !l.logger.Enabled(ctx, slog.LevelDebug) {
+		return
+	}
+
 	sql, rows := fc()
 	duration := time.Since(begin)
 
