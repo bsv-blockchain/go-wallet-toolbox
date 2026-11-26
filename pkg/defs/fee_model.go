@@ -22,12 +22,13 @@ type FeeModel struct {
 }
 
 // Validate double checks if under the Type is a valid enum, and checks if the value is valid.
+// A value of 0 is allowed (fee-free networks, e.g. private or test Teranode deployments); negative values are rejected.
 func (f *FeeModel) Validate() error {
 	var err error
 	if f.Type, err = ParseFeeModelType(string(f.Type)); err != nil {
 		return fmt.Errorf("invalid fee model: %s", f.Type)
 	}
-	if f.Type == SatPerKB && f.Value <= 0 {
+	if f.Type == SatPerKB && f.Value < 0 {
 		return fmt.Errorf("invalid fee value: %d", f.Value)
 	}
 	return nil

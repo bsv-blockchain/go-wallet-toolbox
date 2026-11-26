@@ -761,3 +761,36 @@ func TestCreateActionWithKnownTxIDs(t *testing.T) {
 		DataFormat: to.Ptr(transaction.TxIDOnly),
 	})
 }
+
+func TestCreateActionZeroFee(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given: a provider whose fee model is 0 sat/kb
+	activeStorage := given.Provider().
+		WithFeeModel(defs.FeeModel{Type: defs.SatPerKB, Value: 0}).
+		GORM()
+
+	// and: a single 1000 sat input
+	given.Faucet(activeStorage, testusers.Alice).TopUp(1000)
+
+	// and: a single 100 sat output
+	args := fixtures.DefaultValidCreateActionArgs(func(args *wdk.ValidCreateActionArgs) {
+		args.Outputs[0].Satoshis = 100
+	})
+
+	// when:
+	result, err := activeStorage.CreateAction(t.Context(), testusers.Alice.AuthID(), args)
+
+	// then: everything not paid to the provided output comes back as change
+	require.NoError(t, err)
+	assert.Equal(t, primitives.SatoshiValue(900), testutils.SumOutputsWithCondition(t, result.Outputs, testutils.SatoshiValue, testutils.ProvidedByStorageCondition))
+
+	// and: the transaction pays no fee (inputs == outputs)
+	require.Len(t, result.Inputs, 1)
+	var outputsTotal primitives.SatoshiValue
+	for _, output := range result.Outputs {
+		outputsTotal += output.Satoshis
+	}
+	assert.EqualValues(t, result.Inputs[0].SourceSatoshis, outputsTotal)
+}

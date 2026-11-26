@@ -171,3 +171,39 @@ func TestLiveTestThroughputProfile(t *testing.T) {
 	require.NoError(t, cfg.Validate(fee, commission))
 	require.Equal(t, uint64(450_000), cfg.Throughput.TargetPool()) // 1000 * 300 * 1.5
 }
+
+func TestThroughputDenominationZeroFee(t *testing.T) {
+	t.Run("expected output satoshis alone form the denomination", func(t *testing.T) {
+		// given:
+		throughput := defs.Throughput{ExpectedTxSizeBytes: 668, ExpectedOutputSatoshis: 1}
+
+		// when:
+		denomination, err := throughput.Denomination(feeModel(0), defs.DefaultCommission())
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, uint64(1), denomination)
+	})
+
+	t.Run("no expected output satoshis errors", func(t *testing.T) {
+		// given:
+		throughput := defs.Throughput{ExpectedTxSizeBytes: 668, ExpectedOutputSatoshis: 0}
+
+		// when:
+		_, err := throughput.Denomination(feeModel(0), defs.DefaultCommission())
+
+		// then:
+		require.Error(t, err)
+	})
+
+	t.Run("throughput config validates at zero fee", func(t *testing.T) {
+		// given:
+		cfg := throughputConfig()
+
+		// when:
+		err := cfg.Validate(feeModel(0), defs.DefaultCommission())
+
+		// then:
+		require.NoError(t, err)
+	})
+}

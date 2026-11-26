@@ -32,9 +32,23 @@ func TestCaseInsensitiveEnums(t *testing.T) {
 	require.Equal(t, defs.EUR, infraSrv.Config.Services.WhatsOnChain.BSVExchangeRate.Base)
 }
 
-func TestFeeZero(t *testing.T) {
+func TestInfraConfigAcceptsZeroFee(t *testing.T) {
 	// given:
+	setRequiredEnvs(t)
 	t.Setenv("TEST_FEE_MODEL_VALUE", "0")
+
+	// when:
+	infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+	// then:
+	require.NoError(t, err)
+	require.Equal(t, int64(0), infraSrv.Config.FeeModel.Value)
+}
+
+func TestInfraConfigRejectsNegativeFee(t *testing.T) {
+	// given:
+	setRequiredEnvs(t)
+	t.Setenv("TEST_FEE_MODEL_VALUE", "-1")
 
 	// when:
 	_, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
