@@ -15,6 +15,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testservices"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/testabilities/testutils"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/logging"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/services"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/storage"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
@@ -43,6 +44,7 @@ type ProviderFixture interface {
 	WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture
 	// WithSSEProofs makes the storage see services that push proofs over Arcade SSE.
 	WithSSEProofs() ProviderFixture
+	WithLogger(logger *slog.Logger) ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -144,6 +146,14 @@ func (p *providerFixture) storageServices() wdk.Services {
 		return sseProofServices{Services: p.services}
 	}
 	return p.services
+}
+
+// WithLogger replaces the provider's, the services' and the database's SQL trace test logger,
+// e.g. with a quiet one in benchmarks. Call it before GORM(): sessions copy the gorm logger.
+func (p *providerFixture) WithLogger(logger *slog.Logger) ProviderFixture {
+	p.logger = logger
+	p.db.DB.Logger = database.NewSlogGormLogger(logging.Child(logger, "database"))
+	return p
 }
 
 func (p *providerFixture) withServices() ProviderFixture {

@@ -300,7 +300,7 @@ func (p *KnownTx) AdvanceKnownTxToBroadcasted(ctx context.Context, txID string, 
 			return fmt.Errorf("failed to update transaction status as unproven: %w", txErr)
 		}
 
-		if txErr = createUTXOsForSpendableOutputsByTxID(ctx, genquery.Use(tx), txID); txErr != nil {
+		if txErr = createUTXOsForSpendableOutputsByTxID(ctx, p.query.BindTx(tx), txID); txErr != nil {
 			return fmt.Errorf("failed to make outputs spendable: %w", txErr)
 		}
 

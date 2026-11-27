@@ -20,6 +20,7 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/specops"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/genquery"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/database/models"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/dbretry"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/funder"
@@ -78,7 +79,10 @@ func (p *providersWrapper) CommissionRepo() actions.CommissionRepo     { return 
 func (p *providersWrapper) KeyValueRepo() actions.KeyValueRepo         { return p.r.KeyValue }
 
 type uow struct {
-	db     *gorm.DB
+	db *gorm.DB
+	// query is built over db once; each transaction binds a copy of it to its connection
+	// instead of building every table of the generated query again.
+	query  *genquery.Query
 	logger *slog.Logger
 	random wdk.Randomizer
 }
@@ -93,7 +97,7 @@ type uow struct {
 func (u *uow) Do(ctx context.Context, fn func(ctx context.Context, p actions.Providers) error) error {
 	return dbretry.Do(ctx, u.logger, u.random, func() error {
 		return u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			txRepos := repo.NewSQLRepositories(tx, dbretry.NoRetry())
+			txRepos := repo.NewSQLRepositoriesWithQuery(tx, u.query.BindTx(tx), dbretry.NoRetry())
 			return fn(ctx, &providersWrapper{txRepos})
 		})
 	})
@@ -154,7 +158,7 @@ func NewGORMProvider(chain defs.BSVNetwork, services wdk.Services, opts ...Provi
 			tunableFunder,
 			options.Commission,
 			repos,
-			&uow{db: db.DB, logger: log, random: options.Randomizer},
+			&uow{db: db.DB, query: genquery.Use(db.DB), logger: log, random: options.Randomizer},
 			options.Randomizer,
 			services,
 			options.SynchronizeTxStatusesConfig,

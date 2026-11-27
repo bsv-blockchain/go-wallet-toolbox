@@ -24,9 +24,10 @@ func runInTransaction(ctx context.Context, db *gorm.DB, retry *dbretry.Policy, f
 }
 
 // runInQueryTransaction is runInTransaction for the generated-query API, which owns its own
-// transaction helper. Same policy, same re-run contract.
+// transaction helper. Same policy, same re-run contract. Nested in a unit of work, fn runs in
+// a savepoint on the unit's connection with the repository's own query.
 func runInQueryTransaction(ctx context.Context, query *genquery.Query, retry *dbretry.Policy, fn func(query *genquery.Query) error) error {
 	return retry.Do(ctx, func() error {
-		return query.DBTransaction(fn)
+		return query.RunInTransaction(fn)
 	})
 }

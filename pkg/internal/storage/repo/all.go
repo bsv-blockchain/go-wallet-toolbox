@@ -32,7 +32,13 @@ type Repositories struct {
 // which owns its transactions, and dbretry.Disabled for a handle already bound to an outer
 // transaction (see runInTransaction).
 func NewSQLRepositories(db *gorm.DB, retry *dbretry.Policy) *Repositories {
-	query := genquery.Use(db)
+	return NewSQLRepositoriesWithQuery(db, genquery.Use(db), retry)
+}
+
+// NewSQLRepositoriesWithQuery is NewSQLRepositories with the generated query the repositories
+// use supplied by the caller. query must run on db's connection: genquery.Use(db), or
+// Query.BindTx(db) when db is a transaction, which skips rebuilding every table of the query.
+func NewSQLRepositoriesWithQuery(db *gorm.DB, query *genquery.Query, retry *dbretry.Policy) *Repositories {
 	repositories := &Repositories{
 		DB:            db,
 		Migrator:      NewMigrator(db),
