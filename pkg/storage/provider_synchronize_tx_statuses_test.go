@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -267,6 +268,7 @@ func TestSynchronizeTxRebroadcastsBroadcastTxAfterMaxAttempts(t *testing.T) {
 	// given:
 	givenProvider := given.Provider()
 	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0 // poll right away; these tests count attempts
 	cfg.MaxAttempts = 3
 	activeStorage := givenProvider.
 		WithSynchronizeTxStatuses(cfg).
@@ -327,6 +329,7 @@ func TestSynchronizeTxMaxRebroadcastAttemptsCircuitBreaker(t *testing.T) {
 	// given:
 	givenProvider := given.Provider()
 	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0 // poll right away; these tests count attempts
 	cfg.MaxAttempts = 1
 	cfg.MaxRebroadcastAttempts = 2
 	activeStorage := givenProvider.
@@ -399,6 +402,7 @@ func TestSynchronizeTxCircuitBreakerForUnsentBroadcastTx(t *testing.T) {
 	// given:
 	givenProvider := given.Provider()
 	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0 // poll right away; these tests count attempts
 	cfg.MaxAttempts = 1
 	cfg.MaxRebroadcastAttempts = 2
 	activeStorage := givenProvider.
@@ -647,6 +651,7 @@ func TestSynchronizeTxFailed_CreatedOutputsAreMarkedNotSpendable(t *testing.T) {
 
 	givenProvider := given.Provider()
 	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0 // poll right away; these tests count attempts
 	cfg.MaxAttempts = 1
 	cfg.MaxRebroadcastAttempts = 2
 	activeStorage := givenProvider.
@@ -714,6 +719,7 @@ func TestSynchronizeTxRequeuesNetworkAbsentTxAfterMaxAttempts(t *testing.T) {
 	// given:
 	givenProvider := given.Provider()
 	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 0 // poll right away; these tests count attempts
 	cfg.MaxAttempts = 3
 	activeStorage := givenProvider.
 		WithSynchronizeTxStatuses(cfg).
@@ -804,4 +810,193 @@ func TestSynchronizeTxReturnsProvenTxsWhenRunIsCanceled(t *testing.T) {
 		HasKnownTX(txIDs[0]).
 		WithStatus(wdk.ProvenTxStatusCompleted).
 		IsMined()
+}
+
+func TestSynchronizeTxPollsProofOnlyAfterConfiguredBlocks(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given: a manual proof check only after two blocks seen since broadcast
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 2
+	activeStorage := givenProvider.WithSynchronizeTxStatuses(cfg).WithSSEProofs().GORM()
+
+	// and: a broadcast transaction that is already mined
+	_, signedTx := given.Action(activeStorage).Processed()
+	txID := signedTx.TxID().String()
+	givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+	sniffer := givenProvider.ServicesSniffer()
+	arcTxRegex := fmt.Sprintf("arc(.*)tx\\/%s", txID)
+
+	// when: chaintracks announces the first block after the broadcast
+	callsBefore := sniffer.CountCallsByRegex(".*")
+	err := activeStorage.ProcessNewTip(t.Context(), testservices.TestBlockHeight, testservices.TestBlockHash)
+	require.NoError(t, err)
+
+	// then: recording a tip makes no service calls
+	require.Equal(t, callsBefore, sniffer.CountCallsByRegex(".*"))
+
+	// when: check_for_proofs runs on that same tip
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList()
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: one block is not enough, the proof is not polled
+	require.Equal(t, 0, sniffer.CountCallsByRegex(arcTxRegex))
+	testabilities.ThenDBState(t, activeStorage).HasKnownTX(txID).NotMined()
+
+	// when: a second block appears
+	const secondHash = "0000000000000000025855b1f9b4e2b3bcd8a8d5e2b4e43a2c6de8c0d4f6a1b2"
+	err = activeStorage.ProcessNewTip(t.Context(), testservices.TestBlockHeight+1, secondHash)
+	require.NoError(t, err)
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList(
+		testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight+1),
+		testservices.WithTipBlockHeaderHash(secondHash),
+	)
+	_, err = activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: the tx is overdue, its proof is polled and applied
+	require.Equal(t, 1, sniffer.CountCallsByRegex(arcTxRegex))
+	testabilities.ThenDBState(t, activeStorage).
+		HasKnownTX(txID).
+		WithStatus(wdk.ProvenTxStatusCompleted).
+		IsMined()
+}
+
+func TestProcessNewTipKeepsOnlyTheNewestBlocks(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 2
+	activeStorage := given.Provider().WithSynchronizeTxStatuses(cfg).WithSSEProofs().GORM()
+
+	type newestBlock struct {
+		Height uint      `json:"height"`
+		Hash   string    `json:"hash"`
+		SeenAt time.Time `json:"seenAt"`
+	}
+	newestBlocks := func() []newestBlock {
+		raw, ok, err := activeStorage.GetKeyValue(t.Context(), "synchronize_tx_statuses_newest_blocks")
+		require.NoError(t, err)
+		require.True(t, ok)
+		var blocks []newestBlock
+		require.NoError(t, json.Unmarshal(raw, &blocks))
+		return blocks
+	}
+
+	// when:
+	err := activeStorage.ProcessNewTip(t.Context(), 100, "hash-100")
+	require.NoError(t, err)
+	first := newestBlocks()
+
+	// and: the same height again, e.g. a reorg replacing that block
+	err = activeStorage.ProcessNewTip(t.Context(), 100, "hash-100-reorg")
+	require.NoError(t, err)
+
+	// then: it is not counted twice and keeps its first seen time
+	require.Equal(t, first, newestBlocks())
+
+	// when: more blocks than the threshold appear
+	for _, height := range []uint32{101, 102} {
+		err = activeStorage.ProcessNewTip(t.Context(), height, fmt.Sprintf("hash-%d", height))
+		require.NoError(t, err)
+	}
+
+	// then: only the two newest are kept, newest first
+	blocks := newestBlocks()
+	require.Len(t, blocks, 2)
+	require.Equal(t, uint(102), blocks[0].Height)
+	require.Equal(t, uint(101), blocks[1].Height)
+}
+
+func TestProcessNewTipIgnoresLowerHeightFromLaggingSource(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given:
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 2
+	activeStorage := given.Provider().WithSynchronizeTxStatuses(cfg).WithSSEProofs().GORM()
+
+	type newestBlock struct {
+		Height uint      `json:"height"`
+		SeenAt time.Time `json:"seenAt"`
+	}
+	newestBlocks := func() []newestBlock {
+		raw, ok, err := activeStorage.GetKeyValue(t.Context(), "synchronize_tx_statuses_newest_blocks")
+		require.NoError(t, err)
+		require.True(t, ok)
+		var blocks []newestBlock
+		require.NoError(t, json.Unmarshal(raw, &blocks))
+		return blocks
+	}
+
+	// and: a gap between the two newest blocks (e.g. after a restart)
+	require.NoError(t, activeStorage.ProcessNewTip(t.Context(), 100, "hash-100"))
+	require.NoError(t, activeStorage.ProcessNewTip(t.Context(), 102, "hash-102"))
+	before := newestBlocks()
+
+	// when: a lagging tip source reports the missing lower block later
+	require.NoError(t, activeStorage.ProcessNewTip(t.Context(), 101, "hash-101"))
+
+	// then: it is ignored, so the cutoff never moves past the time 102 was first seen
+	require.Equal(t, before, newestBlocks())
+	require.Equal(t, uint(102), newestBlocks()[0].Height)
+	require.Equal(t, uint(100), newestBlocks()[1].Height)
+}
+
+func TestSynchronizeTxDoesNotPollTxBroadcastAfterOldestBlockInWindow(t *testing.T) {
+	given, cleanup := testabilities.Given(t)
+	defer cleanup()
+
+	// given: a manual proof check only after two blocks seen since broadcast
+	givenProvider := given.Provider()
+	cfg := defs.DefaultSynchronizeTxStatuses()
+	cfg.ProofCheckAfterBlocks = 2
+	activeStorage := givenProvider.WithSynchronizeTxStatuses(cfg).WithSSEProofs().GORM()
+
+	// and: a tx broadcast before both blocks were seen...
+	_, overdueTx := given.Action(activeStorage).Processed()
+	overdueTxID := overdueTx.TxID().String()
+
+	const secondHash = "0000000000000000025855b1f9b4e2b3bcd8a8d5e2b4e43a2c6de8c0d4f6a1b2"
+	require.NoError(t, activeStorage.ProcessNewTip(t.Context(), testservices.TestBlockHeight, testservices.TestBlockHash))
+	require.NoError(t, activeStorage.ProcessNewTip(t.Context(), testservices.TestBlockHeight+1, secondHash))
+
+	// and: ...and a tx broadcast after them
+	_, recentTx := given.Action(activeStorage).WithSatoshisToInternalize(20_000).Processed()
+	recentTxID := recentTx.TxID().String()
+
+	for _, txID := range []string{overdueTxID, recentTxID} {
+		givenProvider.ARC().WhenQueryingTx(txID).WillReturnWithMindedTx()
+	}
+	givenProvider.WhatsOnChain().WillRespondOnTxStatus(200, testservices.TxStatusExpectation{
+		ExpectBlockHash:   testservices.TestBlockHash,
+		ExpectBlockHeight: int64(testservices.TestBlockHeight),
+	})
+	givenProvider.WhatsOnChain().OnTipBlockHeaderWillRespondWithOneElementList(
+		testservices.WithTipBlockHeaderHeight(testservices.TestBlockHeight+1),
+		testservices.WithTipBlockHeaderHash(secondHash),
+	)
+	sniffer := givenProvider.ServicesSniffer()
+
+	// when:
+	_, err := activeStorage.SynchronizeTransactionStatuses(t.Context())
+	require.NoError(t, err)
+
+	// then: only the tx broadcast before the oldest block in the window is polled
+	require.Equal(t, 1, sniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", overdueTxID)))
+	require.Equal(t, 0, sniffer.CountCallsByRegex(fmt.Sprintf("arc(.*)tx\\/%s", recentTxID)))
+
+	thenDBState := testabilities.ThenDBState(t, activeStorage)
+	thenDBState.HasKnownTX(overdueTxID).WithStatus(wdk.ProvenTxStatusCompleted).IsMined()
+	thenDBState.HasKnownTX(recentTxID).NotMined()
 }

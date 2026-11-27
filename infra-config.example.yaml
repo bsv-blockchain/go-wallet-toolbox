@@ -134,6 +134,7 @@ synchronize_tx_statuses:
   check_no_send_period_hours: 24
   max_attempts: 100
   max_rebroadcast_attempts: 0
+  proof_check_after_blocks: 2
 tracing:
   dialAddr: http://localhost:4317
   enabled: false

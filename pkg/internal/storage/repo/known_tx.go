@@ -179,6 +179,9 @@ func (p *KnownTx) ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string)
 			UpdateColumns(map[string]any{
 				statusColumn:    wdk.ProvenTxStatusSending,
 				"was_broadcast": true,
+				// Set on the first claim (and on the first claim after a requeue cleared it),
+				// so the proof wait starts when the post starts, not when the row was created.
+				"broadcast_at": gorm.Expr("COALESCE(broadcast_at, ?)", time.Now()),
 			}).Error; updateErr != nil {
 			return fmt.Errorf("failed to claim known txs for broadcast: %w", updateErr)
 		}
@@ -324,6 +327,7 @@ func applyKnownTxStatusGuarded(tx *gorm.DB, txID string, status wdk.ProvenTxReqS
 	}
 	if status.WasBroadcastStatus() {
 		updates["was_broadcast"] = true
+		updates["broadcast_at"] = gorm.Expr("COALESCE(broadcast_at, ?)", time.Now())
 	}
 
 	result := query.UpdateColumns(updates)
@@ -357,6 +361,7 @@ func updateKnownTxStatus(tx *gorm.DB, txID string, status wdk.ProvenTxReqStatus,
 	}
 	if status.WasBroadcastStatus() {
 		updates["was_broadcast"] = true
+		updates["broadcast_at"] = gorm.Expr("COALESCE(broadcast_at, ?)", time.Now())
 	}
 
 	result := query.UpdateColumns(updates)
@@ -507,7 +512,7 @@ func (p *KnownTx) FindKnownTxIDsByStatuses(ctx context.Context, txStatus []wdk.P
 	return mapKnownTxRowsForStatusSync(rows), nil
 }
 
-func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus []wdk.ProvenTxReqStatus, reorgReproveDelay time.Duration, broadcastBefore *time.Time, opts ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
 	var err error
 	ctx, span := tracing.StartTracing(ctx, "Repository-KnownTx-FindKnownTxIDsReadyForStatusSync")
 	defer func() {
@@ -523,6 +528,13 @@ func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus
 	if reorgReproveDelay > 0 {
 		// updated_at is set when HandleReorg clears the proof; attempt counters do not touch it.
 		query = query.Where("NOT (status = ? AND updated_at > ?)", wdk.ProvenTxStatusReorg, time.Now().Add(-reorgReproveDelay))
+	}
+	if broadcastBefore != nil {
+		// A tx is overdue once it was posted before the cutoff. NULL broadcast_at means this
+		// wallet never posted it (internalized, or a row older than the column), so no SSE
+		// proof will come for it: it is overdue right away. The query is narrowed by status
+		// first, so broadcast_at needs no index of its own.
+		query = query.Where("(broadcast_at IS NULL OR broadcast_at < ?)", *broadcastBefore)
 	}
 
 	err = query.Find(&rows).Error
@@ -811,6 +823,7 @@ func proofTimeoutUpdates(knownTx *models.KnownTx, maxRebroadcastAttempts uint64)
 			"attempts":             uint64(0),
 			"was_broadcast":        true,
 			"rebroadcast_attempts": knownTx.RebroadcastAttempts + 1,
+			"broadcast_at":         nil,
 		}
 	}
 
@@ -974,6 +987,8 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 				"attempts":      0,
 				"was_broadcast": true,
 				"status":        wdk.ProvenTxStatusReorg,
+				// Restart the proof wait: the re-mined proof is expected over SSE first.
+				"broadcast_at": time.Now(),
 			})
 		if res.Error != nil {
 			err = res.Error

@@ -57,7 +57,7 @@ type syncTimeoutArgs struct {
 	statuses                         []wdk.ProvenTxReqStatus
 }
 
-func (r *syncKnownTxRepo) FindKnownTxIDsReadyForStatusSync(_ context.Context, statuses []wdk.ProvenTxReqStatus, _ time.Duration, _ ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
+func (r *syncKnownTxRepo) FindKnownTxIDsReadyForStatusSync(_ context.Context, statuses []wdk.ProvenTxReqStatus, _ time.Duration, _ *time.Time, _ ...queryopts.Options) ([]*entity.KnownTxForStatusSync, error) {
 	r.rec.record("find")
 	r.findStatuses = append(r.findStatuses, statuses)
 	call := r.findCalls

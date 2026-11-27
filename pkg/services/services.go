@@ -524,6 +524,12 @@ func (s *WalletServices) StartBackgroundServices(ctx context.Context) error {
 	return s.StartChaintracks(ctx)
 }
 
+// BroadcastStatusEventsAvailable reports whether the primary broadcaster (Arcade) can push
+// status events and merkle proofs over SSE.
+func (s *WalletServices) BroadcastStatusEventsAvailable() bool {
+	return s.arcade != nil
+}
+
 // BroadcastStatusEvents streams transaction lifecycle status events pushed by the
 // primary broadcaster (Arcade SSE stream), invoking onEvent sequentially per event.
 // This is the preferred way to learn mined status and merkle proofs when Arcade is

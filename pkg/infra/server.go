@@ -96,6 +96,12 @@ func NewServer(ctx context.Context, opts ...InitOption) (*Server, error) {
 		logger.Warn("utxo_management strategy=throughput with the SQLite engine: expect single-writer contention; use Postgres for rated loads")
 	}
 
+	// Without Arcade there is no SSE proof push: check_for_proofs is then the only source of
+	// merkle proofs, and new-tip events no longer poll for them.
+	if cfg.Monitor.Enabled && !cfg.Services.Arcade.Enabled && !cfg.Monitor.Tasks.CheckForProofs.Enabled {
+		logger.Warn("arcade is disabled and monitor.tasks.check_for_proofs is disabled: no merkle proofs will be collected and transactions will never complete; enable one of them")
+	}
+
 	var serverDeriver keyderiver.Deriver
 	var closeDeriver keyderiver.Deriver
 	defer func() {

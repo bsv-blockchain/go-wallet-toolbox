@@ -9,15 +9,16 @@ import (
 
 // MonitoredStorage defines the minimum storage functionality used by the monitor.
 type MonitoredStorage interface {
-	// SynchronizeTransactionStatuses and ProcessNewTip may return committed statuses together
-	// with a non-nil error; those statuses must still be published.
+	// SynchronizeTransactionStatuses may return committed statuses together with a non-nil
+	// error; those statuses must still be published.
 	SynchronizeTransactionStatuses(ctx context.Context) ([]wdk.TxSynchronizedStatus, error)
 	SendWaitingTransactions(ctx context.Context, minTransactionAge time.Duration) (*wdk.ProcessActionResult, error)
 	AbortAbandoned(ctx context.Context) error
 	UnFail(ctx context.Context) error
 
 	HandleReorg(ctx context.Context, orphanedBlockHashes []string) error
-	ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error)
+	// ProcessNewTip only records the new tip; it does not poll or change any transaction.
+	ProcessNewTip(ctx context.Context, height uint32, hash string) error
 
 	// ProcessExternalTxStatusUpdate applies a broadcaster-pushed lifecycle update
 	// (e.g. from the Arcade SSE stream).

@@ -437,10 +437,7 @@ func (d *Daemon) handleNewTipEvents(ctx context.Context) {
 		)
 
 		d.handlers.Go(func() {
-			results, err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String())
-			// A failed run still returns the statuses it already committed.
-			d.sendProvenEvents(results)
-			if err != nil {
+			if err := d.storage.ProcessNewTip(ctx, header.Height, header.Hash.String()); err != nil {
 				d.logger.ErrorContext(ctx, "ProcessNewTip failed", "error", err)
 			}
 		})

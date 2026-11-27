@@ -1441,9 +1441,8 @@ func localOnlyTerminalTxs(userTxs []*entity.Transaction, reported map[string]str
 	return localOnly
 }
 
-// ProcessNewTip updates the last checked block and runs transaction synchronization.
-// Called when a new chain tip is received from chaintracks.
-func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
+// ProcessNewTip records a new chain tip received from chaintracks.
+func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) error {
 	var err error
 
 	ctx, span := tracing.StartTracing(
@@ -1455,12 +1454,12 @@ func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string
 		tracing.EndTracing(span, err)
 	}()
 
-	results, err := p.actions.SynchronizeTxStatusesForTip(ctx, height, hash)
+	err = p.actions.RecordNewTip(ctx, height, hash)
 	if err != nil {
-		return results, fmt.Errorf("failed to synchronize transaction statuses for tip: %w", err)
+		return fmt.Errorf("failed to record new tip: %w", err)
 	}
 
-	return results, nil
+	return nil
 }
 
 // ProcessExternalTxStatusUpdate applies a broadcaster-pushed lifecycle update

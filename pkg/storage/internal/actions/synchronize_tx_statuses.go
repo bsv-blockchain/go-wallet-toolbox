@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-softwarelab/common/pkg/slices"
 
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/defs"
+	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/metrics"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/entity"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/history"
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/internal/storage/queryopts"
@@ -29,6 +31,7 @@ const (
 	reviewKnownTxStatusesPerPage  = 1000
 	lastBlockKey                  = "synchronize_tx_statuses_last_block"
 	noSendLastCheck               = "synchronize_tx_statuses_last_check_no_send"
+	newestBlocksKey               = "synchronize_tx_statuses_newest_blocks"
 )
 
 var statusesReadyToSync = []wdk.ProvenTxReqStatus{
@@ -41,15 +44,20 @@ var statusesReadyToSync = []wdk.ProvenTxReqStatus{
 }
 
 type synchronizeTxStatuses struct {
-	lock                 sync.Mutex
+	lock sync.Mutex
+	// newestBlocksLock is in-process only: two wallet instances on one DB can drop an entry;
+	// harmless, the block is counted on the next tip.
+	newestBlocksLock     sync.Mutex
 	logger               *slog.Logger
 	provenTxRepo         KnownTxRepo
 	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
-	transactionRepo      TransactionsRepo
-	outputRepo           OutputRepo
-	checkNoSendDuration  time.Duration
+	// proofCheckAfterBlocks is syncTxStatusesConfig.ProofCheckAfterBlocks when Arcade SSE is available, 0 otherwise.
+	proofCheckAfterBlocks uint
+	transactionRepo       TransactionsRepo
+	outputRepo            OutputRepo
+	checkNoSendDuration   time.Duration
 	// reorgReproveDelay holds back re-proving reorged txs (status reorg) until their proof
 	// was cleared at least this long ago. Zero re-proves them on the next run.
 	reorgReproveDelay time.Duration
@@ -73,18 +81,32 @@ func newSynchronizeTxStatuses(
 		logger.WarnContext(context.Background(), "synchronizeTxStatusesConfig.MaxAttempts is 0 which means that transactions will be tried to synchronize indefinitely; this may lead to performance issues")
 	}
 
+	sseProofs := sseProofsAvailable(services)
+	proofCheckAfterBlocks := syncTxStatusesConfig.EffectiveProofCheckAfterBlocks(sseProofs)
+	logger.InfoContext(context.Background(), "proof polling configured",
+		slog.Uint64("proofCheckAfterBlocks", uint64(proofCheckAfterBlocks)),
+		slog.Bool("sseProofs", sseProofs),
+	)
+
 	return &synchronizeTxStatuses{
-		logger:               logging.Child(logger, "synchronize_tx_statuses"),
-		provenTxRepo:         provenTxRepo,
-		keyValueRepo:         keyValueRepo,
-		syncTxStatusesConfig: syncTxStatusesConfig,
-		services:             services,
-		transactionRepo:      transactionRepo,
-		outputRepo:           outputRepo,
-		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
-		reorgReproveDelay:    reorgReproveDelay,
-		uow:                  uow,
+		logger:                logger,
+		proofCheckAfterBlocks: proofCheckAfterBlocks,
+		provenTxRepo:          provenTxRepo,
+		keyValueRepo:          keyValueRepo,
+		syncTxStatusesConfig:  syncTxStatusesConfig,
+		services:              services,
+		transactionRepo:       transactionRepo,
+		outputRepo:            outputRepo,
+		checkNoSendDuration:   time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
+		reorgReproveDelay:     reorgReproveDelay,
+		uow:                   uow,
 	}
+}
+
+// sseProofsAvailable reports whether the services can push merkle proofs over SSE (Arcade).
+func sseProofsAvailable(services wdk.Services) bool {
+	sse, ok := services.(interface{ BroadcastStatusEventsAvailable() bool })
+	return ok && sse.BroadcastStatusEventsAvailable()
 }
 
 func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txStatuses []wdk.TxSynchronizedStatus, resultErr error) {
@@ -104,22 +126,102 @@ func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txSt
 	} else {
 		heightForCheck = header.Height - s.syncTxStatusesConfig.BlocksDelay
 		hashForCheck = header.Hash
+		if recordErr := s.recordNewestBlock(ctx, header.Height, header.Hash); recordErr != nil {
+			s.logger.WarnContext(ctx, "failed to record newest block", slog.Any("err", recordErr))
+		}
 	}
 
 	return s.synchronizeTxStatusesInternal(ctx, heightForCheck, hashForCheck)
 }
 
-func (s *synchronizeTxStatuses) SynchronizeTxStatusesForTip(ctx context.Context, tipHeight uint32, tipHash string) (txStatuses []wdk.TxSynchronizedStatus, resultErr error) {
-	var err error
-	ctx, span := tracing.StartTracing(ctx, "StorageActions-SynchronizeTxStatusesForTip")
+// RecordNewTip records a new chain tip without polling any transaction.
+func (s *synchronizeTxStatuses) RecordNewTip(ctx context.Context, tipHeight uint32, tipHash string) (err error) {
+	ctx, span := tracing.StartTracing(ctx, "StorageActions-RecordNewTip")
 	defer func() {
 		tracing.EndTracing(span, err)
 	}()
 
-	heightForCheck := uint(tipHeight) - s.syncTxStatusesConfig.BlocksDelay
-	hashForCheck := tipHash
+	return s.recordNewestBlock(ctx, uint(tipHeight), tipHash)
+}
 
-	return s.synchronizeTxStatusesInternal(ctx, heightForCheck, hashForCheck)
+// NewestBlock is one entry of the newest-blocks list kept in the key-value store.
+type NewestBlock struct {
+	Height uint      `json:"height"`
+	Hash   string    `json:"hash"`
+	SeenAt time.Time `json:"seenAt"`
+}
+
+func (s *synchronizeTxStatuses) getNewestBlocks(ctx context.Context) ([]NewestBlock, error) {
+	obj, ok, err := s.keyValueRepo.Get(ctx, newestBlocksKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get newest blocks: %w", err)
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	var blocks []NewestBlock
+	if err := json.Unmarshal(obj, &blocks); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal newest blocks: %w", err)
+	}
+	return blocks, nil
+}
+
+// recordNewestBlock keeps the ProofCheckAfterBlocks newest blocks with their first-seen time.
+// A height already in the list is not replaced, so a reorg does not count as an extra block.
+// A height below the newest recorded one is ignored: it comes from a lagging tip source
+// (it was mined before the newest block), and recording it with SeenAt = now would break
+// the rule that SeenAt rises with height, moving the cutoff past the newest block's SeenAt.
+func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height uint, hash string) error {
+	keep := int(s.proofCheckAfterBlocks)
+	if keep == 0 {
+		return nil
+	}
+
+	s.newestBlocksLock.Lock()
+	defer s.newestBlocksLock.Unlock()
+
+	blocks, err := s.getNewestBlocks(ctx)
+	if err != nil {
+		return err
+	}
+	if stdslices.ContainsFunc(blocks, func(b NewestBlock) bool { return b.Height == height }) {
+		return nil
+	}
+	if len(blocks) > 0 && height < blocks[0].Height {
+		return nil
+	}
+
+	blocks = append(blocks, NewestBlock{Height: height, Hash: hash, SeenAt: time.Now()})
+	stdslices.SortFunc(blocks, func(a, b NewestBlock) int { return cmp.Compare(b.Height, a.Height) })
+	blocks = blocks[:min(keep, len(blocks))]
+
+	data, err := json.Marshal(blocks)
+	if err != nil {
+		return fmt.Errorf("failed to marshal newest blocks: %w", err)
+	}
+	if err := s.keyValueRepo.Set(ctx, newestBlocksKey, data); err != nil {
+		return fmt.Errorf("failed to set newest blocks: %w", err)
+	}
+	return nil
+}
+
+// proofCheckCutoff returns the broadcast time before which a transaction is overdue.
+// ok is false when fewer than ProofCheckAfterBlocks blocks have been seen yet.
+func (s *synchronizeTxStatuses) proofCheckCutoff(ctx context.Context) (cutoff *time.Time, ok bool, err error) {
+	need := int(s.proofCheckAfterBlocks)
+	if need == 0 {
+		return nil, true, nil
+	}
+
+	blocks, err := s.getNewestBlocks(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(blocks) < need {
+		return nil, false, nil
+	}
+	return &blocks[need-1].SeenAt, true, nil
 }
 
 func (s *synchronizeTxStatuses) getStatusesReadyToSync(ctx context.Context) ([]wdk.ProvenTxReqStatus, error) {
@@ -329,7 +431,17 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 		return nil, fmt.Errorf("failed to get statuses ready to sync: %w", err)
 	}
 
-	txsToSync, err := s.findTxsReadyForSync(ctx, statuses)
+	cutoff, ok, err := s.proofCheckCutoff(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proof check cutoff: %w", err)
+	}
+	if !ok {
+		metrics.RecordOverdueProofTxs(ctx, 0)
+		logging.Trace(ctx, s.logger, "not enough blocks seen yet for a manual proof check", slog.Any("height", heightForCheck))
+		return s.finishWithoutSync(ctx)
+	}
+
+	txsToSync, err := s.findTxsReadyForSync(ctx, statuses, cutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -406,11 +518,11 @@ func (s *synchronizeTxStatuses) doSynchronizeTxStatuses(ctx context.Context, hei
 
 // findTxsReadyForSync pages through the txs that are due for a proof check, up to
 // syncTxStatusMaxPages pages.
-func (s *synchronizeTxStatuses) findTxsReadyForSync(ctx context.Context, statuses []wdk.ProvenTxReqStatus) ([]*entity.KnownTxForStatusSync, error) {
+func (s *synchronizeTxStatuses) findTxsReadyForSync(ctx context.Context, statuses []wdk.ProvenTxReqStatus, broadcastBefore *time.Time) ([]*entity.KnownTxForStatusSync, error) {
 	var txsToSync []*entity.KnownTxForStatusSync
 	paging := queryopts.Paging{Limit: syncTxStatusesPerPage, Sort: "asc"}
 	for range syncTxStatusMaxPages {
-		txsPage, err := s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, s.reorgReproveDelay, queryopts.WithPage(paging))
+		txsPage, err := s.provenTxRepo.FindKnownTxIDsReadyForStatusSync(ctx, statuses, s.reorgReproveDelay, broadcastBefore, queryopts.WithPage(paging))
 		if err != nil {
 			return nil, fmt.Errorf("provenTxRepo.FindKnownTxIDsReadyForStatusSync failed: %w", err)
 		}
@@ -423,6 +535,7 @@ func (s *synchronizeTxStatuses) findTxsReadyForSync(ctx context.Context, statuse
 
 		paging.Next()
 	}
+	metrics.RecordOverdueProofTxs(ctx, len(txsToSync))
 
 	return txsToSync, nil
 }
@@ -464,6 +577,7 @@ func (s *synchronizeTxStatuses) proveTx(ctx context.Context, txToSync *entity.Kn
 
 	merkleResult, err := s.services.MerklePath(ctx, txToSync.TxID)
 	if err != nil && !errors.Is(err, wdk.ErrNotFoundError) {
+		metrics.RecordManualProofCheck(ctx, metrics.ProofCheckError)
 		s.logger.WarnContext(
 			ctx,
 			"failed to get merkle path for transaction",
@@ -478,6 +592,7 @@ func (s *synchronizeTxStatuses) proveTx(ctx context.Context, txToSync *entity.Kn
 	}
 
 	if err != nil || merkleResult.BlockHeader == nil || merkleResult.MerklePath == nil {
+		metrics.RecordManualProofCheck(ctx, metrics.ProofCheckNotFound)
 		s.logger.DebugContext(
 			ctx,
 			"merkle path result is empty, this may be normal if the transaction is not yet mined",
@@ -488,6 +603,8 @@ func (s *synchronizeTxStatuses) proveTx(ctx context.Context, txToSync *entity.Kn
 
 		return wdk.TxSynchronizedStatus{}, false, nil
 	}
+
+	metrics.RecordManualProofCheck(ctx, metrics.ProofCheckFound)
 
 	transactionIDs, err := s.transactionRepo.FindTransactionIDsByTxID(ctx, txToSync.TxID)
 	if err != nil {
@@ -509,6 +626,7 @@ func (s *synchronizeTxStatuses) proveTx(ctx context.Context, txToSync *entity.Kn
 	if err != nil {
 		return wdk.TxSynchronizedStatus{}, false, fmt.Errorf("failed to update proven txs as mined: %w", err)
 	}
+	metrics.RecordProofApplied(ctx, metrics.ProofSourceManual)
 
 	return wdk.TxSynchronizedStatus{
 		TxID:        txToSync.TxID,
