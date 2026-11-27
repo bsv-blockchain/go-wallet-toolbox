@@ -74,9 +74,9 @@ func (m *MockStorage) HandleReorg(_ context.Context, _ []string) error {
 	return nil
 }
 
-func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) ([]wdk.TxSynchronizedStatus, error) {
+func (m *MockStorage) ProcessNewTip(_ context.Context, _ uint32, _ string) error {
 	m.ProcessNewTipCalled.Add(1)
-	return nil, nil
+	return nil
 }
 
 func (m *MockStorage) ProcessExternalTxStatusUpdate(_ context.Context, ev wdk.BroadcastStatusEvent) ([]wdk.TxSynchronizedStatus, error) {

@@ -41,6 +41,8 @@ type ProviderFixture interface {
 	WithReorg(config defs.Reorg) ProviderFixture
 	WithChangeBasket(cfg defs.ChangeBasket) ProviderFixture
 	WithUTXOManagement(cfg defs.UTXOManagement) ProviderFixture
+	// WithSSEProofs makes the storage see services that push proofs over Arcade SSE.
+	WithSSEProofs() ProviderFixture
 
 	GORM() *storage.Provider
 	GORMWithCleanDatabase() *storage.Provider
@@ -62,6 +64,7 @@ type providerFixture struct {
 	reorg                  defs.Reorg
 	changeBasket           defs.ChangeBasket
 	utxoManagement         defs.UTXOManagement
+	sseProofs              bool
 	randomizer             wdk.Randomizer
 	services               wdk.Services
 	beefVerifierFixture    *beefVerifierFixture
@@ -124,6 +127,25 @@ func (p *providerFixture) WithUTXOManagement(cfg defs.UTXOManagement) ProviderFi
 	return p
 }
 
+func (p *providerFixture) WithSSEProofs() ProviderFixture {
+	p.sseProofs = true
+	return p
+}
+
+// sseProofServices reports Arcade SSE as available without opening a stream.
+type sseProofServices struct {
+	wdk.Services
+}
+
+func (sseProofServices) BroadcastStatusEventsAvailable() bool { return true }
+
+func (p *providerFixture) storageServices() wdk.Services {
+	if p.sseProofs {
+		return sseProofServices{Services: p.services}
+	}
+	return p.services
+}
+
 func (p *providerFixture) withServices() ProviderFixture {
 	p.ARC().IsUpAndRunning()
 
@@ -170,7 +192,7 @@ func (p *providerFixture) GORMWithCleanDatabase() *storage.Provider {
 
 	activeStorage, err := storage.NewGORMProvider(
 		p.network,
-		p.services,
+		p.storageServices(),
 		storage.WithBackgroundBroadcasterContext(p.t.Context()),
 		storage.WithLogger(p.logger),
 		storage.WithGORM(p.db.DB),

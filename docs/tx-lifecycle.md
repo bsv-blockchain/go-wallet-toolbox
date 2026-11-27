@@ -55,14 +55,14 @@ stateDiagram-v2
     unsent --> invalidTx: A3 abort / C3 fail_abandoned (never posted)
     nosend --> invalidTx: A3 abort
 
-    unmined --> completed: C2 / D1 proof<br/>E1 MINED
+    unmined --> completed: C2 proof<br/>E1 MINED
     unmined --> unsent: C2 proof timeout (rebroadcast)<br/>E1 unconfirmed REJECTED
     sending --> unsent: C2 proof timeout (rebroadcast)
     unmined --> invalidTx: C2 timeout, rebroadcast budget spent
     unmined --> doubleSpend: E1 confirmed double spend
 
     completed --> reorg: D2 reorg clears proof
-    reorg --> completed: C2 / D1 re-proof
+    reorg --> completed: C2 / E1 re-proof
 
     invalidTx --> unfail: A4 ListFailedActions(unfail)
     doubleSpend --> unfail: A4
@@ -115,7 +115,7 @@ means the row is left for `send_waiting` to pick up.
 | ID | Trigger | Sequence | Writes | Hands off |
 |---|---|---|---|---|
 | **C1** | `send_waiting`: every 5 min, for rows at least 5 min old. At start-up it takes rows of any age. | Find KnownTx `unsent` + `sending` → claim → post per batch | as P. `TxBroadcasted` event. | → P |
-| **C2** | `check_for_proofs`: every 60 s, at most once per block, only for txs with ≥ `proof_check_after_blocks` (2) blocks seen since broadcast | Tip → block already checked? → overdue txs only → `GET` status at depth ≥ `blocks_delay` → merkle path → timeout? → janitor (`reviewKnownTxStatuses`) | Proof → `completed`/`completed`, UTXOs move to `mined`. No proof → `attempts+1`. At `attempts ≥ 100`: if posted → `unsent` (rebroadcast; budget `max_rebroadcast_attempts`, 0 = unlimited), otherwise `invalidTx`. Janitor: `invalidTx`/`doubleSpend` → Tx `failed`. `TxProven` event (the janitor writes emit none). | Timeout → C1 |
+| **C2** | `check_for_proofs`: every 60 s, at most once per block, with Arcade only for txs with ≥ `proof_check_after_blocks` (2) blocks seen since broadcast (txs this wallet never posted, e.g. internalized, at once); without Arcade every unproven tx | Tip → block already checked? → overdue txs only → `GET` status at depth ≥ `blocks_delay` → merkle path → timeout? → janitor (`reviewKnownTxStatuses`) | Proof → `completed`/`completed`, UTXOs move to `mined`. No proof → `attempts+1`. At `attempts ≥ 100`: if posted → `unsent` (rebroadcast; budget `max_rebroadcast_attempts`, 0 = unlimited), otherwise `invalidTx`. Janitor: `invalidTx`/`doubleSpend` → Tx `failed`. `TxProven` event (the janitor writes emit none). | Timeout → C1 |
 | **C3** | `fail_abandoned`: every 5 min, rows older than 5 min | Find Tx `unsigned`, or Tx `unprocessed` whose KnownTx is `unprocessed` or missing → outputs unspent? → abort | as A3. No event. | — |
 | **C4** | `un_fail`: every 10 min | Find `unfail` → merkle path? | Found → `unmined`/`unproven`, outputs and UTXOs restored. Not found → `invalidTx`/`failed`, **inputs recreated**. No event. | — |
 | **C5** | Circuit breaker health probe: every 30 s while the breaker is open | `GET /health` | Healthy → breaker closes and Arcade is primary again. | — |
@@ -125,7 +125,7 @@ means the row is left for `send_waiting` to pick up.
 | ID | Trigger | Sequence | Writes | Hands off |
 |---|---|---|---|---|
 | **D1** | New tip | `ProcessNewTip`: records the block and the time it was first seen (newest `proof_check_after_blocks` blocks, key-value store). No polling. | — | — |
-| **D2** | Reorg (orphaned block hashes) | `HandleReorg` → `InvalidateMerkleProofsByBlockHash` | KnownTx `reorg`, proof cleared, `attempts=0`. Tx stays `completed`. No event. On error: logged only. | Re-proved by C2/D1, at once or after `reorg.age_seconds` |
+| **D2** | Reorg (orphaned block hashes) | `HandleReorg` → `InvalidateMerkleProofsByBlockHash` | KnownTx `reorg`, proof cleared, `attempts=0`. Tx stays `completed`. No event. On error: logged only. | Re-proved by E1, or by C2 once the proof wait (restarted by the reorg) is over, and after `reorg.age_seconds` in delayed mode |
 
 #### Arcade SSE event (monitor goroutine, 8 apply workers)
 
@@ -175,7 +175,7 @@ sequenceDiagram
         A-->>Q: → doubleSpend|invalidTx / failed
     end
     Q-->>H: TxBroadcasted (when the event channel is configured)
-    A-->>M: SSE MINED (E1) or poll proof (C2/D1)
+    A-->>M: SSE MINED (E1) or poll proof (C2)
     M->>W: completed / completed, UTXOs mined
     M-->>H: TxProven
 ```
@@ -206,7 +206,7 @@ sequenceDiagram
         A-->>W: verdict (on error: row left for C1)
     end
     W-->>H: Accepted (+ SendWithResults)
-    M->>W: proof via E1 / C2 / D1
+    M->>W: proof via E1 / C2 (C2 at once when this wallet did not post the tx)
 ```
 
 #### Token transfer between wallets (sender and receiver)
@@ -226,7 +226,7 @@ sequenceDiagram
     HS-->>HR: hand over BEEF (host transport, not the toolbox)
     HR->>WR: InternalizeAction(beef)
     WR->>A: A2 posts too if the tx is unknown (idempotent)
-    Note over WS,WR: Each wallet tracks its own KnownTx row.<br/>Both reach completed independently via E1/C2/D1.
+    Note over WS,WR: Each wallet tracks its own KnownTx row.<br/>Both reach completed independently via E1/C2.
 ```
 
 If the sender's broadcast is rejected, the receiver's row receives the same verdict from
@@ -251,7 +251,7 @@ sequenceDiagram
     end
 ```
 
-E1 and C2/D1 share guarded writes, so whichever lands first wins and the other does
+E1 and C2 share guarded writes, so whichever lands first wins and the other does
 nothing.
 
 #### Reorg
@@ -264,7 +264,7 @@ sequenceDiagram
     CT->>M: D2 reorg (orphaned hashes)
     M->>W: HandleReorg → KnownTx reorg, proof cleared, attempts 0
     Note over W: Tx stays completed, UTXOs stay mined
-    M->>W: C2 / D1 (after reorg.age_seconds in delayed mode)
+    M->>W: E1, or C2 after the proof wait (and reorg.age_seconds in delayed mode)
     W->>W: new proof → completed, or timeout → unsent (rebroadcast)
 ```
 
@@ -280,8 +280,8 @@ Every place where an operation rests in a non-final status, and what wakes it:
 | `unsent` / `unprocessed` (crash inside `processAction`) | C1 | ≤ 5 min | still broadcasts (point of no return already passed) |
 | `unsent` / `sending` (in queue) | B1 worker | ms | C1 after a restart or overflow, ≤ 10 min |
 | `sending` / `sending` (service error) | C1 | 5 min per retry | retried by C1 until accepted; the C2 proof timeout and `max_rebroadcast_attempts` (0 = unlimited) apply once it is posted |
-| `unmined` / `unproven` | E1 MINED; D1 new tip; C2 every 60 s | 1 block | after 100 C2 attempts (≈100 min) → rebroadcast, up to `max_rebroadcast_attempts`, then `invalidTx` |
-| `reorg` / `completed` | C2 / D1 (after `age_seconds`) | 1 block | Tx reads `completed` until the new proof is stored |
+| `unmined` / `unproven` | E1 MINED; C2 every 60 s once overdue | 1 block with Arcade SSE (C2 after `proof_check_after_blocks` blocks); without Arcade 1 block via C2 | after 100 C2 attempts → rebroadcast, up to `max_rebroadcast_attempts`, then `invalidTx`. C2 polls at most once per block, so that is about 100 blocks (≈16 h), plus `proof_check_after_blocks` with Arcade |
+| `reorg` / `completed` | E1; C2 after the proof wait (and `age_seconds` in delayed mode) | 1 block | Tx reads `completed` until the new proof is stored |
 | `unfail` / `failed` | C4 | ≤ 10 min | stays `unfail` |
 | `nosend` / `nosend` | caller (`sendWith`, abort); C2 once per 24 h | caller-defined | inputs stay reserved forever (outside delayed mode) |
 

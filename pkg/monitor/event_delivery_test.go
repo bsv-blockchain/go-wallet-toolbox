@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bsv-blockchain/go-chaintracks/chaintracks"
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,58 +16,77 @@ import (
 	"github.com/bsv-blockchain/go-wallet-toolbox/pkg/wdk"
 )
 
-// tipProvingStorage reports provenPerTip proven transactions for every new tip.
-type tipProvingStorage struct {
+// eventProvingStorage reports provenPerEvent proven transactions for every stream event.
+type eventProvingStorage struct {
 	*testabilities.MockStorage
 
-	provenPerTip int
+	provenPerEvent int
 }
 
-func (s *tipProvingStorage) ProcessNewTip(_ context.Context, height uint32, _ string) ([]wdk.TxSynchronizedStatus, error) {
-	results := make([]wdk.TxSynchronizedStatus, 0, s.provenPerTip)
-	for i := range s.provenPerTip {
+func (s *eventProvingStorage) ProcessExternalTxStatusUpdate(_ context.Context, ev wdk.BroadcastStatusEvent) ([]wdk.TxSynchronizedStatus, error) {
+	results := make([]wdk.TxSynchronizedStatus, 0, s.provenPerEvent)
+	for i := range s.provenPerEvent {
 		results = append(results, wdk.TxSynchronizedStatus{
-			TxID:        fmt.Sprintf("tx-%d-%d", height, i),
-			Status:      wdk.ProvenTxStatusCompleted,
-			BlockHeight: height,
+			TxID:   fmt.Sprintf("tx-%s-%d", ev.TxID, i),
+			Status: wdk.ProvenTxStatusCompleted,
 		})
 	}
 	return results, nil
 }
 
+// chanStreamer forwards the events sent on its channel until the stream context ends.
+type chanStreamer chan wdk.BroadcastStatusEvent
+
+func (c chanStreamer) BroadcastStatusEvents(ctx context.Context, _ string, onEvent func(wdk.BroadcastStatusEvent) error) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev := <-c:
+			if err := onEvent(ev); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func minedEvent(i uint32) wdk.BroadcastStatusEvent {
+	return wdk.BroadcastStatusEvent{EventID: fmt.Sprint(i), TxID: fmt.Sprint(i), Status: "MINED"}
+}
+
 func TestProvenEvents_SlowSubscriberMissesNothing(t *testing.T) {
 	t.Parallel()
 
-	// given: a proven channel with room for one event and a burst of proofs per tip
-	const tips, provenPerTip = 5, 200
+	// given: a proven channel with room for one event and a burst of proofs per stream event
+	const events, provenPerEvent = 5, 200
 	provenCh := make(chan wdk.CurrentTxStatus, 1)
-	tipCh := make(chan *chaintracks.BlockHeader, tips)
+	stream := make(chanStreamer, events)
 
-	storage := &tipProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerTip: provenPerTip}
+	storage := &eventProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerEvent: provenPerEvent}
 	daemon, err := monitor.NewDaemon(logging.NewTestLogger(t), storage, monitor.DefaultDaemonEventOptions(
 		monitor.WithProvenTxChannel(provenCh),
-		monitor.WithTipChannel(tipCh),
+		monitor.WithBroadcastEventStream(stream),
 	))
 	require.NoError(t, err)
 	require.NoError(t, daemon.Start(t.Context(), nil))
 
-	// when: several tips arrive while the subscriber is slow
-	for height := range uint32(tips) {
-		tipCh <- &chaintracks.BlockHeader{Height: height + 1, Hash: chainhash.Hash{byte(height + 1)}}
+	// when: several stream events arrive while the subscriber is slow
+	for height := range uint32(events) {
+		stream <- minedEvent(height + 1)
 	}
 
 	received := map[string]bool{}
-	for len(received) < tips*provenPerTip {
+	for len(received) < events*provenPerEvent {
 		select {
 		case msg := <-provenCh:
 			received[msg.TxID] = true
 		case <-time.After(5 * time.Second):
-			t.Fatalf("timed out after %d of %d proven events", len(received), tips*provenPerTip)
+			t.Fatalf("timed out after %d of %d proven events", len(received), events*provenPerEvent)
 		}
 	}
 
 	// then: every proof reached the subscriber exactly once
-	assert.Len(t, received, tips*provenPerTip)
+	assert.Len(t, received, events*provenPerEvent)
 }
 
 func TestStop_ClosingSubscriberChannelAfterStopIsSafe(t *testing.T) {
@@ -77,12 +94,12 @@ func TestStop_ClosingSubscriberChannelAfterStopIsSafe(t *testing.T) {
 
 	// given: a daemon still producing proven events when it is stopped
 	provenCh := make(chan wdk.CurrentTxStatus, 1)
-	tipCh := make(chan *chaintracks.BlockHeader, 10)
+	stream := make(chanStreamer, 10)
 
-	storage := &tipProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerTip: 100}
+	storage := &eventProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerEvent: 100}
 	daemon, err := monitor.NewDaemon(logging.NewTestLogger(t), storage, monitor.DefaultDaemonEventOptions(
 		monitor.WithProvenTxChannel(provenCh),
-		monitor.WithTipChannel(tipCh),
+		monitor.WithBroadcastEventStream(stream),
 	))
 	require.NoError(t, err)
 	require.NoError(t, daemon.Start(t.Context(), nil))
@@ -96,7 +113,7 @@ func TestStop_ClosingSubscriberChannelAfterStopIsSafe(t *testing.T) {
 	})
 
 	for height := range uint32(10) {
-		tipCh <- &chaintracks.BlockHeader{Height: height + 1}
+		stream <- minedEvent(height + 1)
 	}
 
 	// when: the owner stops the daemon and then closes the channel, as infra.Server does
@@ -107,7 +124,7 @@ func TestStop_ClosingSubscriberChannelAfterStopIsSafe(t *testing.T) {
 	wg.Wait()
 
 	// and: every event produced before Stop was delivered
-	assert.Zero(t, received%100, "events are delivered per tip in full")
+	assert.Zero(t, received%100, "events are delivered per stream event in full")
 }
 
 func TestStop_HonoursCallerContextWhileSubscriberIsNotReading(t *testing.T) {
@@ -137,17 +154,17 @@ func TestStop_HonoursCallerContextWhileSubscriberIsNotReading(t *testing.T) {
 
 			// given: a proven event backlog nobody is reading
 			provenCh := make(chan wdk.CurrentTxStatus, 1)
-			tipCh := make(chan *chaintracks.BlockHeader, 1)
+			stream := make(chanStreamer, 1)
 
-			storage := &tipProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerTip: 100}
+			storage := &eventProvingStorage{MockStorage: &testabilities.MockStorage{}, provenPerEvent: 100}
 			daemon, err := monitor.NewDaemon(logging.NewTestLogger(t), storage, monitor.DefaultDaemonEventOptions(
 				monitor.WithProvenTxChannel(provenCh),
-				monitor.WithTipChannel(tipCh),
+				monitor.WithBroadcastEventStream(stream),
 			))
 			require.NoError(t, err)
 			require.NoError(t, daemon.Start(t.Context(), nil))
 
-			tipCh <- &chaintracks.BlockHeader{Height: 1}
+			stream <- minedEvent(1)
 			require.Eventually(t, func() bool { return len(provenCh) == 1 }, 5*time.Second, 10*time.Millisecond)
 
 			// when: the daemon is stopped with a context that ends long before the default drain timeout

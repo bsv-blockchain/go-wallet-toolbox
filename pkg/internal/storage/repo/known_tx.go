@@ -179,6 +179,9 @@ func (p *KnownTx) ClaimKnownTxsForBroadcast(ctx context.Context, txIDs []string)
 			UpdateColumns(map[string]any{
 				statusColumn:    wdk.ProvenTxStatusSending,
 				"was_broadcast": true,
+				// Set on the first claim (and on the first claim after a requeue cleared it),
+				// so the proof wait starts when the post starts, not when the row was created.
+				"broadcast_at": gorm.Expr("COALESCE(broadcast_at, ?)", time.Now()),
 			}).Error; updateErr != nil {
 			return fmt.Errorf("failed to claim known txs for broadcast: %w", updateErr)
 		}
@@ -527,7 +530,11 @@ func (p *KnownTx) FindKnownTxIDsReadyForStatusSync(ctx context.Context, txStatus
 		query = query.Where("NOT (status = ? AND updated_at > ?)", wdk.ProvenTxStatusReorg, time.Now().Add(-reorgReproveDelay))
 	}
 	if broadcastBefore != nil {
-		query = query.Where("COALESCE(broadcast_at, created_at) < ?", *broadcastBefore)
+		// A tx is overdue once it was posted before the cutoff. NULL broadcast_at means this
+		// wallet never posted it (internalized, or a row older than the column), so no SSE
+		// proof will come for it: it is overdue right away. The query is narrowed by status
+		// first, so broadcast_at needs no index of its own.
+		query = query.Where("(broadcast_at IS NULL OR broadcast_at < ?)", *broadcastBefore)
 	}
 
 	err = query.Find(&rows).Error
@@ -980,6 +987,8 @@ func (p *KnownTx) InvalidateMerkleProofsByBlockHash(ctx context.Context, blockHa
 				"attempts":      0,
 				"was_broadcast": true,
 				"status":        wdk.ProvenTxStatusReorg,
+				// Restart the proof wait: the re-mined proof is expected over SSE first.
+				"broadcast_at": time.Now(),
 			})
 		if res.Error != nil {
 			err = res.Error

@@ -488,3 +488,30 @@ func TestHSMModeDoesNotRequireServerPrivateKey(t *testing.T) {
 func setRequiredEnvs(t *testing.T) {
 	t.Setenv("TEST_SERVER_PRIVATE_KEY", fixtures.StorageServerPrivKey)
 }
+
+func TestProofCheckAfterBlocksConfig(t *testing.T) {
+	t.Run("defaults to 2", func(t *testing.T) {
+		// given:
+		setRequiredEnvs(t)
+
+		// when:
+		infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, uint(2), infraSrv.Config.SynchronizeTxStatuses.ProofCheckAfterBlocks)
+	})
+
+	t.Run("can be set from env", func(t *testing.T) {
+		// given:
+		setRequiredEnvs(t)
+		t.Setenv("TEST_SYNCHRONIZE_TX_STATUSES_PROOF_CHECK_AFTER_BLOCKS", "3")
+
+		// when:
+		infraSrv, err := infra.NewServer(t.Context(), infra.WithEnvPrefix("TEST"))
+
+		// then:
+		require.NoError(t, err)
+		require.Equal(t, uint(3), infraSrv.Config.SynchronizeTxStatuses.ProofCheckAfterBlocks)
+	})
+}

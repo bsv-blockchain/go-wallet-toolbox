@@ -45,16 +45,19 @@ var statusesReadyToSync = []wdk.ProvenTxReqStatus{
 
 type synchronizeTxStatuses struct {
 	lock sync.Mutex
-	// ponytail: in-process mutex; two wallet instances on one DB can drop an entry, harmless (block counted on the next tip)
+	// newestBlocksLock is in-process only: two wallet instances on one DB can drop an entry;
+	// harmless, the block is counted on the next tip.
 	newestBlocksLock     sync.Mutex
 	logger               *slog.Logger
 	provenTxRepo         KnownTxRepo
 	keyValueRepo         KeyValueRepo
 	services             wdk.Services
 	syncTxStatusesConfig defs.SynchronizeTxStatuses
-	transactionRepo      TransactionsRepo
-	outputRepo           OutputRepo
-	checkNoSendDuration  time.Duration
+	// proofCheckAfterBlocks is syncTxStatusesConfig.ProofCheckAfterBlocks when Arcade SSE is available, 0 otherwise.
+	proofCheckAfterBlocks uint
+	transactionRepo       TransactionsRepo
+	outputRepo            OutputRepo
+	checkNoSendDuration   time.Duration
 	// reorgReproveDelay holds back re-proving reorged txs (status reorg) until their proof
 	// was cleared at least this long ago. Zero re-proves them on the next run.
 	reorgReproveDelay time.Duration
@@ -78,18 +81,32 @@ func newSynchronizeTxStatuses(
 		logger.WarnContext(context.Background(), "synchronizeTxStatusesConfig.MaxAttempts is 0 which means that transactions will be tried to synchronize indefinitely; this may lead to performance issues")
 	}
 
+	sseProofs := sseProofsAvailable(services)
+	proofCheckAfterBlocks := syncTxStatusesConfig.EffectiveProofCheckAfterBlocks(sseProofs)
+	logger.InfoContext(context.Background(), "proof polling configured",
+		slog.Uint64("proofCheckAfterBlocks", uint64(proofCheckAfterBlocks)),
+		slog.Bool("sseProofs", sseProofs),
+	)
+
 	return &synchronizeTxStatuses{
-		logger:               logging.Child(logger, "synchronize_tx_statuses"),
-		provenTxRepo:         provenTxRepo,
-		keyValueRepo:         keyValueRepo,
-		syncTxStatusesConfig: syncTxStatusesConfig,
-		services:             services,
-		transactionRepo:      transactionRepo,
-		outputRepo:           outputRepo,
-		checkNoSendDuration:  time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
-		reorgReproveDelay:    reorgReproveDelay,
-		uow:                  uow,
+		logger:                logger,
+		proofCheckAfterBlocks: proofCheckAfterBlocks,
+		provenTxRepo:          provenTxRepo,
+		keyValueRepo:          keyValueRepo,
+		syncTxStatusesConfig:  syncTxStatusesConfig,
+		services:              services,
+		transactionRepo:       transactionRepo,
+		outputRepo:            outputRepo,
+		checkNoSendDuration:   time.Duration(must.ConvertToInt64FromUnsigned(syncTxStatusesConfig.CheckNoSendPeriodHours)) * time.Hour,
+		reorgReproveDelay:     reorgReproveDelay,
+		uow:                   uow,
 	}
+}
+
+// sseProofsAvailable reports whether the services can push merkle proofs over SSE (Arcade).
+func sseProofsAvailable(services wdk.Services) bool {
+	sse, ok := services.(interface{ BroadcastStatusEventsAvailable() bool })
+	return ok && sse.BroadcastStatusEventsAvailable()
 }
 
 func (s *synchronizeTxStatuses) SynchronizeTxStatuses(ctx context.Context) (txStatuses []wdk.TxSynchronizedStatus, resultErr error) {
@@ -152,8 +169,11 @@ func (s *synchronizeTxStatuses) getNewestBlocks(ctx context.Context) ([]NewestBl
 
 // recordNewestBlock keeps the ProofCheckAfterBlocks newest blocks with their first-seen time.
 // A height already in the list is not replaced, so a reorg does not count as an extra block.
+// A height below the newest recorded one is ignored: it comes from a lagging tip source
+// (it was mined before the newest block), and recording it with SeenAt = now would break
+// the rule that SeenAt rises with height, moving the cutoff past the newest block's SeenAt.
 func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height uint, hash string) error {
-	keep := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks)
+	keep := int(s.proofCheckAfterBlocks)
 	if keep == 0 {
 		return nil
 	}
@@ -166,6 +186,9 @@ func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height ui
 		return err
 	}
 	if stdslices.ContainsFunc(blocks, func(b NewestBlock) bool { return b.Height == height }) {
+		return nil
+	}
+	if len(blocks) > 0 && height < blocks[0].Height {
 		return nil
 	}
 
@@ -186,7 +209,7 @@ func (s *synchronizeTxStatuses) recordNewestBlock(ctx context.Context, height ui
 // proofCheckCutoff returns the broadcast time before which a transaction is overdue.
 // ok is false when fewer than ProofCheckAfterBlocks blocks have been seen yet.
 func (s *synchronizeTxStatuses) proofCheckCutoff(ctx context.Context) (cutoff *time.Time, ok bool, err error) {
-	need := int(s.syncTxStatusesConfig.ProofCheckAfterBlocks)
+	need := int(s.proofCheckAfterBlocks)
 	if need == 0 {
 		return nil, true, nil
 	}

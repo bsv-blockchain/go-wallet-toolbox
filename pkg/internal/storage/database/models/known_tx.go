@@ -23,7 +23,10 @@ type KnownTx struct {
 	Notify string `gorm:"type:text;default:'{}'"`
 
 	WasBroadcast bool
-	BroadcastAt  *time.Time `gorm:"index"`
+	// BroadcastAt is when this wallet first claimed the tx for a post. It is cleared when
+	// the tx is requeued for a rebroadcast, so the proof wait starts again. NULL means the
+	// wallet never posted it (e.g. internalized), so there is no proof push to wait for.
+	BroadcastAt *time.Time
 
 	RawTx     []byte
 	InputBeef []byte

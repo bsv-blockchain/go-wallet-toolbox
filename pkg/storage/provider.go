@@ -1438,7 +1438,7 @@ func localOnlyTerminalTxs(userTxs []*entity.Transaction, reported map[string]str
 }
 
 // ProcessNewTip records a new chain tip received from chaintracks.
-func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) ([]wdk.TxSynchronizedStatus, error) {
+func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string) error {
 	var err error
 
 	ctx, span := tracing.StartTracing(
@@ -1452,10 +1452,10 @@ func (p *Provider) ProcessNewTip(ctx context.Context, height uint32, hash string
 
 	err = p.actions.RecordNewTip(ctx, height, hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to record new tip: %w", err)
+		return fmt.Errorf("failed to record new tip: %w", err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 // ProcessExternalTxStatusUpdate applies a broadcaster-pushed lifecycle update
